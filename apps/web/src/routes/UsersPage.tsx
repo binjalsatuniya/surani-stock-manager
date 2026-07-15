@@ -1,0 +1,259 @@
+import { useEffect, useMemo, useState } from 'react';
+import { PERMS, defaultPermsForRole, type PermissionMap, type Role, type User } from '@surani/shared';
+import { api } from '../lib/apiClient';
+import { useAuth } from '../context/AuthContext';
+
+// Superadmin is the protected default and can't be assigned to others — nobody can be made as
+// powerful as the Super Admin.
+const CREATABLE_ROLES: Role[] = ['admin', 'account', 'staff'];
+
+export function UsersPage() {
+  const { user: me } = useAuth();
+  const isSuper = me?.role === 'superadmin';
+  const isPrimary = !!me?.isPrimary; // the main Super Admin
+  const [users, setUsers] = useState<User[]>([]);
+  const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [role, setRole] = useState<Role>('staff');
+  const [error, setError] = useState('');
+
+  // Permission editor state
+  const [editUser, setEditUser] = useState<User | null>(null);
+  const [editRole, setEditRole] = useState<Role>('staff');
+  const [editPerms, setEditPerms] = useState<PermissionMap>({} as PermissionMap);
+  const [saving, setSaving] = useState(false);
+
+  const groups = useMemo(() => Array.from(new Set(PERMS.map((p) => p.group))), []);
+
+  async function reload() {
+    setUsers(await api.users.list());
+  }
+
+  useEffect(() => {
+    reload();
+  }, []);
+
+  async function onAdd() {
+    setError('');
+    if (!name.trim() || !username.trim() || !password) return;
+    try {
+      await api.users.create({ name: name.trim(), username: username.trim(), password, role });
+      setName('');
+      setUsername('');
+      setPassword('');
+      setRole('staff');
+      reload();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to add user');
+    }
+  }
+
+  async function onDelete(id: string) {
+    if (!confirm('Delete this user?')) return;
+    setError('');
+    try {
+      await api.users.remove(id);
+      reload();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to delete user');
+    }
+  }
+
+  async function onEditLogin(u: User) {
+    const newUsername = prompt(`Username for ${u.name}:`, u.username);
+    if (newUsername === null) return; // cancelled
+    const newPassword = prompt('New password (leave blank to keep the current one):', '');
+    if (newPassword === null) return; // cancelled
+    const payload: { username?: string; password?: string } = {};
+    if (newUsername.trim() && newUsername.trim() !== u.username) payload.username = newUsername.trim();
+    if (newPassword) {
+      if (newPassword.length < 4) {
+        setError('Password must be at least 4 characters.');
+        return;
+      }
+      payload.password = newPassword;
+    }
+    if (!payload.username && !payload.password) return;
+    setError('');
+    try {
+      await api.users.update(u.id, payload);
+      alert(`Login updated for ${u.name}.`);
+      reload();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to update login');
+    }
+  }
+
+  // Who can this user act on?
+  const canEditLogin = (u: User) => isSuper && (u.role !== 'superadmin' || isPrimary || u.id === me?.id);
+  const canDelete = (u: User) => !u.isPrimary && u.id !== me?.id && (u.role !== 'superadmin' || isPrimary);
+
+  function openEditor(u: User) {
+    setError('');
+    setEditUser(u);
+    setEditRole(u.role);
+    setEditPerms({ ...u.permissions });
+  }
+
+  // Changing the role pre-fills that role's default permissions (the admin can then fine-tune).
+  function onEditRoleChange(r: Role) {
+    setEditRole(r);
+    setEditPerms(defaultPermsForRole(r));
+  }
+
+  function togglePerm(key: string, value: boolean) {
+    setEditPerms((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function setAllPerms(value: boolean) {
+    const next = {} as PermissionMap;
+    PERMS.forEach((p) => (next[p.id] = value));
+    setEditPerms(next);
+  }
+
+  async function onSaveEditor() {
+    if (!editUser) return;
+    setSaving(true);
+    setError('');
+    try {
+      await api.users.update(editUser.id, { role: editRole, permissions: editPerms });
+      setEditUser(null);
+      reload();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to save user');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const grantedCount = (u: User) => PERMS.filter((p) => u.permissions?.[p.id]).length;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div className="card">
+        <h2 style={{ marginTop: 0 }}>User Master <span className="muted" style={{ fontSize: 13, fontWeight: 500 }}>— login accounts &amp; permissions</span></h2>
+        <div className="toolbar">
+          <div className="field" style={{ margin: 0 }}>
+            <label>Name</label>
+            <input value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
+          <div className="field" style={{ margin: 0 }}>
+            <label>Username</label>
+            <input value={username} onChange={(e) => setUsername(e.target.value)} />
+          </div>
+          <div className="field" style={{ margin: 0 }}>
+            <label>Password</label>
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          </div>
+          <div className="field" style={{ margin: 0 }}>
+            <label>Role</label>
+            <select value={role} onChange={(e) => setRole(e.target.value as Role)}>
+              {CREATABLE_ROLES.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button className="btn btn-primary" onClick={onAdd}>
+            Add User
+          </button>
+        </div>
+        <p className="muted" style={{ marginTop: 4 }}>
+          New users start with their role's default permissions. Only the Super Admin can fine-tune each
+          user's permissions with the <strong>Permissions</strong> button. Super Admin can't be assigned to
+          anyone else.
+        </p>
+        {error && <div className="login-err show">{error}</div>}
+        <table style={{ marginTop: 8 }}>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Username</th>
+              <th>Role</th>
+              <th>Permissions</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {users.map((u) => (
+              <tr key={u.id}>
+                <td>{u.name}</td>
+                <td>{u.username}</td>
+                <td style={{ textTransform: 'capitalize' }}>{u.role}</td>
+                <td>{u.role === 'superadmin' ? 'Full access' : `${grantedCount(u)} of ${PERMS.length}`}</td>
+                <td>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {isSuper && u.role !== 'superadmin' && (
+                      <button className="btn btn-sm" onClick={() => openEditor(u)}>
+                        Permissions
+                      </button>
+                    )}
+                    {canEditLogin(u) && (
+                      <button className="btn btn-sm" onClick={() => onEditLogin(u)}>
+                        Edit login
+                      </button>
+                    )}
+                    {canDelete(u) && (
+                      <button className="btn btn-sm btn-danger" onClick={() => onDelete(u.id)}>
+                        Delete
+                      </button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {editUser && (
+        <div className="card">
+          <div className="toolbar" style={{ alignItems: 'center' }}>
+            <h3 style={{ margin: 0, flex: 1 }}>Permissions — {editUser.name}</h3>
+            <div className="field" style={{ margin: 0 }}>
+              <label>Role</label>
+              <select value={editRole} onChange={(e) => onEditRoleChange(e.target.value as Role)}>
+                {CREATABLE_ROLES.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button className="btn btn-sm" onClick={() => setAllPerms(true)}>Select all</button>
+            <button className="btn btn-sm" onClick={() => setAllPerms(false)}>Clear all</button>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16, marginTop: 12 }}>
+            {groups.map((group) => (
+              <div key={group}>
+                <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', color: '#64748b', marginBottom: 8 }}>
+                  {group}
+                </div>
+                {PERMS.filter((p) => p.group === group).map((p) => (
+                  <label key={p.id} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '4px 0', fontSize: 13 }}>
+                    <input
+                      type="checkbox"
+                      checked={!!editPerms[p.id]}
+                      onChange={(e) => togglePerm(p.id, e.target.checked)}
+                    />
+                    {p.label}
+                  </label>
+                ))}
+              </div>
+            ))}
+          </div>
+          <div className="toolbar" style={{ marginTop: 16 }}>
+            <button className="btn btn-primary" disabled={saving} onClick={onSaveEditor}>
+              {saving ? 'Saving…' : 'Save Permissions'}
+            </button>
+            <button className="btn btn-sm" onClick={() => setEditUser(null)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

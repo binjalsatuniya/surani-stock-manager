@@ -1,0 +1,15 @@
+{
+  "name": "stock-manager-v2",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "concurrently -n api,web -c blue,green \"pnpm --filter @surani/api dev\" \"pnpm --filter @surani/web dev\"",
+    "dev:api": "pnpm --filter @surani/api dev",
+    "dev:web": "pnpm --filter @surani/web dev",
+    "build": "pnpm --filter @surani/shared build && pnpm --filter @surani/api build && pnpm --filter @surani/web build"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "typescript": "^5.5.0"
+  }
+}

@@ -1,0 +1,419 @@
+generator client {
+  provider      = "prisma-client-js"
+  // "native" = your local machine (Windows); the debian targets are for Linux hosts like Render.
+  binaryTargets = ["native", "debian-openssl-3.0.x", "debian-openssl-1.1.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============ USERS ============
+model User {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name         String
+  username     String   @unique @db.Citext
+  passwordHash String   @map("password_hash")
+  role         String // superadmin | admin | account | staff
+  permissions  Json     @default("{}")
+  security     Json     @default("{}") // {pinEnabled,pinHash,biometricEnabled,biometricCredentialId}
+  isPrimary    Boolean  @default(false) @map("is_primary") // the root Super Admin — full authority over other admins
+  legacyId     String?  @unique @map("legacy_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  refreshTokens     RefreshToken[]
+  createdInward     Inward[]           @relation("InwardCreatedBy")
+  createdOutward    Outward[]          @relation("OutwardCreatedBy")
+  cancelledOutward  Outward[]          @relation("OutwardCancelledBy")
+  createdPayments   Payment[]
+  requestedApprovals ApprovalRequest[] @relation("RequestedBy")
+  resolvedApprovals  ApprovalRequest[] @relation("ResolvedBy")
+  auditLogEntries   AuditLog[]
+  financialYearsMade FinancialYear[]
+  loginLocations    LoginLocation[]
+
+  @@map("users")
+}
+
+model LoginLocation {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  latitude  Float?
+  longitude Float?
+  accuracy  Float?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("login_locations")
+}
+
+model RefreshToken {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash    String    @unique @map("token_hash")
+  deviceLabel  String?   @map("device_label")
+  expiresAt    DateTime  @map("expires_at")
+  revokedAt    DateTime? @map("revoked_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+// ============ SALES PERSONS ============
+model SalesPerson {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String
+  phone     String?
+  legacyId  String?  @unique @map("legacy_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  parties  Party[]
+  expenses SalesPersonExpense[]
+
+  @@map("sales_persons")
+}
+
+model SalesPersonExpense {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  salesPersonId  String   @map("sales_person_id") @db.Uuid
+  date           DateTime @db.Date
+  amount         Decimal  @db.Decimal(14, 2)
+  expenseFor     String   @map("expense_for")
+  attachment     String?
+  attachmentName String?  @map("attachment_name")
+  createdById    String?  @map("created_by_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  salesPerson SalesPerson @relation(fields: [salesPersonId], references: [id], onDelete: Cascade)
+
+  @@index([salesPersonId])
+  @@map("salesperson_expenses")
+}
+
+// ============ PARTIES ============
+// Consolidates legacy app's separate `parties` + `transporters` arrays (see migration notes) —
+// `type='transporter'` rows use the `vehicle` field, which is otherwise unused.
+model Party {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name           String
+  type           String // debtor | creditor | both | transporter | handling
+  salesPersonId  String?  @map("sales_person_id") @db.Uuid
+  salesPerson    SalesPerson? @relation(fields: [salesPersonId], references: [id], onDelete: SetNull)
+  phone          String?
+  email          String?
+  gst            String?
+  opening        Decimal  @default(0) @db.Decimal(14, 2)
+  creditDays     Int      @default(0) @map("credit_days")
+  defaultFreight Decimal  @default(0) @map("default_freight") @db.Decimal(10, 2)
+  address        String?
+  locationUrl    String?  @map("location_url")
+  vehicle        String?
+  legacyId       String?  @unique @map("legacy_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  inwardAsParty          Inward[]         @relation("InwardParty")
+  inwardAsHandlingAgent  Inward[]         @relation("InwardHandlingAgent")
+  inwardAsTransporter    Inward[]         @relation("InwardTransporter")
+  outwardAsParty         Outward[]        @relation("OutwardParty")
+  outwardAsHandlingAgent Outward[]        @relation("OutwardHandlingAgent")
+  outwardAsTransporter   Outward[]        @relation("OutwardTransporter")
+  payments               Payment[]
+  freightAsTransporter   FreightEntry[]   @relation("FreightTransporter")
+  freightAsParty         FreightEntry[]   @relation("FreightParty")
+  handlingAsAgent        HandlingEntry[]  @relation("HandlingAgent")
+  handlingAsParty        HandlingEntry[]  @relation("HandlingParty")
+
+  @@index([type])
+  @@index([salesPersonId])
+  @@map("parties")
+}
+
+// ============ ITEMS ============
+model Item {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String
+  category  String?
+  unit      String // KG | MT | pcs
+  code      String?
+  rate      Decimal  @default(0) @db.Decimal(14, 2)
+  opening   Decimal  @default(0) @db.Decimal(14, 3)
+  reorder   Decimal  @default(0) @db.Decimal(14, 3)
+  rateDate  DateTime? @map("rate_date") @db.Date
+  legacyId  String?  @unique @map("legacy_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  inward         Inward[]
+  outward        Outward[]
+  freightEntries FreightEntry[]
+  handlingEntries HandlingEntry[]
+
+  @@map("items")
+}
+
+// ============ INWARD ============
+model Inward {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  date            DateTime  @db.Date
+  // DB-generated column (fy_of_date(date), see migration.sql) — never set this in create/update data.
+  financialYear   String?   @map("financial_year")
+  partyId         String    @map("party_id") @db.Uuid
+  party           Party     @relation("InwardParty", fields: [partyId], references: [id])
+  itemId          String    @map("item_id") @db.Uuid
+  item            Item      @relation(fields: [itemId], references: [id])
+  qty             Decimal   @db.Decimal(14, 3)
+  rate            Decimal   @db.Decimal(14, 2)
+  gstPct          Decimal   @default(0) @map("gst_pct") @db.Decimal(5, 2)
+  gst             Decimal   @default(0) @db.Decimal(14, 2)
+  // Two-step flow: 'pending' = recorded but not yet received; 'received' = marked as inward
+  // (stock counts, handling/freight posted, creditor due). Legacy rows default to 'received'.
+  status          String    @default("received")
+  handlingRate    Decimal   @default(0) @map("handling_rate") @db.Decimal(10, 2)
+  handling        Decimal   @default(0) @db.Decimal(14, 2)
+  handlingAgentId String?   @map("handling_agent_id") @db.Uuid
+  handlingAgent   Party?    @relation("InwardHandlingAgent", fields: [handlingAgentId], references: [id])
+  amount          Decimal   @db.Decimal(14, 2)
+  invNo           String?   @map("inv_no")
+  invDate         DateTime? @map("inv_date") @db.Date
+  deliveryType    String?   @map("delivery_type") // ExWorks | FOR
+  transporterId   String?   @map("transporter_id") @db.Uuid
+  transporter     Party?    @relation("InwardTransporter", fields: [transporterId], references: [id])
+  freightRate     Decimal   @default(0) @map("freight_rate") @db.Decimal(10, 2)
+  freight         Decimal   @default(0) @db.Decimal(14, 2)
+  vehicle         String?
+  note            String?
+  createdById     String?   @map("created_by") @db.Uuid
+  createdBy       User?     @relation("InwardCreatedBy", fields: [createdById], references: [id])
+  legacyId        String?   @unique @map("legacy_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  freightEntries  FreightEntry[]
+
+  @@index([financialYear])
+  @@index([partyId])
+  @@index([itemId])
+  @@index([date])
+  @@map("inward")
+}
+
+// ============ OUTWARD (also the Order Book) ============
+model Outward {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  date            DateTime  @db.Date
+  // DB-generated column (fy_of_date(date), see migration.sql) — never set this in create/update data.
+  financialYear   String?   @map("financial_year")
+  partyId         String    @map("party_id") @db.Uuid
+  party           Party     @relation("OutwardParty", fields: [partyId], references: [id])
+  itemId          String    @map("item_id") @db.Uuid
+  item            Item      @relation(fields: [itemId], references: [id])
+  qty             Decimal   @db.Decimal(14, 3)
+  rate            Decimal   @db.Decimal(14, 2)
+  freightRate     Decimal   @default(0) @map("freight_rate") @db.Decimal(10, 2)
+  freight         Decimal   @default(0) @db.Decimal(14, 2)
+  gstPct          Decimal   @default(0) @map("gst_pct") @db.Decimal(5, 2)
+  gst             Decimal   @default(0) @db.Decimal(14, 2)
+  handlingRate    Decimal   @default(0) @map("handling_rate") @db.Decimal(10, 2)
+  handling        Decimal   @default(0) @db.Decimal(14, 2)
+  handlingAgentId String?   @map("handling_agent_id") @db.Uuid
+  handlingAgent   Party?    @relation("OutwardHandlingAgent", fields: [handlingAgentId], references: [id])
+  amount          Decimal   @db.Decimal(14, 2)
+  payStatus       String    @default("pending") @map("pay_status") // pending | received | credit
+  creditDays      Int       @default(0) @map("credit_days")
+  invNo           String?   @map("inv_no")
+  invDate         DateTime? @map("inv_date") @db.Date
+  deliveryType    String?   @map("delivery_type")
+  transporterId   String?   @map("transporter_id") @db.Uuid
+  transporter     Party?    @relation("OutwardTransporter", fields: [transporterId], references: [id])
+  vehicle         String?
+  fulfil          String    @default("pending") // pending | dispatched | delivered | cancelled
+  prevFulfil      String?   @map("prev_fulfil")
+  dispatchedAt    DateTime? @map("dispatched_at") @db.Date
+  deliveredAt     DateTime? @map("delivered_at") @db.Date
+  cancelledAt     DateTime? @map("cancelled_at") @db.Date
+  cancelledById   String?   @map("cancelled_by") @db.Uuid
+  cancelledBy     User?     @relation("OutwardCancelledBy", fields: [cancelledById], references: [id])
+  note            String?
+  createdById     String?   @map("created_by") @db.Uuid
+  createdBy       User?     @relation("OutwardCreatedBy", fields: [createdById], references: [id])
+  legacyId        String?   @unique @map("legacy_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  freightEntries      FreightEntry[]
+  paymentAllocations  PaymentAllocation[]
+
+  @@index([financialYear])
+  @@index([partyId])
+  @@index([itemId])
+  @@index([fulfil])
+  @@index([payStatus])
+  @@map("outward")
+}
+
+// ============ PAYMENTS ============
+model Payment {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  date          DateTime @db.Date
+  // DB-generated column (fy_of_date(date), see migration.sql) — never set this in create/update data.
+  financialYear String?  @map("financial_year")
+  partyId       String   @map("party_id") @db.Uuid
+  party         Party    @relation(fields: [partyId], references: [id])
+  dir           String // in | out
+  amount        Decimal  @db.Decimal(14, 2)
+  mode          String // cash | cheque | transfer | upi
+  allocations   Json?    // legacy-format snapshot, kept for lossless import
+  note          String?
+  createdById   String?  @map("created_by") @db.Uuid
+  createdBy     User?    @relation(fields: [createdById], references: [id])
+  legacyId      String?  @unique @map("legacy_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  paymentAllocations PaymentAllocation[]
+
+  @@index([financialYear])
+  @@index([partyId])
+  @@map("payments")
+}
+
+model PaymentAllocation {
+  id        String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  paymentId String  @map("payment_id") @db.Uuid
+  payment   Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  outwardId String  @map("outward_id") @db.Uuid
+  outward   Outward @relation(fields: [outwardId], references: [id], onDelete: Cascade)
+  amount    Decimal @db.Decimal(14, 2)
+
+  @@unique([paymentId, outwardId])
+  @@index([outwardId])
+  @@map("payment_allocations")
+}
+
+// ============ FREIGHT ENTRIES (auto-posted ledger) ============
+model FreightEntry {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  date          DateTime @db.Date
+  transporterId String   @map("transporter_id") @db.Uuid
+  transporter   Party    @relation("FreightTransporter", fields: [transporterId], references: [id])
+  partyId       String   @map("party_id") @db.Uuid
+  party         Party    @relation("FreightParty", fields: [partyId], references: [id])
+  itemId        String   @map("item_id") @db.Uuid
+  item          Item     @relation(fields: [itemId], references: [id])
+  qty           Decimal  @db.Decimal(14, 3)
+  freight       Decimal  @db.Decimal(14, 2)
+  freightRate   Decimal  @default(0) @map("freight_rate") @db.Decimal(10, 2)
+  inwardId      String?  @map("inward_id") @db.Uuid
+  inward        Inward?  @relation(fields: [inwardId], references: [id], onDelete: Cascade)
+  outwardId     String?  @map("outward_id") @db.Uuid
+  outward       Outward? @relation(fields: [outwardId], references: [id], onDelete: Cascade)
+  invNo         String?  @map("inv_no")
+  note          String?
+  legacyId      String?  @unique @map("legacy_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([transporterId])
+  @@index([outwardId])
+  @@index([inwardId])
+  @@map("freight_entries")
+}
+
+// ============ HANDLING ENTRIES (auto-posted ledger) ============
+model HandlingEntry {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  date            DateTime @db.Date
+  handlingAgentId String   @map("handling_agent_id") @db.Uuid
+  handlingAgent   Party    @relation("HandlingAgent", fields: [handlingAgentId], references: [id])
+  partyId         String   @map("party_id") @db.Uuid
+  party           Party    @relation("HandlingParty", fields: [partyId], references: [id])
+  itemId          String   @map("item_id") @db.Uuid
+  item            Item     @relation(fields: [itemId], references: [id])
+  qty             Decimal  @db.Decimal(14, 3)
+  amount          Decimal  @db.Decimal(14, 2)
+  handlingRate    Decimal  @default(0) @map("handling_rate") @db.Decimal(10, 2)
+  sourceId        String   @map("source_id") @db.Uuid
+  sourceKind      String   @map("source_kind") // inward | outward
+  invNo           String?  @map("inv_no")
+  note            String?
+  legacyId        String?  @unique @map("legacy_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([handlingAgentId])
+  @@index([sourceId, sourceKind])
+  @@map("handling_entries")
+}
+
+// ============ APPROVAL REQUESTS ============
+model ApprovalRequest {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  kind         String // edit | delete
+  target       String // inward | outward | payment | party | item
+  targetId     String    @map("target_id") @db.Uuid
+  payload      Json
+  label        String
+  status       String    @default("pending") // pending | approved | rejected
+  requestedById String   @map("requested_by") @db.Uuid
+  requestedBy  User      @relation("RequestedBy", fields: [requestedById], references: [id])
+  resolvedById String?   @map("resolved_by") @db.Uuid
+  resolvedBy   User?     @relation("ResolvedBy", fields: [resolvedById], references: [id])
+  requestedAt  DateTime  @default(now()) @map("requested_at")
+  resolvedAt   DateTime? @map("resolved_at")
+  legacyId     String?   @unique @map("legacy_id")
+
+  @@index([status])
+  @@map("approval_requests")
+}
+
+// ============ AUDIT LOG (append-only) ============
+model AuditLog {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  action    String
+  target    String
+  targetId  String?  @map("target_id") @db.Uuid
+  label     String?
+  details   Json?
+  actorId   String?  @map("actor_id") @db.Uuid
+  actor     User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  actorName String   @map("actor_name")
+  timestamp DateTime @default(now())
+  legacyId  String?  @unique @map("legacy_id")
+
+  @@index([target, targetId])
+  @@index([timestamp(sort: Desc)])
+  @@map("audit_log")
+}
+
+// ============ WHATSAPP MESSAGE TEMPLATES ============
+// One row per template key (orderSlip | paymentReminder | locationShare | dashboardSummary).
+// Defaults live in @surani/shared's WHATSAPP_TEMPLATES — a missing row just means "using the default".
+model WhatsappTemplate {
+  key       String   @id
+  template  String
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("whatsapp_templates")
+}
+
+// ============ FIELD RULES (superadmin: mandatory / optional) ============
+model FieldSetting {
+  key       String   @id
+  required  Boolean  @default(false)
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("field_settings")
+}
+
+// ============ FINANCIAL YEARS ============
+model FinancialYear {
+  label       String   @id
+  createdById String?  @map("created_by") @db.Uuid
+  createdBy   User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("financial_years")
+}

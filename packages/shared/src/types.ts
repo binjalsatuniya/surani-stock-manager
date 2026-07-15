@@ -1,0 +1,250 @@
+import type { PermissionMap, Role } from './permissions';
+
+export interface UserSecurity {
+  pinEnabled: boolean;
+  pinHash: string | null;
+  biometricEnabled: boolean;
+  biometricCredentialId: string | null;
+}
+
+export interface User {
+  id: string;
+  name: string;
+  username: string;
+  role: Role;
+  permissions: PermissionMap;
+  security: UserSecurity;
+  isPrimary: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type PartyType = 'debtor' | 'creditor' | 'both' | 'transporter' | 'handling';
+
+export interface Party {
+  id: string;
+  name: string;
+  type: PartyType;
+  salesPersonId: string | null;
+  phone: string | null;
+  email: string | null;
+  gst: string | null;
+  opening: number;
+  creditDays: number;
+  defaultFreight: number;
+  address: string | null;
+  locationUrl: string | null;
+  vehicle: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SalesPerson {
+  id: string;
+  name: string;
+  phone: string | null;
+  createdAt: string;
+}
+
+export interface LoginLocation {
+  id: string;
+  userId: string;
+  userName: string;
+  username: string;
+  latitude: number | null;
+  longitude: number | null;
+  accuracy: number | null;
+  createdAt: string;
+}
+
+export interface SalesPersonExpense {
+  id: string;
+  salesPersonId: string;
+  date: string;
+  amount: number;
+  expenseFor: string;
+  attachment: string | null; // data: URL (base64) of the attached invoice, or null
+  attachmentName: string | null;
+  createdAt: string;
+}
+
+export type ItemUnit = 'KG' | 'MT' | 'pcs';
+
+export interface Item {
+  id: string;
+  name: string;
+  category: string | null;
+  unit: ItemUnit;
+  code: string | null;
+  rate: number;
+  opening: number;
+  reorder: number;
+  rateDate: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type DeliveryType = 'ExWorks' | 'FOR';
+
+export type InwardStatus = 'pending' | 'received';
+
+export interface Inward {
+  id: string;
+  date: string;
+  financialYear: string;
+  status: InwardStatus;
+  partyId: string;
+  itemId: string;
+  qty: number;
+  rate: number;
+  gstPct: number;
+  gst: number;
+  handlingRate: number;
+  handling: number;
+  handlingAgentId: string | null;
+  amount: number;
+  invNo: string | null;
+  invDate: string | null;
+  deliveryType: DeliveryType | null;
+  transporterId: string | null;
+  freightRate: number;
+  freight: number;
+  vehicle: string | null;
+  note: string | null;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type PayStatus = 'pending' | 'received' | 'credit';
+export type FulfilStatus = 'pending' | 'dispatched' | 'delivered' | 'cancelled';
+
+export interface Outward {
+  id: string;
+  date: string;
+  financialYear: string;
+  partyId: string;
+  itemId: string;
+  qty: number;
+  rate: number;
+  freightRate: number;
+  freight: number;
+  gstPct: number;
+  gst: number;
+  handlingRate: number;
+  handling: number;
+  handlingAgentId: string | null;
+  amount: number;
+  payStatus: PayStatus;
+  creditDays: number;
+  invNo: string | null;
+  invDate: string | null;
+  deliveryType: DeliveryType | null;
+  transporterId: string | null;
+  vehicle: string | null;
+  fulfil: FulfilStatus;
+  prevFulfil: FulfilStatus | null;
+  dispatchedAt: string | null;
+  deliveredAt: string | null;
+  cancelledAt: string | null;
+  cancelledBy: string | null;
+  note: string | null;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type PaymentDirection = 'in' | 'out';
+export type PaymentMode = 'Cash' | 'HDFC CRAC' | 'ICICI CRAC' | 'ICICI CCAC' | 'KCBL CRAC';
+export const PAYMENT_MODES: PaymentMode[] = ['Cash', 'HDFC CRAC', 'ICICI CRAC', 'ICICI CCAC', 'KCBL CRAC'];
+
+export interface PaymentAllocation {
+  id: string;
+  paymentId: string;
+  outwardId: string;
+  amount: number;
+}
+
+export interface Payment {
+  id: string;
+  date: string;
+  financialYear: string;
+  partyId: string;
+  dir: PaymentDirection;
+  amount: number;
+  mode: PaymentMode;
+  allocations: PaymentAllocation[];
+  note: string | null;
+  createdBy: string | null;
+  createdAt: string;
+}
+
+export interface FreightEntry {
+  id: string;
+  date: string;
+  transporterId: string;
+  partyId: string;
+  itemId: string;
+  qty: number;
+  freight: number;
+  freightRate: number;
+  inwardId: string | null;
+  outwardId: string | null;
+  invNo: string | null;
+  note: string | null;
+  createdAt: string;
+}
+
+export type LedgerSourceKind = 'inward' | 'outward';
+
+export interface HandlingEntry {
+  id: string;
+  date: string;
+  handlingAgentId: string;
+  partyId: string;
+  itemId: string;
+  qty: number;
+  amount: number;
+  handlingRate: number;
+  sourceId: string;
+  sourceKind: LedgerSourceKind;
+  invNo: string | null;
+  note: string | null;
+  createdAt: string;
+}
+
+export type ApprovalKind = 'edit' | 'delete';
+export type ApprovalTarget = 'inward' | 'outward' | 'payment' | 'party' | 'item';
+export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
+
+export interface ApprovalRequest {
+  id: string;
+  kind: ApprovalKind;
+  target: ApprovalTarget;
+  targetId: string;
+  payload: Record<string, unknown>;
+  label: string;
+  status: ApprovalStatus;
+  requestedBy: string;
+  resolvedBy: string | null;
+  requestedAt: string;
+  resolvedAt: string | null;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  action: string;
+  target: string;
+  targetId: string | null;
+  label: string | null;
+  details: Record<string, unknown> | null;
+  actorId: string | null;
+  actorName: string;
+  timestamp: string;
+}
+
+export interface FinancialYear {
+  label: string;
+  createdBy: string | null;
+  createdAt: string;
+}

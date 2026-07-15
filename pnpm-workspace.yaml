@@ -1,0 +1,38 @@
+packages:
+  - "packages/*"
+  - "apps/*"
+  - "desktop-app"
+virtualStoreDir: C:/ps-store/.pnpm
+packageExtensions:
+  react-router-dom@6.30.4:
+    peerDependencies:
+      "@types/react": "*"
+    peerDependenciesMeta:
+      "@types/react":
+        optional: true
+  react-router@6.30.4:
+    peerDependencies:
+      "@types/react": "*"
+    peerDependenciesMeta:
+      "@types/react":
+        optional: true
+allowBuilds:
+  '@prisma/client': true
+  '@prisma/engines': true
+  bcrypt: true
+  electron: true
+  esbuild: true
+  prisma: true
+minimumReleaseAgeExclude:
+  - '@expo/cli@57.0.6'
+  - '@expo/config-plugins@57.0.3'
+  - '@expo/config@57.0.3'
+  - '@expo/fingerprint@0.20.3'
+  - '@expo/inline-modules@0.1.2'
+  - '@expo/prebuild-config@57.0.5'
+  - '@expo/router-server@57.0.2'
+  - babel-preset-expo@57.0.2
+  - expo-modules-autolinking@57.0.5
+  - expo-modules-core@57.0.3
+  - expo-modules-jsi@57.0.1
+  - expo@57.0.4

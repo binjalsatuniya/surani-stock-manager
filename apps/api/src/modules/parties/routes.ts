@@ -1,0 +1,111 @@
+import { Router } from 'express';
+import { z } from 'zod';
+import { hasPermission } from '@surani/shared';
+import { prisma } from '../../db/prisma';
+import { toPartyDTO } from '../../lib/serializeMasters';
+import { asyncHandler } from '../../lib/asyncHandler';
+import { authenticate } from '../../middleware/auth';
+import { requirePermission } from '../../middleware/requirePermission';
+import { ForbiddenError, NotFoundError } from '../../middleware/errorHandler';
+import { mutateOrQueue } from '../../lib/approvalGate';
+
+export const partiesRouter = Router();
+partiesRouter.use(authenticate);
+
+const partyTypeEnum = z.enum(['debtor', 'creditor', 'both', 'transporter', 'handling']);
+
+const partySchema = z.object({
+  name: z.string().min(1),
+  type: partyTypeEnum,
+  salesPersonId: z.string().uuid().nullable().optional(),
+  phone: z.string().nullable().optional(),
+  email: z.string().nullable().optional(),
+  gst: z.string().nullable().optional(),
+  opening: z.coerce.number().default(0),
+  creditDays: z.coerce.number().int().default(0),
+  defaultFreight: z.coerce.number().default(0),
+  address: z.string().nullable().optional(),
+  locationUrl: z.string().nullable().optional(),
+  vehicle: z.string().nullable().optional(),
+});
+
+/**
+ * Legacy app had a separate `edit_transporters` permission distinct from `edit_parties`
+ * (e.g. a staff member could manage transporters without touching the debtor/creditor
+ * master). Since transporters now live in the same `parties` table (type='transporter'),
+ * preserve that granularity by checking the permission that matches the row's type.
+ */
+function requiredPermFor(type: string): 'edit_transporters' | 'edit_parties' {
+  return type === 'transporter' ? 'edit_transporters' : 'edit_parties';
+}
+
+partiesRouter.get(
+  '/',
+  requirePermission('view_parties'),
+  asyncHandler(async (req, res) => {
+    const type = req.query.type as string | undefined;
+    // A party of type 'both' is a debtor AND a creditor, so it must appear when
+    // either list is requested. Transporter/handling stay exact-match.
+    let where: { type?: string | { in: string[] } } | undefined;
+    if (type === 'debtor') where = { type: { in: ['debtor', 'both'] } };
+    else if (type === 'creditor') where = { type: { in: ['creditor', 'both'] } };
+    else if (type) where = { type };
+    const parties = await prisma.party.findMany({
+      where,
+      orderBy: { name: 'asc' },
+    });
+    res.json(parties.map(toPartyDTO));
+  })
+);
+
+partiesRouter.post(
+  '/',
+  asyncHandler(async (req, res) => {
+    const input = partySchema.parse(req.body);
+    if (!hasPermission(req.user!.role, req.user!.permissions, requiredPermFor(input.type))) {
+      throw new ForbiddenError(`Missing permission: ${requiredPermFor(input.type)}`);
+    }
+    const party = await prisma.party.create({ data: input });
+    res.status(201).json(toPartyDTO(party));
+  })
+);
+
+partiesRouter.patch(
+  '/:id',
+  asyncHandler(async (req, res) => {
+    const input = partySchema.partial().parse(req.body);
+    const existing = await prisma.party.findUnique({ where: { id: req.params.id } });
+    if (!existing) throw new NotFoundError('Party not found');
+    const requiredPerm = requiredPermFor(input.type ?? existing.type);
+    if (!hasPermission(req.user!.role, req.user!.permissions, requiredPerm)) {
+      throw new ForbiddenError(`Missing permission: ${requiredPerm}`);
+    }
+    const party = await prisma.party.update({ where: { id: req.params.id }, data: input });
+    res.json(toPartyDTO(party));
+  })
+);
+
+partiesRouter.delete(
+  '/:id',
+  asyncHandler(async (req, res) => {
+    const existing = await prisma.party.findUnique({ where: { id: req.params.id } });
+    if (!existing) throw new NotFoundError('Party not found');
+    const requiredPerm = requiredPermFor(existing.type);
+    if (!hasPermission(req.user!.role, req.user!.permissions, requiredPerm)) {
+      throw new ForbiddenError(`Missing permission: ${requiredPerm}`);
+    }
+
+    const result = await mutateOrQueue({
+      user: req.user!,
+      kind: 'delete',
+      target: 'party',
+      targetId: existing.id,
+      payload: { id: existing.id },
+      label: `Party: ${existing.name}`,
+      execute: () => prisma.party.delete({ where: { id: existing.id } }),
+    });
+
+    if (result.executed) res.status(204).end();
+    else res.status(202).json({ queued: true });
+  })
+);
