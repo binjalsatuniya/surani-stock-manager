@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, NavLink, Outlet } from 'react-router-dom';
-import type { PermissionKey } from '@surani/shared';
+import { roleLabel, type PermissionKey } from '@surani/shared';
 import { useAuth } from '../context/AuthContext';
 import { usePermission } from '../hooks/usePermission';
 import { useFinancialYear } from '../context/FinancialYearContext';
@@ -197,7 +197,7 @@ export function Layout() {
               <strong>{user?.name}</strong>
             </Link>
             <span className="muted" style={{ marginLeft: 8 }}>
-              {user?.role}
+              {user ? roleLabel(user.role) : ''}
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

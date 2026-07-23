@@ -195,6 +195,7 @@ model Inward {
   updatedAt       DateTime  @updatedAt @map("updated_at")
 
   freightEntries  FreightEntry[]
+  paymentInwardAllocations PaymentInwardAllocation[]
 
   @@index([financialYear])
   @@index([partyId])
@@ -275,7 +276,8 @@ model Payment {
   legacyId      String?  @unique @map("legacy_id")
   createdAt     DateTime @default(now()) @map("created_at")
 
-  paymentAllocations PaymentAllocation[]
+  paymentAllocations       PaymentAllocation[]
+  paymentInwardAllocations PaymentInwardAllocation[]
 
   @@index([financialYear])
   @@index([partyId])
@@ -293,6 +295,21 @@ model PaymentAllocation {
   @@unique([paymentId, outwardId])
   @@index([outwardId])
   @@map("payment_allocations")
+}
+
+// Allocates an outgoing payment (dir='out') to a creditor purchase (inward) invoice —
+// the payable-side mirror of PaymentAllocation. See prisma/manual-migrations/.
+model PaymentInwardAllocation {
+  id        String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  paymentId String  @map("payment_id") @db.Uuid
+  payment   Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  inwardId  String  @map("inward_id") @db.Uuid
+  inward    Inward  @relation(fields: [inwardId], references: [id], onDelete: Cascade)
+  amount    Decimal @db.Decimal(14, 2)
+
+  @@unique([paymentId, inwardId])
+  @@index([inwardId])
+  @@map("payment_inward_allocations")
 }
 
 // ============ FREIGHT ENTRIES (auto-posted ledger) ============

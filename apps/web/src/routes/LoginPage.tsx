@@ -77,6 +77,7 @@ export function LoginPage() {
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [showForgot, setShowForgot] = useState(false);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -176,6 +177,24 @@ export function LoginPage() {
           </button>
           <div className={`login-err${error ? ' show' : ''}`}>{error}</div>
         </form>
+        <div style={{ marginTop: 10 }}>
+          <a
+            href="#"
+            onClick={(e) => {
+              e.preventDefault();
+              setShowForgot((v) => !v);
+            }}
+            style={{ color: 'var(--accent-2)', fontWeight: 600, textDecoration: 'underline', fontSize: 12.5 }}
+          >
+            Forgot password?
+          </a>
+          {showForgot && (
+            <div className="muted" style={{ marginTop: 6, fontSize: 11.5 }}>
+              For your security, passwords can't be shown. Ask your administrator (the main Super Admin) to reset it
+              for you from <strong>Users → Edit login</strong>, then sign in with the new password.
+            </div>
+          )}
+        </div>
         {hint && (
           <div className="login-hint" style={{ marginTop: 14 }}>
             <a

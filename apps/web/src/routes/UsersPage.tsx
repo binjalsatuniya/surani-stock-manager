@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { PERMS, defaultPermsForRole, type PermissionMap, type Role, type User } from '@surani/shared';
+import { PERMS, defaultPermsForRole, roleLabel, type PermissionMap, type Role, type User } from '@surani/shared';
 import { api } from '../lib/apiClient';
 import { useAuth } from '../context/AuthContext';
 
@@ -181,8 +181,8 @@ export function UsersPage() {
               <tr key={u.id}>
                 <td>{u.name}</td>
                 <td>{u.username}</td>
-                <td style={{ textTransform: 'capitalize' }}>{u.role}</td>
-                <td>{u.role === 'superadmin' ? 'Full access' : `${grantedCount(u)} of ${PERMS.length}`}</td>
+                <td style={{ textTransform: 'capitalize' }}>{roleLabel(u.role)}</td>
+                <td>{u.role === 'superadmin' || grantedCount(u) === PERMS.length ? 'Full access' : `${grantedCount(u)} of ${PERMS.length}`}</td>
                 <td>
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     {isSuper && u.role !== 'superadmin' && (

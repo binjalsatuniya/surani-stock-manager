@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { roleLabel } from '@surani/shared';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../lib/apiClient';
 import { rememberQuickUnlockUser, forgetQuickUnlockUser } from '../lib/quickUnlock';
@@ -10,7 +11,32 @@ export function AccountPage() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
 
+  // Access Settings — the extra password that gates the Login Locations screen (primary only).
+  const [accessEnabled, setAccessEnabled] = useState(!!user?.security.locationAccessEnabled);
+  const [accCur, setAccCur] = useState('');
+  const [accNext, setAccNext] = useState('');
+  const [accMsg, setAccMsg] = useState('');
+  const [accErr, setAccErr] = useState('');
+
   if (!user) return null;
+
+  async function onSaveAccess(remove = false) {
+    setAccErr('');
+    setAccMsg('');
+    if (!remove && accNext.length < 4) {
+      setAccErr('Access password must be at least 4 characters.');
+      return;
+    }
+    try {
+      const res = await api.loginLocations.setAccess({ current: accCur || undefined, next: remove ? '' : accNext });
+      setAccessEnabled(res.enabled);
+      setAccCur('');
+      setAccNext('');
+      setAccMsg(remove ? 'Access password removed.' : 'Access password saved. Login Locations now needs it.');
+    } catch (e) {
+      setAccErr(e instanceof Error ? e.message : 'Failed to save access password');
+    }
+  }
 
   async function onTogglePin(checked: boolean) {
     setError('');
@@ -45,7 +71,7 @@ export function AccountPage() {
     <div className="card">
       <h2 style={{ marginTop: 0 }}>My Account</h2>
       <p>
-        <strong>{user.name}</strong> · {user.username} · {user.role}
+        <strong>{user.name}</strong> · {user.username} · {roleLabel(user.role)}
       </p>
 
       <div style={{ marginTop: 20, padding: 14, border: '1px solid var(--line)', borderRadius: 9 }}>
@@ -80,6 +106,44 @@ export function AccountPage() {
         {error && <div className="login-err show">{error}</div>}
         {message && <div className="muted" style={{ marginTop: 8 }}>{message}</div>}
       </div>
+
+      {user.isPrimary && (
+        <div style={{ marginTop: 16, padding: 14, border: '1px solid var(--line)', borderRadius: 9 }}>
+          <div style={{ fontWeight: 600 }}>Access Settings — Login Locations password</div>
+          <div className="muted" style={{ fontSize: 11.5, marginTop: 2 }}>
+            Set an extra password that must be entered to view Login Locations. Even someone who has your login
+            can't see the locations without this password. {accessEnabled ? 'It is currently ON.' : 'It is currently off.'}
+          </div>
+          <div style={{ marginTop: 10, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            {accessEnabled && (
+              <input
+                type="password"
+                placeholder="Current password"
+                value={accCur}
+                onChange={(e) => setAccCur(e.target.value)}
+                style={{ maxWidth: 180, padding: '9px 11px', border: '1px solid var(--line)', borderRadius: 8 }}
+              />
+            )}
+            <input
+              type="password"
+              placeholder={accessEnabled ? 'New password' : 'Set a password'}
+              value={accNext}
+              onChange={(e) => setAccNext(e.target.value)}
+              style={{ maxWidth: 180, padding: '9px 11px', border: '1px solid var(--line)', borderRadius: 8 }}
+            />
+            <button className="btn btn-sm btn-primary" onClick={() => onSaveAccess(false)}>
+              {accessEnabled ? 'Change password' : 'Set password'}
+            </button>
+            {accessEnabled && (
+              <button className="btn btn-sm btn-danger" onClick={() => onSaveAccess(true)} title="Requires the current password">
+                Turn off
+              </button>
+            )}
+          </div>
+          {accErr && <div className="login-err show">{accErr}</div>}
+          {accMsg && <div className="muted" style={{ marginTop: 8 }}>{accMsg}</div>}
+        </div>
+      )}
     </div>
   );
 }

@@ -44,7 +44,7 @@ approvalsRouter.get(
  */
 approvalsRouter.post(
   '/:id/approve',
-  requireRole('superadmin'),
+  requireRole('superadmin', 'admin'),
   asyncHandler(async (req, res) => {
     const r = await prisma.approvalRequest.findUnique({ where: { id: req.params.id } });
     if (!r) throw new NotFoundError('Approval request not found');
@@ -108,7 +108,7 @@ approvalsRouter.post(
 
 approvalsRouter.post(
   '/:id/reject',
-  requireRole('superadmin'),
+  requireRole('superadmin', 'admin'),
   asyncHandler(async (req, res) => {
     const r = await prisma.approvalRequest.findUnique({ where: { id: req.params.id } });
     if (!r) throw new NotFoundError('Approval request not found');

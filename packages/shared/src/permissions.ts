@@ -35,6 +35,15 @@ export type PermissionMap = Record<PermissionKey, boolean>;
 
 export type Role = 'superadmin' | 'admin' | 'account' | 'staff';
 
+/**
+ * Display label for a user's role. Every role is shown as "Admin" — this is DISPLAY ONLY; the
+ * real role and the permissions attached to it are unchanged (role pickers and all permission
+ * checks still use the actual role).
+ */
+export function roleLabel(_role: Role): string {
+  return 'Admin';
+}
+
 export function allPermissionsTrue(): PermissionMap {
   return PERMS.reduce((o, p) => {
     o[p.id] = true;

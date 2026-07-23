@@ -72,6 +72,8 @@ export function OutwardPage() {
       creditDays: p ? String(creditDays) : f.creditDays,
       // If the party is on credit terms, default Pay Status to Credit (not Pending).
       payStatus: p ? (creditDays > 0 ? 'credit' : 'pending') : f.payStatus,
+      // Pre-fill freight from the party's saved Default Freight (editable afterwards).
+      freightRate: p ? String(p.defaultFreight ?? 0) : f.freightRate,
     }));
   }
 

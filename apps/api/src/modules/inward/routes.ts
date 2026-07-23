@@ -7,6 +7,7 @@ import { authenticate } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/requirePermission';
 import { NotFoundError } from '../../middleware/errorHandler';
 import { mutateOrQueue } from '../../lib/approvalGate';
+import { fyDateWhere } from '../../lib/fyFilter';
 
 export const inwardRouter = Router();
 inwardRouter.use(authenticate);
@@ -36,7 +37,7 @@ inwardRouter.get(
     const { fy, partyId, itemId } = req.query as Record<string, string | undefined>;
     const rows = await prisma.inward.findMany({
       where: {
-        ...(fy ? { financialYear: fy } : {}),
+        ...fyDateWhere(fy),
         ...(partyId ? { partyId } : {}),
         ...(itemId ? { itemId } : {}),
       },

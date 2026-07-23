@@ -15,6 +15,8 @@ export function toUserDTO(u: PrismaUser): User {
       pinHash: null,
       biometricEnabled: !!security.biometricEnabled,
       biometricCredentialId: security.biometricCredentialId ?? null,
+      // Whether the extra password that gates Login Locations is set (the hash itself never leaves the server).
+      locationAccessEnabled: !!(security as Record<string, unknown>).locationAccessHash,
     },
     isPrimary: u.isPrimary,
     createdAt: u.createdAt.toISOString(),

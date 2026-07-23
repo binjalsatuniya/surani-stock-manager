@@ -11,20 +11,69 @@ export function LoginLocationsPage() {
   const isPrimary = !!user?.isPrimary;
   const [rows, setRows] = useState<LoginLocation[]>([]);
   const [error, setError] = useState('');
+  // Gate state: locked until the access password (if set) is entered.
+  const [needPassword, setNeedPassword] = useState(false);
+  const [unlocked, setUnlocked] = useState(false);
+  const [password, setPassword] = useState('');
 
   useEffect(() => {
     if (!isPrimary) return;
     api.loginLocations
-      .list()
-      .then(setRows)
+      .accessStatus()
+      .then((s) => {
+        if (s.enabled) {
+          setNeedPassword(true); // wait for the password before loading anything
+        } else {
+          setUnlocked(true);
+          api.loginLocations.list().then(setRows).catch((e) => setError(e instanceof Error ? e.message : 'Failed to load'));
+        }
+      })
       .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load login locations'));
   }, [isPrimary]);
+
+  async function onUnlock() {
+    setError('');
+    try {
+      const data = await api.loginLocations.view(password);
+      setRows(data);
+      setUnlocked(true);
+      setNeedPassword(false);
+      setPassword('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Incorrect access password');
+    }
+  }
 
   if (!isPrimary) {
     return (
       <div className="card">
         <h2 style={{ marginTop: 0 }}>Login Locations</h2>
         <div className="muted">Only the main Super Admin can view login locations.</div>
+      </div>
+    );
+  }
+
+  if (needPassword && !unlocked) {
+    return (
+      <div className="card">
+        <h2 style={{ marginTop: 0 }}>Login Locations</h2>
+        <p className="muted">This is protected. Enter your access password to view login locations.</p>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', maxWidth: 360 }}>
+          <input
+            type="password"
+            autoFocus
+            placeholder="Access password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && onUnlock()}
+            style={{ flex: 1, padding: '9px 11px', border: '1px solid var(--line)', borderRadius: 8 }}
+          />
+          <button className="btn btn-primary" onClick={onUnlock}>Unlock</button>
+        </div>
+        {error && <div className="login-err show">{error}</div>}
+        <p className="muted" style={{ fontSize: 11.5, marginTop: 12 }}>
+          Set or change this password in My Account → Access Settings.
+        </p>
       </div>
     );
   }

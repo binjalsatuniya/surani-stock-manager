@@ -5,6 +5,8 @@ export interface UserSecurity {
   pinHash: string | null;
   biometricEnabled: boolean;
   biometricCredentialId: string | null;
+  // Whether the primary Super Admin has set the extra password that gates viewing Login Locations.
+  locationAccessEnabled?: boolean;
 }
 
 export interface User {
@@ -241,6 +243,9 @@ export interface AuditLogEntry {
   actorId: string | null;
   actorName: string;
   timestamp: string;
+  // Whether this edit/delete can be undone (has a saved snapshot and isn't reversed yet).
+  reversible?: boolean;
+  reversed?: boolean;
 }
 
 export interface FinancialYear {

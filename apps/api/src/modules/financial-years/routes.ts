@@ -11,19 +11,22 @@ financialYearsRouter.use(authenticate);
 
 // The set of financial years the user can pick from = every FY registered in the FinancialYear
 // table, plus every FY that actually appears in the data, plus the current one — de-duped, newest first.
+// FYs are derived from each row's `date` (via fyOfDate) rather than the stored `financial_year`
+// column, which isn't populated on every environment — see lib/fyFilter.ts.
 financialYearsRouter.get(
   '/',
   asyncHandler(async (_req, res) => {
-    const [registered, inwardFys, outwardFys, paymentFys] = await Promise.all([
+    const [registered, inwardDates, outwardDates, paymentDates] = await Promise.all([
       prisma.financialYear.findMany({ select: { label: true } }),
-      prisma.inward.findMany({ distinct: ['financialYear'], select: { financialYear: true } }),
-      prisma.outward.findMany({ distinct: ['financialYear'], select: { financialYear: true } }),
-      prisma.payment.findMany({ distinct: ['financialYear'], select: { financialYear: true } }),
+      prisma.inward.findMany({ distinct: ['date'], select: { date: true } }),
+      prisma.outward.findMany({ distinct: ['date'], select: { date: true } }),
+      prisma.payment.findMany({ distinct: ['date'], select: { date: true } }),
     ]);
     const set = new Set<string>();
     registered.forEach((r) => set.add(r.label));
-    [...inwardFys, ...outwardFys, ...paymentFys].forEach((r) => {
-      if (r.financialYear) set.add(r.financialYear);
+    [...inwardDates, ...outwardDates, ...paymentDates].forEach((r) => {
+      const fy = fyOfDate(r.date.toISOString());
+      if (fy) set.add(fy);
     });
     const current = fyOfDate(new Date().toISOString());
     if (current) set.add(current);

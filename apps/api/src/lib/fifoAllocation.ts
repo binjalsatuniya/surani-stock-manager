@@ -50,6 +50,44 @@ export async function unpaidInvoicesForParty(partyId: string): Promise<UnpaidInv
   return result;
 }
 
+/**
+ * The payable-side mirror of unpaidInvoicesForParty: a creditor's outstanding PURCHASE (inward)
+ * invoices. Outstanding = inward.amount - sum(payment_inward_allocations for that inward). Only
+ * received inward is a real due; purchases are payable immediately (no credit days), so the due
+ * date is the invoice/entry date. Oldest first (FIFO basis).
+ */
+export async function unpaidPurchaseInvoicesForParty(partyId: string): Promise<UnpaidInvoice[]> {
+  const inward = await prisma.inward.findMany({
+    where: { partyId, status: 'received' },
+    include: { paymentInwardAllocations: true },
+    orderBy: { date: 'asc' },
+  });
+
+  const today = new Date().toISOString().slice(0, 10);
+  const result: UnpaidInvoice[] = [];
+
+  for (const i of inward) {
+    const allocated = i.paymentInwardAllocations.reduce((s, a) => s + Number(a.amount), 0);
+    const balance = Number(i.amount) - allocated;
+    if (balance <= 0.005) continue;
+
+    const basis = i.invDate ?? i.date;
+    const basisStr = basis.toISOString().slice(0, 10);
+    // Purchases are due immediately — no credit days on the payable side.
+    result.push({
+      outwardId: i.id, // reuse the field name; here it's the inward id
+      invNo: i.invNo,
+      date: i.date.toISOString().slice(0, 10),
+      amount: Number(i.amount),
+      balance,
+      dueDate: basisStr,
+      dueDays: daysBetween(basisStr, today),
+    });
+  }
+
+  return result;
+}
+
 export interface Allocation {
   outwardId: string;
   amount: number;

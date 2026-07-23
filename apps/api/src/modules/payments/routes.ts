@@ -2,12 +2,13 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../../db/prisma';
 import { toPaymentDTO } from '../../lib/serializeTransactions';
-import { allocateFifo, unpaidInvoicesForParty } from '../../lib/fifoAllocation';
+import { allocateFifo, unpaidInvoicesForParty, unpaidPurchaseInvoicesForParty } from '../../lib/fifoAllocation';
 import { asyncHandler } from '../../lib/asyncHandler';
 import { authenticate } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/requirePermission';
 import { HttpError, NotFoundError } from '../../middleware/errorHandler';
 import { mutateOrQueue } from '../../lib/approvalGate';
+import { fyDateWhere } from '../../lib/fyFilter';
 
 export const paymentsRouter = Router();
 paymentsRouter.use(authenticate);
@@ -18,7 +19,7 @@ paymentsRouter.get(
   asyncHandler(async (req, res) => {
     const { fy, partyId } = req.query as Record<string, string | undefined>;
     const rows = await prisma.payment.findMany({
-      where: { ...(fy ? { financialYear: fy } : {}), ...(partyId ? { partyId } : {}) },
+      where: { ...fyDateWhere(fy), ...(partyId ? { partyId } : {}) },
       include: { paymentAllocations: true },
       orderBy: { date: 'desc' },
     });
@@ -36,6 +37,18 @@ paymentsRouter.get(
   })
 );
 
+// The payable-side equivalent: a creditor's outstanding purchase (inward) invoices, for allocating
+// an outgoing payment (dir='out') against specific bills.
+paymentsRouter.get(
+  '/unpaid-purchase-invoices',
+  requirePermission('view_payments'),
+  asyncHandler(async (req, res) => {
+    const partyId = req.query.partyId as string | undefined;
+    if (!partyId) throw new HttpError(400, 'partyId is required');
+    res.json(await unpaidPurchaseInvoicesForParty(partyId));
+  })
+);
+
 const paymentSchema = z.object({
   date: z.string().min(1),
   partyId: z.string().uuid(),
@@ -46,6 +59,8 @@ const paymentSchema = z.object({
   // Invoice IDs the user selected to allocate against, in priority order (normally oldest-first).
   // Only meaningful when dir='in'; unallocated amount goes to the party's general balance.
   outwardIds: z.array(z.string().uuid()).optional(),
+  // The payable-side equivalent: purchase (inward) invoice IDs to allocate against. dir='out' only.
+  inwardIds: z.array(z.string().uuid()).optional(),
 });
 
 paymentsRouter.post(
@@ -93,6 +108,24 @@ paymentsRouter.post(
           if (Math.abs(Number(outward.amount) - totalAllocated) < 0.01) {
             await tx.outward.update({ where: { id: outward.id }, data: { payStatus: 'received' } });
           }
+        }
+      }
+
+      // Payable side: allocate an outgoing payment to specific purchase (inward) invoices. FIFO
+      // across the selection; `allocateFifo` returns { outwardId } but here the id is the inward id.
+      if (input.dir === 'out' && input.inwardIds?.length) {
+        const unpaid = await unpaidPurchaseInvoicesForParty(input.partyId);
+        const byId = new Map(unpaid.map((u) => [u.outwardId, u]));
+        const selected = input.inwardIds
+          .map((id) => byId.get(id))
+          .filter((u): u is NonNullable<typeof u> => !!u)
+          .map((u) => ({ outwardId: u.outwardId, balance: u.balance }));
+
+        const allocations = allocateFifo(input.amount, selected);
+        for (const alloc of allocations) {
+          await tx.paymentInwardAllocation.create({
+            data: { paymentId: created.id, inwardId: alloc.outwardId, amount: alloc.amount },
+          });
         }
       }
 

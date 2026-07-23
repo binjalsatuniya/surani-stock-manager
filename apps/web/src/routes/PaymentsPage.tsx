@@ -29,6 +29,9 @@ export function PaymentsPage() {
   const [note, setNote] = useState('');
   const [unpaid, setUnpaid] = useState<UnpaidInvoice[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  // Payable side: the creditor's outstanding purchase (inward) invoices, for dir='out'.
+  const [unpaidPurchase, setUnpaidPurchase] = useState<UnpaidInvoice[]>([]);
+  const [selectedPurchase, setSelectedPurchase] = useState<Set<string>>(new Set());
   const [error, setError] = useState('');
   const [salesPersons, setSalesPersons] = useState<SalesPerson[]>([]);
   const [spFilter, setSpFilter] = useState('');
@@ -85,10 +88,16 @@ export function PaymentsPage() {
 
   useEffect(() => {
     setSelected(new Set());
+    setSelectedPurchase(new Set());
     if (partyId && dir === 'in') {
       api.payments.unpaidInvoices(partyId).then(setUnpaid);
+      setUnpaidPurchase([]);
+    } else if (partyId && dir === 'out') {
+      api.payments.unpaidPurchaseInvoices(partyId).then(setUnpaidPurchase);
+      setUnpaid([]);
     } else {
       setUnpaid([]);
+      setUnpaidPurchase([]);
     }
   }, [partyId, dir]);
 
@@ -101,8 +110,20 @@ export function PaymentsPage() {
     });
   }
 
+  function togglePurchase(id: string) {
+    setSelectedPurchase((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
   const totalSelected = unpaid
     .filter((u) => selected.has(u.outwardId))
+    .reduce((s, u) => s + u.balance, 0);
+  const totalSelectedPurchase = unpaidPurchase
+    .filter((u) => selectedPurchase.has(u.outwardId))
     .reduce((s, u) => s + u.balance, 0);
 
   async function onAdd() {
@@ -118,6 +139,7 @@ export function PaymentsPage() {
         mode,
         note: note.trim() || null,
         outwardIds: dir === 'in' ? Array.from(selected) : undefined,
+        inwardIds: dir === 'out' ? Array.from(selectedPurchase) : undefined,
       });
       setAmount('');
       setPartyId('');
@@ -209,6 +231,32 @@ export function PaymentsPage() {
                         {u.invNo || 'No invoice no.'} · {u.date} · Due {u.dueDate} (
                         {u.dueDays !== null && u.dueDays < 0 ? `${-u.dueDays}d overdue` : `${u.dueDays}d left`}) — balance{' '}
                         {u.balance.toFixed(2)}
+                      </span>
+                    </label>
+                  ))}
+                </>
+              )}
+            </div>
+          )}
+          {dir === 'out' && partyId && (
+            <div style={{ marginBottom: 16 }}>
+              {unpaidPurchase.length === 0 ? (
+                <div className="muted">No outstanding purchase invoices for this creditor.</div>
+              ) : (
+                <>
+                  <div className="muted" style={{ marginBottom: 8 }}>
+                    Select purchase invoices this payment settles (FIFO within selection). Selected total:{' '}
+                    <strong>{totalSelectedPurchase.toFixed(2)}</strong>
+                  </div>
+                  {unpaidPurchase.map((u) => (
+                    <label key={u.outwardId} style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '6px 0' }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedPurchase.has(u.outwardId)}
+                        onChange={() => togglePurchase(u.outwardId)}
+                      />
+                      <span>
+                        {u.invNo || 'No invoice no.'} · {u.date} — balance {u.balance.toFixed(2)}
                       </span>
                     </label>
                   ))}

@@ -8,6 +8,7 @@ import { requirePermission } from '../../middleware/requirePermission';
 import { requireRole } from '../../middleware/requireRole';
 import { HttpError, NotFoundError } from '../../middleware/errorHandler';
 import { writeAuditLog } from '../../lib/audit';
+import { fyDateWhere } from '../../lib/fyFilter';
 
 // Split into two routers so the mount paths in app.ts match the API design: POST /orders is
 // top-level (matches the legacy "Place New Order" action), while list+dispatch/deliver/cancel/
@@ -73,7 +74,7 @@ orderbookRouter.get(
   asyncHandler(async (req, res) => {
     const { fy, fulfil } = req.query as Record<string, string | undefined>;
     const rows = await prisma.outward.findMany({
-      where: { ...(fy ? { financialYear: fy } : {}), ...(fulfil ? { fulfil } : {}) },
+      where: { ...fyDateWhere(fy), ...(fulfil ? { fulfil } : {}) },
       orderBy: { date: 'desc' },
     });
     res.json(rows.map(toOutwardDTO));

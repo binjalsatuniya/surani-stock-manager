@@ -10,6 +10,8 @@ export interface CreatePaymentInput {
   mode: PaymentMode;
   note?: string | null;
   outwardIds?: string[];
+  // Purchase (inward) invoice IDs to allocate an outgoing payment against (dir='out' only).
+  inwardIds?: string[];
 }
 
 export function createPaymentsClient(http: HttpClient) {
@@ -22,5 +24,8 @@ export function createPaymentsClient(http: HttpClient) {
     remove: (id: string) => http.delete<void>(`/payments/${id}`),
     unpaidInvoices: (partyId: string) =>
       http.get<UnpaidInvoice[]>(`/payments/unpaid-invoices?partyId=${partyId}`),
+    // Payable side: a creditor's outstanding purchase (inward) invoices.
+    unpaidPurchaseInvoices: (partyId: string) =>
+      http.get<UnpaidInvoice[]>(`/payments/unpaid-purchase-invoices?partyId=${partyId}`),
   };
 }

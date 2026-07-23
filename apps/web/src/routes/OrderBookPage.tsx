@@ -73,7 +73,9 @@ export function OrderBookPage() {
     setDInvNo(m.invNo || '');
     setDInvDate(m.invDate || new Date().toISOString().slice(0, 10));
     setDTransporter(m.transporterId || '');
-    setDFreightRate(String(m.freightRate || ''));
+    // Pre-fill freight from the order's own value, else the party's saved Default Freight (editable).
+    const dfltFreight = parties.find((p) => p.id === m.partyId)?.defaultFreight || 0;
+    setDFreightRate(String(m.freightRate || dfltFreight || ''));
     setDHandlingAgent(m.handlingAgentId || '');
     setDHandlingRate(String(m.handlingRate || ''));
   }
