@@ -175,6 +175,7 @@ const preferencesSchema = z.object({
       sections: z.array(z.string()).optional(),
     })
     .optional(),
+  menuOrder: z.array(z.string()).optional(),
 });
 
 usersRouter.patch(

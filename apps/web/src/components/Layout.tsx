@@ -48,12 +48,14 @@ function loadOrder(): string[] {
 }
 
 export function Layout() {
-  const { user, logout } = useAuth();
+  const { user, logout, updateUser } = useAuth();
   const can = usePermission();
   const { fys, selectedFy, setSelectedFy, refreshFys } = useFinancialYear();
   const [pendingApprovals, setPendingApprovals] = useState(0);
-  const [order, setOrder] = useState<string[]>(() => loadOrder());
+  // Prefer the account-saved order (follows the user across devices); fall back to this browser's.
+  const [order, setOrder] = useState<string[]>(() => user?.preferences?.menuOrder ?? loadOrder());
   const [customizing, setCustomizing] = useState(false);
+  const [dragKey, setDragKey] = useState<string | null>(null);
 
   useEffect(() => {
     if (!can('view_approvals')) return;
@@ -62,6 +64,13 @@ export function Layout() {
       .then((rows) => setPendingApprovals(rows.length))
       .catch(() => setPendingApprovals(0));
   }, [can]);
+
+  // When the signed-in user's saved menu order loads (e.g. after a refresh), apply it.
+  useEffect(() => {
+    const saved = user?.preferences?.menuOrder;
+    if (saved?.length) setOrder(saved);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   // Effective order = saved order (known keys) followed by any not-yet-ordered keys, in default order.
   const orderedDefs = useMemo(() => {
@@ -91,19 +100,22 @@ export function Layout() {
     } catch {
       /* ignore */
     }
+    // Also save to the account so the order follows the user to any device.
+    if (user) api.users.setPreferences(user.id, { menuOrder: next }).then(updateUser).catch(() => {});
   }
 
-  // Move a visible item up/down by swapping with its neighbour in the full ordered list.
-  function move(key: string, dir: -1 | 1) {
+  // Drag-and-drop reorder: drop the dragged item onto another to move it there.
+  function onDropKey(targetKey: string) {
+    if (dragKey === null) return;
     const keys = orderedDefs.map((d) => d.key);
-    const visibleKeys = visible.map((d) => d.key);
-    const vi = visibleKeys.indexOf(key);
-    const targetKey = visibleKeys[vi + dir];
-    if (targetKey === undefined) return;
-    const i = keys.indexOf(key);
-    const j = keys.indexOf(targetKey);
-    [keys[i], keys[j]] = [keys[j], keys[i]];
-    persist(keys);
+    const from = keys.indexOf(dragKey);
+    const to = keys.indexOf(targetKey);
+    setDragKey(null);
+    if (from < 0 || to < 0 || from === to) return;
+    const next = keys.slice();
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    persist(next);
   }
 
   function resetOrder() {
@@ -147,46 +159,56 @@ export function Layout() {
           </button>
         )}
 
-        {visible.map((d, idx) => (
-          <div key={d.key} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        {visible.map((d) => (
+          <div
+            key={d.key}
+            draggable={customizing}
+            onDragStart={() => setDragKey(d.key)}
+            onDragEnd={() => setDragKey(null)}
+            onDragOver={(e) => customizing && dragKey !== null && e.preventDefault()}
+            onDrop={() => onDropKey(d.key)}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, opacity: customizing && dragKey === d.key ? 0.4 : 1 }}
+          >
             {customizing && (
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <button
-                  onClick={() => move(d.key, -1)}
-                  disabled={idx === 0}
-                  title="Move up"
-                  style={{ ...arrowStyle, opacity: idx === 0 ? 0.3 : 1 }}
-                >
-                  ▲
-                </button>
-                <button
-                  onClick={() => move(d.key, 1)}
-                  disabled={idx === visible.length - 1}
-                  title="Move down"
-                  style={{ ...arrowStyle, opacity: idx === visible.length - 1 ? 0.3 : 1 }}
-                >
-                  ▼
-                </button>
-              </div>
+              <span title="Drag to reorder" style={{ cursor: 'grab', color: 'rgba(255,255,255,.55)', fontSize: 13, userSelect: 'none' }}>
+                ⠿
+              </span>
             )}
-            <NavLink to={d.to} end={d.to === '/'} style={{ flex: 1 }}>
-              {d.label}
-              {d.key === 'approvals' && pendingApprovals > 0 && (
-                <span
-                  style={{
-                    background: '#ef4444',
-                    color: '#fff',
-                    fontSize: 10,
-                    fontWeight: 700,
-                    padding: '1px 6px',
-                    borderRadius: 10,
-                    marginLeft: 6,
-                  }}
-                >
-                  {pendingApprovals}
-                </span>
-              )}
-            </NavLink>
+            {customizing ? (
+              // While arranging, show a non-clickable chip so dragging never triggers navigation.
+              <span
+                style={{
+                  flex: 1,
+                  padding: '8px 10px',
+                  color: '#fff',
+                  borderRadius: 6,
+                  background: 'rgba(255,255,255,.08)',
+                  cursor: 'grab',
+                  userSelect: 'none',
+                }}
+              >
+                {d.label}
+              </span>
+            ) : (
+              <NavLink to={d.to} end={d.to === '/'} style={{ flex: 1 }}>
+                {d.label}
+                {d.key === 'approvals' && pendingApprovals > 0 && (
+                  <span
+                    style={{
+                      background: '#ef4444',
+                      color: '#fff',
+                      fontSize: 10,
+                      fontWeight: 700,
+                      padding: '1px 6px',
+                      borderRadius: 10,
+                      marginLeft: 6,
+                    }}
+                  >
+                    {pendingApprovals}
+                  </span>
+                )}
+              </NavLink>
+            )}
           </div>
         ))}
       </nav>
@@ -226,14 +248,3 @@ export function Layout() {
     </div>
   );
 }
-
-const arrowStyle: React.CSSProperties = {
-  background: 'rgba(255,255,255,.15)',
-  color: '#fff',
-  border: 'none',
-  borderRadius: 4,
-  fontSize: 9,
-  lineHeight: '12px',
-  cursor: 'pointer',
-  padding: '1px 3px',
-};

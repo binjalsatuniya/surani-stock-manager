@@ -15,6 +15,7 @@ export interface UserPreferences {
     tiles?: string[]; // ordered tile keys
     sections?: string[]; // ordered section keys
   };
+  menuOrder?: string[]; // ordered sidebar nav keys
 }
 
 export interface User {
