@@ -9,6 +9,14 @@ export interface UserSecurity {
   locationAccessEnabled?: boolean;
 }
 
+// Per-user UI preferences saved server-side so they follow the user across devices.
+export interface UserPreferences {
+  dashboard?: {
+    tiles?: string[]; // ordered tile keys
+    sections?: string[]; // ordered section keys
+  };
+}
+
 export interface User {
   id: string;
   name: string;
@@ -16,6 +24,7 @@ export interface User {
   role: Role;
   permissions: PermissionMap;
   security: UserSecurity;
+  preferences: UserPreferences;
   isPrimary: boolean;
   createdAt: string;
   updatedAt: string;

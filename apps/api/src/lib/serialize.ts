@@ -1,5 +1,5 @@
 import type { User as PrismaUser } from '@prisma/client';
-import type { PermissionMap, Role, User, UserSecurity } from '@surani/shared';
+import type { PermissionMap, Role, User, UserPreferences, UserSecurity } from '@surani/shared';
 
 export function toUserDTO(u: PrismaUser): User {
   const security = (u.security as Partial<UserSecurity>) ?? {};
@@ -18,6 +18,7 @@ export function toUserDTO(u: PrismaUser): User {
       // Whether the extra password that gates Login Locations is set (the hash itself never leaves the server).
       locationAccessEnabled: !!(security as Record<string, unknown>).locationAccessHash,
     },
+    preferences: (u.preferences as UserPreferences) ?? {},
     isPrimary: u.isPrimary,
     createdAt: u.createdAt.toISOString(),
     updatedAt: u.updatedAt.toISOString(),

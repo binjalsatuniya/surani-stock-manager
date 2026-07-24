@@ -1,5 +1,5 @@
 import type { HttpClient } from './http';
-import type { User } from '../types';
+import type { User, UserPreferences } from '../types';
 import type { PermissionMap, Role } from '../permissions';
 
 export interface CreateUserInput {
@@ -22,5 +22,8 @@ export function createUsersClient(http: HttpClient) {
       http.post<User>(`/users/${id}/security/pin`, { pin }),
     setBiometric: (id: string, enabled: boolean, credentialId?: string) =>
       http.post<User>(`/users/${id}/security/biometric`, { enabled, credentialId }),
+    // Save this user's own UI preferences (e.g. Dashboard layout). Self only, server-enforced.
+    setPreferences: (id: string, preferences: UserPreferences) =>
+      http.patch<User>(`/users/${id}/preferences`, preferences),
   };
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
   buildWhatsappLink,
   type DashboardKpis,
@@ -10,7 +10,46 @@ import {
   type StockLevel,
 } from '@surani/shared';
 import { api } from '../lib/apiClient';
+import { useAuth } from '../context/AuthContext';
 import { usePermission } from '../hooks/usePermission';
+
+// Reorder helper: move an item from one index to another (returns a new array).
+function reorder<T>(arr: T[], from: number, to: number): T[] {
+  const next = arr.slice();
+  const [moved] = next.splice(from, 1);
+  next.splice(to, 0, moved);
+  return next;
+}
+
+// Apply a saved key order to a set of defs; unknown/new keys fall in at the end in default order.
+function applyOrder<T extends { key: string }>(defs: T[], savedOrder?: string[]): T[] {
+  if (!savedOrder?.length) return defs;
+  const byKey = new Map(defs.map((d) => [d.key, d]));
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const k of savedOrder) {
+    const d = byKey.get(k);
+    if (d && !seen.has(k)) {
+      out.push(d);
+      seen.add(k);
+    }
+  }
+  for (const d of defs) if (!seen.has(d.key)) out.push(d);
+  return out;
+}
+
+const dragHandleStyle: React.CSSProperties = {
+  cursor: 'grab',
+  fontSize: 11.5,
+  fontWeight: 700,
+  color: '#0f766e',
+  background: '#f0fdfa',
+  border: '1px dashed #99f6e4',
+  borderRadius: 8,
+  padding: '4px 10px',
+  marginBottom: 8,
+  userSelect: 'none',
+};
 import { useWhatsappTemplates } from '../hooks/useWhatsappTemplates';
 import { useFinancialYear } from '../context/FinancialYearContext';
 import { useFieldSettings } from '../hooks/useFieldSettings';
@@ -42,9 +81,28 @@ const EMPTY_ORDER = {
 
 export function DashboardPage() {
   const can = usePermission();
+  const { user, updateUser } = useAuth();
   const { fill } = useWhatsappTemplates();
   const { selectedFy } = useFinancialYear();
   const { required } = useFieldSettings();
+
+  // Drag-to-reorder layout — saved per user (server-side) so it follows them across devices.
+  const [arranging, setArranging] = useState(false);
+  const [tileOrder, setTileOrder] = useState<string[]>(user?.preferences?.dashboard?.tiles ?? []);
+  const [sectionOrder, setSectionOrder] = useState<string[]>(user?.preferences?.dashboard?.sections ?? []);
+  const [dragTile, setDragTile] = useState<string | null>(null);
+  const [dragSection, setDragSection] = useState<string | null>(null);
+
+  async function saveOrder(next: { tiles?: string[]; sections?: string[] }) {
+    if (!user) return;
+    const dashboard = { tiles: next.tiles ?? tileOrder, sections: next.sections ?? sectionOrder };
+    try {
+      const updated = await api.users.setPreferences(user.id, { dashboard });
+      updateUser(updated); // keep the cached user in sync so the order sticks on reload
+    } catch {
+      /* even if the save fails, keep the on-screen order for this session */
+    }
+  }
   const [kpis, setKpis] = useState<DashboardKpis | null>(null);
   const [items, setItems] = useState<Item[]>([]);
   const [stock, setStock] = useState<Record<string, number>>({});
@@ -186,54 +244,139 @@ export function DashboardPage() {
     if (message) window.open(buildWhatsappLink(null, message), '_blank');
   }
 
+  // ----- drag-to-reorder plumbing (CSS `order` keeps the JSX in place) -----
+  const TILE_KEYS = ['items', 'receivable', 'payable', 'net', 'lowStock', 'pendingOrders'];
+  const SECTION_KEYS = ['kpis', 'newOrder', 'availableStock', 'recentActivity'];
+  const orderKeys = (defaults: string[], saved: string[]): string[] => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const k of saved) if (defaults.includes(k) && !seen.has(k)) (out.push(k), seen.add(k));
+    for (const k of defaults) if (!seen.has(k)) out.push(k);
+    return out;
+  };
+  const effTiles = orderKeys(TILE_KEYS, tileOrder);
+  const effSections = orderKeys(SECTION_KEYS, sectionOrder);
+
+  function onTileDrop(target: string) {
+    if (dragTile === null) return;
+    const from = effTiles.indexOf(dragTile);
+    const to = effTiles.indexOf(target);
+    setDragTile(null);
+    if (from < 0 || to < 0 || from === to) return;
+    const next = reorder(effTiles, from, to);
+    setTileOrder(next);
+    saveOrder({ tiles: next });
+  }
+  function onSectionDrop(target: string) {
+    if (dragSection === null) return;
+    const from = effSections.indexOf(dragSection);
+    const to = effSections.indexOf(target);
+    setDragSection(null);
+    if (from < 0 || to < 0 || from === to) return;
+    const next = reorder(effSections, from, to);
+    setSectionOrder(next);
+    saveOrder({ sections: next });
+  }
+
+  // Props for a KPI tile: draggable in arrange mode, drop target, positioned via CSS order.
+  const tileProps = (key: string): React.HTMLAttributes<HTMLDivElement> => ({
+    draggable: arranging,
+    onDragStart: () => setDragTile(key),
+    onDragEnd: () => setDragTile(null),
+    onDragOver: (e) => arranging && dragTile !== null && e.preventDefault(),
+    onDrop: (e) => {
+      e.stopPropagation();
+      onTileDrop(key);
+    },
+    style: {
+      order: effTiles.indexOf(key),
+      cursor: arranging ? 'grab' : undefined,
+      opacity: arranging && dragTile === key ? 0.5 : 1,
+      outline: arranging ? '1px dashed #99f6e4' : undefined,
+    },
+  });
+
+  // Props for a section wrapper: drop target + CSS order. Dragging is via its handle only.
+  const sectionProps = (key: string): React.HTMLAttributes<HTMLDivElement> => ({
+    onDragOver: (e) => arranging && dragSection !== null && e.preventDefault(),
+    onDrop: () => onSectionDrop(key),
+    style: { order: effSections.indexOf(key), opacity: arranging && dragSection === key ? 0.5 : 1 },
+  });
+
+  // A small draggable handle shown at the top of each section while arranging.
+  const SectionHandle = ({ sectionKey }: { sectionKey: string }) =>
+    arranging ? (
+      <div
+        draggable
+        onDragStart={() => setDragSection(sectionKey)}
+        onDragEnd={() => setDragSection(null)}
+        style={dragHandleStyle}
+      >
+        ⠿ Drag to move this section
+      </div>
+    ) : null;
+
   if (!kpis) return <div className="card">Loading…</div>;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {can('send_whatsapp') && (
-        <div className="toolbar" style={{ margin: 0, justifyContent: 'flex-end' }}>
+      <div className="toolbar" style={{ margin: 0, justifyContent: 'flex-end', order: -2, gap: 8 }}>
+        <button className="btn btn-sm" onClick={() => setArranging((a) => !a)} title="Drag tiles and sections to reorder the dashboard">
+          {arranging ? '✓ Done arranging' : '⠿ Arrange layout'}
+        </button>
+        {can('send_whatsapp') && (
           <button className="btn btn-sm btn-primary" onClick={onShare}>
             Share on WhatsApp
           </button>
+        )}
+      </div>
+      {arranging && (
+        <div className="muted" style={{ order: -1, fontSize: 12 }}>
+          Drag a tile, or a section’s “⠿ Drag to move” handle, to rearrange. Your layout is saved to your account and follows you on every device.
         </div>
       )}
 
       {/* KPI tiles */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16 }}>
-        <div className="card">
-          <div className="muted">Items</div>
-          <div style={{ fontSize: 26, fontWeight: 700 }}>{kpis.totalItems}</div>
-          <div className="muted" style={{ fontSize: 11 }}>{parties.length} parties</div>
-        </div>
-        <div className="card">
-          <div className="muted">Total receivable</div>
-          <div style={{ fontSize: 26, fontWeight: 700, color: '#10b981' }}>{inr(kpis.receivable)}</div>
-          <div className="muted" style={{ fontSize: 11 }}>to collect</div>
-        </div>
-        <div className="card">
-          <div className="muted">Total payable</div>
-          <div style={{ fontSize: 26, fontWeight: 700, color: '#ef4444' }}>{inr(kpis.payable)}</div>
-          <div className="muted" style={{ fontSize: 11 }}>to pay</div>
-        </div>
-        <div className="card">
-          <div className="muted">Net position</div>
-          <div style={{ fontSize: 26, fontWeight: 700, color: kpis.netPosition >= 0 ? '#10b981' : '#ef4444' }}>
-            {inr(kpis.netPosition)}
+      <div {...sectionProps('kpis')}>
+        <SectionHandle sectionKey="kpis" />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16 }}>
+          <div className="card" {...tileProps('items')}>
+            <div className="muted">Items</div>
+            <div style={{ fontSize: 26, fontWeight: 700 }}>{kpis.totalItems}</div>
+            <div className="muted" style={{ fontSize: 11 }}>{parties.length} parties</div>
           </div>
-        </div>
-        <div className="card">
-          <div className="muted">Low stock items</div>
-          <div style={{ fontSize: 26, fontWeight: 700, color: kpis.lowStockCount ? '#ef4444' : undefined }}>{kpis.lowStockCount}</div>
-          <div className="muted" style={{ fontSize: 11 }}>at / below reorder</div>
-        </div>
-        <div className="card">
-          <div className="muted">Pending orders</div>
-          <div style={{ fontSize: 26, fontWeight: 700 }}>{kpis.pendingOrders}</div>
+          <div className="card" {...tileProps('receivable')}>
+            <div className="muted">Total receivable</div>
+            <div style={{ fontSize: 26, fontWeight: 700, color: '#10b981' }}>{inr(kpis.receivable)}</div>
+            <div className="muted" style={{ fontSize: 11 }}>to collect</div>
+          </div>
+          <div className="card" {...tileProps('payable')}>
+            <div className="muted">Total payable</div>
+            <div style={{ fontSize: 26, fontWeight: 700, color: '#ef4444' }}>{inr(kpis.payable)}</div>
+            <div className="muted" style={{ fontSize: 11 }}>to pay</div>
+          </div>
+          <div className="card" {...tileProps('net')}>
+            <div className="muted">Net position</div>
+            <div style={{ fontSize: 26, fontWeight: 700, color: kpis.netPosition >= 0 ? '#10b981' : '#ef4444' }}>
+              {inr(kpis.netPosition)}
+            </div>
+          </div>
+          <div className="card" {...tileProps('lowStock')}>
+            <div className="muted">Low stock items</div>
+            <div style={{ fontSize: 26, fontWeight: 700, color: kpis.lowStockCount ? '#ef4444' : undefined }}>{kpis.lowStockCount}</div>
+            <div className="muted" style={{ fontSize: 11 }}>at / below reorder</div>
+          </div>
+          <div className="card" {...tileProps('pendingOrders')}>
+            <div className="muted">Pending orders</div>
+            <div style={{ fontSize: 26, fontWeight: 700 }}>{kpis.pendingOrders}</div>
+          </div>
         </div>
       </div>
 
       {/* + New Order (records an outward sale) */}
       {can('place_order') && (
+        <div {...sectionProps('newOrder')}>
+          <SectionHandle sectionKey="newOrder" />
         <div className="card" style={{ border: '1px solid var(--accent, #0d9488)' }}>
           <h3 style={{ marginTop: 0, color: 'var(--accent-2, #0f766e)' }}>
             ＋ New Order <span className="muted" style={{ fontWeight: 600 }}>(records an outward sale)</span>
@@ -358,9 +501,12 @@ export function DashboardPage() {
           </div>
           {orderError && <div className="login-err show">{orderError}</div>}
         </div>
+        </div>
       )}
 
       {/* Available stock by material */}
+      <div {...sectionProps('availableStock')}>
+        <SectionHandle sectionKey="availableStock" />
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Available Stock</h3>
         <table>
@@ -395,8 +541,11 @@ export function DashboardPage() {
           </tbody>
         </table>
       </div>
+      </div>
 
       {/* Recent activity */}
+      <div {...sectionProps('recentActivity')}>
+        <SectionHandle sectionKey="recentActivity" />
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Recent Activity</h3>
         <table>
@@ -428,6 +577,7 @@ export function DashboardPage() {
             )}
           </tbody>
         </table>
+      </div>
       </div>
     </div>
   );

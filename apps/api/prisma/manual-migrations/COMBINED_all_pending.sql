@@ -49,6 +49,13 @@ ALTER TABLE public.payments
   ADD COLUMN IF NOT EXISTS tds_amount numeric(14,2) NOT NULL DEFAULT 0;
 
 -- ---------------------------------------------------------------------
+-- 2b) Per-user UI preferences (drag-to-reorder Dashboard layout).
+--     Shape: { "dashboard": { "tiles": [...], "sections": [...] } }. Default empty.
+-- ---------------------------------------------------------------------
+ALTER TABLE public.users
+  ADD COLUMN IF NOT EXISTS preferences jsonb NOT NULL DEFAULT '{}'::jsonb;
+
+-- ---------------------------------------------------------------------
 -- 3) (OPTIONAL — DATA ONLY) Make JAYNIL the primary Super Admin.
 --    Reveals Access Settings & Login Locations, and shows the name "JAYNIL".
 --    Skip this block if you have already run it. Re-running is harmless.

@@ -165,3 +165,30 @@ usersRouter.post(
     res.json(toUserDTO(user));
   })
 );
+
+// Save a user's own UI preferences (e.g. the drag-to-reorder Dashboard layout). Self only, so
+// nobody can rearrange another user's screen. Merged onto existing prefs so unrelated keys survive.
+const preferencesSchema = z.object({
+  dashboard: z
+    .object({
+      tiles: z.array(z.string()).optional(),
+      sections: z.array(z.string()).optional(),
+    })
+    .optional(),
+});
+
+usersRouter.patch(
+  '/:id/preferences',
+  asyncHandler(async (req, res) => {
+    if (req.params.id !== req.user!.id) throw new HttpError(403, 'Can only change your own preferences');
+    const input = preferencesSchema.parse(req.body);
+
+    const existing = await prisma.user.findUnique({ where: { id: req.params.id } });
+    if (!existing) throw new NotFoundError('User not found');
+
+    const prev = (existing.preferences as Record<string, unknown>) ?? {};
+    const merged = { ...prev, ...input };
+    const user = await prisma.user.update({ where: { id: req.params.id }, data: { preferences: merged } });
+    res.json(toUserDTO(user));
+  })
+);

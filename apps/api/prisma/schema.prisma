@@ -18,6 +18,7 @@ model User {
   role         String // superadmin | admin | account | staff
   permissions  Json     @default("{}")
   security     Json     @default("{}") // {pinEnabled,pinHash,biometricEnabled,biometricCredentialId}
+  preferences  Json     @default("{}") // per-user UI prefs, e.g. { dashboard: { tiles: [], sections: [] } }
   isPrimary    Boolean  @default(false) @map("is_primary") // the root Super Admin — full authority over other admins
   legacyId     String?  @unique @map("legacy_id")
   createdAt    DateTime @default(now()) @map("created_at")
