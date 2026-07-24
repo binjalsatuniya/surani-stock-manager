@@ -12,10 +12,15 @@ export interface UserSecurity {
 // Per-user UI preferences saved server-side so they follow the user across devices.
 export interface UserPreferences {
   dashboard?: {
-    tiles?: string[]; // ordered tile keys
-    sections?: string[]; // ordered section keys
+    tiles?: string[]; // ordered tile keys (web)
+    sections?: string[]; // ordered section keys (web)
   };
-  menuOrder?: string[]; // ordered sidebar nav keys
+  menuOrder?: string[]; // ordered sidebar nav keys (web)
+  mobileMenuOrder?: string[]; // ordered "More" menu keys (mobile)
+  mobileDashboard?: {
+    tiles?: string[]; // ordered tile keys (mobile)
+    sections?: string[]; // ordered section keys (mobile)
+  };
 }
 
 export interface User {

@@ -168,14 +168,17 @@ usersRouter.post(
 
 // Save a user's own UI preferences (e.g. the drag-to-reorder Dashboard layout). Self only, so
 // nobody can rearrange another user's screen. Merged onto existing prefs so unrelated keys survive.
+const orderPair = z
+  .object({
+    tiles: z.array(z.string()).optional(),
+    sections: z.array(z.string()).optional(),
+  })
+  .optional();
 const preferencesSchema = z.object({
-  dashboard: z
-    .object({
-      tiles: z.array(z.string()).optional(),
-      sections: z.array(z.string()).optional(),
-    })
-    .optional(),
+  dashboard: orderPair,
   menuOrder: z.array(z.string()).optional(),
+  mobileMenuOrder: z.array(z.string()).optional(),
+  mobileDashboard: orderPair,
 });
 
 usersRouter.patch(
