@@ -87,6 +87,13 @@ export function PaymentsPage() {
     exportDueLedgerPdf(dueGroups, spName);
   }
 
+  // One party's dues as a printable PDF, then open their WhatsApp chat so the downloaded file can
+  // be attached. Browsers can't attach a file to WhatsApp automatically, so this is a two-part flow.
+  function onPartyDuesPdf(g: DueLedgerGroup) {
+    exportDueLedgerPdf([g], g.party.name);
+    if (g.party.phone) openWhatsapp(g.party.phone);
+  }
+
   useEffect(() => {
     setSelected(new Set());
     setSelectedPurchase(new Set());
@@ -319,6 +326,13 @@ export function PaymentsPage() {
                     </button>
                   </>
                 )}
+                <button
+                  className="btn btn-sm"
+                  onClick={() => onPartyDuesPdf(g)}
+                  title="Download this party's dues as a PDF (and open their WhatsApp to attach it)"
+                >
+                  📄 Dues PDF
+                </button>
               </div>
               <table>
                 <tbody>
