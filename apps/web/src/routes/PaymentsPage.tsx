@@ -67,11 +67,16 @@ export function PaymentsPage() {
   function onRemind(g: DueLedgerGroup) {
     const overdue = g.entries.filter((e) => e.dueDays !== null && e.dueDays <= 0);
     const overdueAmount = overdue.reduce((s, e) => s + e.balance, 0);
+    // One line per outstanding invoice: number · date · amount.
+    const invoiceList = g.entries
+      .map((e) => `• Invoice ${e.invNo || '—'} · ${fmtDate(e.date)} · ₹${e.balance.toFixed(2)}`)
+      .join('\n');
     const message = fill('paymentReminder', {
       partyName: g.party.name,
       balance: g.total.toFixed(2),
       overdueCount: String(overdue.length),
       overdueAmount: overdueAmount.toFixed(2),
+      invoiceList,
       date: fmtDate(new Date().toISOString()),
     });
     if (message) window.open(buildWhatsappLink(g.party.phone, message), '_blank');

@@ -102,6 +102,7 @@ export const WHATSAPP_TEMPLATES: WhatsappTemplateDef[] = [
       { token: '{balance}', description: 'Total outstanding balance' },
       { token: '{overdueCount}', description: 'Number of overdue invoices' },
       { token: '{overdueAmount}', description: 'Total overdue amount' },
+      { token: '{invoiceList}', description: 'Itemised list of outstanding invoices — number, date, amount (filled in automatically)' },
       { token: '{date}', description: "Today's date" },
     ],
     default: [
@@ -112,6 +113,9 @@ export const WHATSAPP_TEMPLATES: WhatsappTemplateDef[] = [
       'This is a gentle reminder that you have an outstanding balance of ₹{balance} with Surani and Sons as on {date}.',
       '',
       '{overdueCount} invoice(s) totalling ₹{overdueAmount} are overdue.',
+      '',
+      '*Outstanding invoices:*',
+      '{invoiceList}',
       '',
       'Kindly arrange payment at the earliest. Thank you 🙏',
     ].join('\n'),
