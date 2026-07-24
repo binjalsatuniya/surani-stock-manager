@@ -173,7 +173,8 @@ export interface Payment {
   financialYear: string;
   partyId: string;
   dir: PaymentDirection;
-  amount: number;
+  amount: number; // cash that actually changed hands
+  tdsAmount: number; // TDS deducted at source; invoices/ledger settle by (amount + tdsAmount)
   mode: PaymentMode;
   allocations: PaymentAllocation[];
   note: string | null;

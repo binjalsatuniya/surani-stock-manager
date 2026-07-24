@@ -25,6 +25,7 @@ export function PaymentsPage() {
   const [partyId, setPartyId] = useState('');
   const [dir, setDir] = useState<PaymentDirection | ''>('');
   const [amount, setAmount] = useState('');
+  const [tds, setTds] = useState('');
   const [mode, setMode] = useState<PaymentMode>('Cash');
   const [note, setNote] = useState('');
   const [unpaid, setUnpaid] = useState<UnpaidInvoice[]>([]);
@@ -136,12 +137,14 @@ export function PaymentsPage() {
         partyId,
         dir,
         amount: Number(amount),
+        tdsAmount: tds ? Number(tds) : undefined,
         mode,
         note: note.trim() || null,
         outwardIds: dir === 'in' ? Array.from(selected) : undefined,
         inwardIds: dir === 'out' ? Array.from(selectedPurchase) : undefined,
       });
       setAmount('');
+      setTds('');
       setPartyId('');
       setDir('');
       setNote('');
@@ -189,8 +192,12 @@ export function PaymentsPage() {
               </select>
             </div>
             <div className="field" style={{ margin: 0 }}>
-              <label>Amount</label>
+              <label>Amount (cash)</label>
               <input value={amount} onChange={(e) => setAmount(e.target.value)} style={{ width: 100 }} />
+            </div>
+            <div className="field" style={{ margin: 0 }}>
+              <label title="Tax Deducted at Source. Leave blank if none.">TDS</label>
+              <input value={tds} onChange={(e) => setTds(e.target.value)} placeholder="0" style={{ width: 80 }} />
             </div>
             <div className="field" style={{ margin: 0 }}>
               <label>Mode</label>
@@ -210,6 +217,12 @@ export function PaymentsPage() {
               Record Payment
             </button>
           </div>
+          {Number(tds) > 0 && Number(amount) >= 0 && (
+            <div className="muted" style={{ marginBottom: 8 }}>
+              Cash {Number(amount || 0).toFixed(2)} + TDS {Number(tds).toFixed(2)} ={' '}
+              <strong>{(Number(amount || 0) + Number(tds)).toFixed(2)}</strong> settled against invoices.
+            </div>
+          )}
           {dir === 'in' && partyId && (
             <div style={{ marginBottom: 16 }}>
               {unpaid.length === 0 ? (
@@ -332,6 +345,7 @@ export function PaymentsPage() {
             <th>Party</th>
             <th>Direction</th>
             <th>Amount</th>
+            <th>TDS</th>
             <th>Mode</th>
             {canRecord && <th></th>}
           </tr>
@@ -343,6 +357,7 @@ export function PaymentsPage() {
               <td>{partyName(p.partyId)}</td>
               <td>{p.dir === 'in' ? 'Received' : 'Paid'}</td>
               <td>{p.amount}</td>
+              <td>{p.tdsAmount ? p.tdsAmount : '—'}</td>
               <td>{p.mode}</td>
               {canRecord && (
                 <td>
@@ -355,7 +370,7 @@ export function PaymentsPage() {
           ))}
           {rows.length === 0 && (
             <tr>
-              <td colSpan={6} className="muted">
+              <td colSpan={7} className="muted">
                 No payments recorded yet.
               </td>
             </tr>

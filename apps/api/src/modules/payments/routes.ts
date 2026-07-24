@@ -53,7 +53,9 @@ const paymentSchema = z.object({
   date: z.string().min(1),
   partyId: z.string().uuid(),
   dir: z.enum(['in', 'out']),
-  amount: z.coerce.number().positive(),
+  amount: z.coerce.number().positive(), // cash that actually changed hands
+  // TDS deducted at source. Invoices/ledger are settled by (amount + tdsAmount).
+  tdsAmount: z.coerce.number().min(0).optional(),
   mode: z.enum(['Cash', 'HDFC CRAC', 'ICICI CRAC', 'ICICI CCAC', 'KCBL CRAC']),
   note: z.string().nullable().optional(),
   // Invoice IDs the user selected to allocate against, in priority order (normally oldest-first).
@@ -68,6 +70,9 @@ paymentsRouter.post(
   requirePermission('record_payments'),
   asyncHandler(async (req, res) => {
     const input = paymentSchema.parse(req.body);
+    const tds = input.tdsAmount ?? 0;
+    // The invoices/ledger are settled by the full value: cash received/paid PLUS any TDS.
+    const settleAmount = input.amount + tds;
 
     const payment = await prisma.$transaction(async (tx) => {
       const created = await tx.payment.create({
@@ -76,6 +81,7 @@ paymentsRouter.post(
           partyId: input.partyId,
           dir: input.dir,
           amount: input.amount,
+          tdsAmount: tds,
           mode: input.mode,
           note: input.note || null,
           createdById: req.user!.id,
@@ -90,7 +96,7 @@ paymentsRouter.post(
           .filter((u): u is NonNullable<typeof u> => !!u)
           .map((u) => ({ outwardId: u.outwardId, balance: u.balance }));
 
-        const allocations = allocateFifo(input.amount, selected);
+        const allocations = allocateFifo(settleAmount, selected);
         for (const alloc of allocations) {
           await tx.paymentAllocation.create({
             data: { paymentId: created.id, outwardId: alloc.outwardId, amount: alloc.amount },
@@ -121,7 +127,7 @@ paymentsRouter.post(
           .filter((u): u is NonNullable<typeof u> => !!u)
           .map((u) => ({ outwardId: u.outwardId, balance: u.balance }));
 
-        const allocations = allocateFifo(input.amount, selected);
+        const allocations = allocateFifo(settleAmount, selected);
         for (const alloc of allocations) {
           await tx.paymentInwardAllocation.create({
             data: { paymentId: created.id, inwardId: alloc.outwardId, amount: alloc.amount },

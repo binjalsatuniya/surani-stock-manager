@@ -101,6 +101,7 @@ export function toPaymentDTO(p: PrismaPayment & { paymentAllocations?: PrismaPay
     partyId: p.partyId,
     dir: p.dir as PaymentDirection,
     amount: Number(p.amount),
+    tdsAmount: Number(p.tdsAmount),
     mode: p.mode as PaymentMode,
     allocations: (p.paymentAllocations ?? []).map(toPaymentAllocationDTO),
     note: p.note,

@@ -6,7 +6,8 @@ export interface CreatePaymentInput {
   date: string;
   partyId: string;
   dir: PaymentDirection;
-  amount: number;
+  amount: number; // cash that actually changed hands
+  tdsAmount?: number; // TDS deducted at source (optional; defaults to 0)
   mode: PaymentMode;
   note?: string | null;
   outwardIds?: string[];

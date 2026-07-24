@@ -37,7 +37,11 @@ dashboardRouter.get(
         if (i.partyId === p.id) b -= Number(i.amount);
       }
       for (const pm of payments) {
-        if (pm.partyId === p.id) b += pm.dir === 'out' ? Number(pm.amount) : -Number(pm.amount);
+        // A payment settles its full value: cash (amount) plus any TDS deducted at source.
+        if (pm.partyId === p.id) {
+          const settle = Number(pm.amount) + Number(pm.tdsAmount);
+          b += pm.dir === 'out' ? settle : -settle;
+        }
       }
       for (const f of freight) {
         if (f.transporterId === p.id) b -= Number(f.freight);

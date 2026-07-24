@@ -56,7 +56,12 @@ ledgerRouter.get(
       let b = Number(p.opening);
       for (const o of outward) if (o.partyId === p.id && o.payStatus !== 'received') b += Number(o.amount);
       for (const i of inward) if (i.partyId === p.id) b -= Number(i.amount);
-      for (const pm of payments) if (pm.partyId === p.id) b += pm.dir === 'out' ? Number(pm.amount) : -Number(pm.amount);
+      // A payment settles its full value: cash (amount) plus any TDS deducted at source.
+      for (const pm of payments)
+        if (pm.partyId === p.id) {
+          const settle = Number(pm.amount) + Number(pm.tdsAmount);
+          b += pm.dir === 'out' ? settle : -settle;
+        }
       for (const f of freight) if (f.transporterId === p.id) b -= Number(f.freight);
       for (const h of handling) if (h.handlingAgentId === p.id) b -= Number(h.amount);
       if (b < 0) groups.push({ party: { id: p.id, name: p.name, phone: p.phone }, amount: Math.round(-b * 100) / 100 });
@@ -97,12 +102,17 @@ ledgerRouter.get(
         dr: 0,
         cr: Number(i.amount),
       })),
-      ...payments.map((p) => ({
-        date: p.date.toISOString().slice(0, 10),
-        description: `Payment ${p.dir === 'in' ? 'received' : 'paid'} (${p.mode})`,
-        dr: p.dir === 'out' ? Number(p.amount) : 0,
-        cr: p.dir === 'in' ? Number(p.amount) : 0,
-      })),
+      ...payments.map((p) => {
+        // The ledger value is the full settlement: cash plus any TDS deducted at source.
+        const settle = Number(p.amount) + Number(p.tdsAmount);
+        const tdsNote = Number(p.tdsAmount) > 0 ? ` incl. TDS ${Number(p.tdsAmount).toFixed(2)}` : '';
+        return {
+          date: p.date.toISOString().slice(0, 10),
+          description: `Payment ${p.dir === 'in' ? 'received' : 'paid'} (${p.mode})${tdsNote}`,
+          dr: p.dir === 'out' ? settle : 0,
+          cr: p.dir === 'in' ? settle : 0,
+        };
+      }),
       ...freight.map((f) => ({
         date: f.date.toISOString().slice(0, 10),
         description: `Freight payable — ${f.invNo || ''}`,

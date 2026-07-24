@@ -267,7 +267,9 @@ model Payment {
   partyId       String   @map("party_id") @db.Uuid
   party         Party    @relation(fields: [partyId], references: [id])
   dir           String // in | out
-  amount        Decimal  @db.Decimal(14, 2)
+  amount        Decimal  @db.Decimal(14, 2) // cash that actually changed hands
+  // TDS deducted at source. The amount that SETTLES invoices/ledger = amount + tdsAmount.
+  tdsAmount     Decimal  @default(0) @db.Decimal(14, 2) @map("tds_amount")
   mode          String // cash | cheque | transfer | upi
   allocations   Json?    // legacy-format snapshot, kept for lossless import
   note          String?
