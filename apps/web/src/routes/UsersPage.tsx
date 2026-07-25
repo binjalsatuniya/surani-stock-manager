@@ -140,7 +140,6 @@ export function UsersPage() {
     }
   }
 
-  const grantedCount = (u: User) => PERMS.filter((p) => hasPermission(u.role, u.permissions, p.id)).length;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -193,7 +192,6 @@ export function UsersPage() {
               <th>Name</th>
               <th>Username</th>
               <th>Role</th>
-              <th>Permissions</th>
               <th></th>
             </tr>
           </thead>
@@ -203,7 +201,6 @@ export function UsersPage() {
                 <td>{u.name}</td>
                 <td>{u.username}</td>
                 <td style={{ textTransform: 'capitalize' }}>{roleLabel(u.role)}</td>
-                <td>{u.role === 'superadmin' || grantedCount(u) === PERMS.length ? 'Full access' : `${grantedCount(u)} of ${PERMS.length}`}</td>
                 <td>
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     {isSuper && u.role !== 'superadmin' && (
