@@ -61,6 +61,38 @@ usersRouter.post(
   })
 );
 
+// Any signed-in user may change THEIR OWN username and/or password (not anyone else's). Requires
+// the current password to confirm it's really them. Defined before '/:id' so 'me' isn't captured.
+const selfLoginSchema = z.object({
+  currentPassword: z.string().min(1),
+  username: z.string().min(1).optional(),
+  password: z.string().min(4).optional(),
+});
+usersRouter.patch(
+  '/me/login',
+  asyncHandler(async (req, res) => {
+    const input = selfLoginSchema.parse(req.body);
+    const me = await prisma.user.findUnique({ where: { id: req.user!.id } });
+    if (!me) throw new NotFoundError('User not found');
+    const ok = await bcrypt.compare(input.currentPassword, me.passwordHash);
+    if (!ok) throw new HttpError(403, 'Current password is incorrect');
+
+    const data: Record<string, unknown> = {};
+    if (input.username && input.username !== me.username) {
+      const clash = await prisma.user.findUnique({ where: { username: input.username } });
+      if (clash) throw new HttpError(409, 'That username is already taken');
+      data.username = input.username;
+    }
+    if (input.password) data.passwordHash = await bcrypt.hash(input.password, 12);
+    if (Object.keys(data).length === 0) {
+      res.json(toUserDTO(me));
+      return;
+    }
+    const updated = await prisma.user.update({ where: { id: me.id }, data });
+    res.json(toUserDTO(updated));
+  })
+);
+
 const updateSchema = z.object({
   name: z.string().min(1).optional(),
   username: z.string().min(1).optional(),

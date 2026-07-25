@@ -17,6 +17,9 @@ export function createUsersClient(http: HttpClient) {
     list: () => http.get<User[]>('/users'),
     create: (input: CreateUserInput) => http.post<User>('/users', input),
     update: (id: string, input: UpdateUserInput) => http.patch<User>(`/users/${id}`, input),
+    // Any user changes their OWN username/password (needs their current password).
+    updateMyLogin: (input: { currentPassword: string; username?: string; password?: string }) =>
+      http.patch<User>('/users/me/login', input),
     // JAYNIL passes their login password to delete immediately; other admins omit it and the
     // deletion is queued for JAYNIL's approval. Returns { deleted } or { queued }.
     remove: (id: string, password?: string) =>

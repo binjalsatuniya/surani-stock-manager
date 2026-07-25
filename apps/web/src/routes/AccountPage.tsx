@@ -5,7 +5,35 @@ import { api } from '../lib/apiClient';
 import { rememberQuickUnlockUser, forgetQuickUnlockUser } from '../lib/quickUnlock';
 
 export function AccountPage() {
-  const { user, llUnlocked, unlockLoginLocations } = useAuth();
+  const { user, updateUser, llUnlocked, unlockLoginLocations } = useAuth();
+  // Change my own login (username + password)
+  const [myCur, setMyCur] = useState('');
+  const [myUser, setMyUser] = useState('');
+  const [myPass, setMyPass] = useState('');
+  const [myMsg, setMyMsg] = useState('');
+  const [myErr, setMyErr] = useState('');
+
+  async function onSaveMyLogin() {
+    setMyErr('');
+    setMyMsg('');
+    if (!myCur) return setMyErr('Enter your current password.');
+    if (!myUser.trim() && !myPass) return setMyErr('Enter a new username and/or a new password.');
+    if (myPass && myPass.length < 4) return setMyErr('New password must be at least 4 characters.');
+    try {
+      const updated = await api.users.updateMyLogin({
+        currentPassword: myCur,
+        username: myUser.trim() || undefined,
+        password: myPass || undefined,
+      });
+      updateUser(updated);
+      setMyCur('');
+      setMyPass('');
+      setMyUser('');
+      setMyMsg('Your login was updated. Use it next time you sign in.');
+    } catch (e) {
+      setMyErr(e instanceof Error ? e.message : 'Could not update your login');
+    }
+  }
   const [llPw, setLlPw] = useState('');
   const [llMsg, setLlMsg] = useState('');
   const [llErr, setLlErr] = useState('');
@@ -145,6 +173,39 @@ export function AccountPage() {
       <p>
         <strong>{user.name}</strong> · {user.username} · {roleLabel(user.role)}
       </p>
+
+      {/* Everyone can change their OWN username & password. */}
+      <div style={{ marginTop: 8, padding: 14, border: '1px solid var(--line)', borderRadius: 9 }}>
+        <div style={{ fontWeight: 600 }}>Change my login (username &amp; password)</div>
+        <div className="muted" style={{ fontSize: 11.5, marginTop: 2 }}>
+          Update your own username or password. Enter your current password to confirm. Leave a field blank to keep it.
+        </div>
+        <div style={{ marginTop: 10, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <input
+            type="password"
+            placeholder="Current password"
+            value={myCur}
+            onChange={(e) => setMyCur(e.target.value)}
+            style={{ maxWidth: 190, padding: '9px 11px', border: '1px solid var(--line)', borderRadius: 8 }}
+          />
+          <input
+            placeholder={`New username (now: ${user.username})`}
+            value={myUser}
+            onChange={(e) => setMyUser(e.target.value)}
+            style={{ maxWidth: 210, padding: '9px 11px', border: '1px solid var(--line)', borderRadius: 8 }}
+          />
+          <input
+            type="password"
+            placeholder="New password"
+            value={myPass}
+            onChange={(e) => setMyPass(e.target.value)}
+            style={{ maxWidth: 170, padding: '9px 11px', border: '1px solid var(--line)', borderRadius: 8 }}
+          />
+          <button className="btn btn-sm btn-primary" onClick={onSaveMyLogin}>Save</button>
+        </div>
+        {myErr && <div className="login-err show">{myErr}</div>}
+        {myMsg && <div className="muted" style={{ marginTop: 8, color: '#0f766e' }}>{myMsg}</div>}
+      </div>
 
       <div style={{ marginTop: 20, padding: 14, border: '1px solid var(--line)', borderRadius: 9 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14 }}>
