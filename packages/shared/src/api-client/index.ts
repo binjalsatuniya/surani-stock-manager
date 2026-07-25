@@ -19,6 +19,7 @@ import { createFieldSettingsClient } from './field-settings';
 import { createExpensesClient } from './expenses';
 import { createLoginLocationsClient } from './login-locations';
 import { createResetClient } from './reset';
+import { createRecoveryClient } from './recovery';
 
 export * from './http';
 export * from './reset';
@@ -87,6 +88,7 @@ export function createApiClient(opts: HttpClientOptions) {
     expenses: createExpensesClient(http),
     loginLocations: createLoginLocationsClient(http),
     reset: createResetClient(http),
+    recovery: createRecoveryClient(http),
   };
 }
 

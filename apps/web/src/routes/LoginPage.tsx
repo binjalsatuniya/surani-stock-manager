@@ -78,6 +78,30 @@ export function LoginPage() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [showForgot, setShowForgot] = useState(false);
+  // Master-recovery reset form
+  const [rUser, setRUser] = useState('');
+  const [rMaster, setRMaster] = useState('');
+  const [rNew, setRNew] = useState('');
+  const [rMsg, setRMsg] = useState('');
+  const [rErr, setRErr] = useState('');
+
+  async function onRecover(e: FormEvent) {
+    e.preventDefault();
+    setRErr('');
+    setRMsg('');
+    if (!rUser || !rMaster || rNew.length < 4) {
+      setRErr('Enter your username, the master recovery password, and a new password (4+ chars).');
+      return;
+    }
+    try {
+      await api.recovery.resetLogin({ username: rUser.trim(), masterPassword: rMaster, newPassword: rNew });
+      setRMsg('Password reset. You can now sign in with your new password.');
+      setRMaster('');
+      setRNew('');
+    } catch (err) {
+      setRErr(err instanceof ApiError && err.status === 429 ? 'Too many attempts — wait 15 minutes.' : 'Could not reset. Check the username and master password.');
+    }
+  }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -189,10 +213,18 @@ export function LoginPage() {
             Forgot password?
           </a>
           {showForgot && (
-            <div className="muted" style={{ marginTop: 6, fontSize: 11.5 }}>
-              For your security, passwords can't be shown. Ask your administrator (the main Super Admin) to reset it
-              for you from <strong>Users → Edit login</strong>, then sign in with the new password.
-            </div>
+            <form onSubmit={onRecover} style={{ marginTop: 8, padding: 10, border: '1px solid var(--line)', borderRadius: 8 }}>
+              <div className="muted" style={{ fontSize: 11.5, marginBottom: 8 }}>
+                Reset your login using the <strong>Master Recovery Password</strong> (set by the main Super Admin).
+                Passwords can't be shown — only reset.
+              </div>
+              <input placeholder="Your username" value={rUser} onChange={(e) => setRUser(e.target.value)} style={{ width: '100%', marginBottom: 6, padding: '8px 10px', border: '1px solid var(--line)', borderRadius: 8 }} />
+              <input type="password" placeholder="Master recovery password" value={rMaster} onChange={(e) => setRMaster(e.target.value)} style={{ width: '100%', marginBottom: 6, padding: '8px 10px', border: '1px solid var(--line)', borderRadius: 8 }} />
+              <input type="password" placeholder="New password" value={rNew} onChange={(e) => setRNew(e.target.value)} style={{ width: '100%', marginBottom: 8, padding: '8px 10px', border: '1px solid var(--line)', borderRadius: 8 }} />
+              <button type="submit" className="btn btn-sm btn-primary">Reset my password</button>
+              {rErr && <div className="login-err show" style={{ marginTop: 6 }}>{rErr}</div>}
+              {rMsg && <div style={{ color: '#0f766e', marginTop: 6, fontSize: 12 }}>{rMsg}</div>}
+            </form>
           )}
         </div>
         {hint && (

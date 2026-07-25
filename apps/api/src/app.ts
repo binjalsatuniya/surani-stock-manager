@@ -24,6 +24,7 @@ import { fieldSettingsRouter } from './modules/field-settings/routes';
 import { expensesRouter } from './modules/expenses/routes';
 import { loginLocationsRouter } from './modules/login-locations/routes';
 import { resetRouter } from './modules/reset/routes';
+import { recoveryRouter } from './modules/recovery/routes';
 
 export const app = express();
 
@@ -78,5 +79,6 @@ app.use('/field-settings', fieldSettingsRouter);
 app.use('/expenses', expensesRouter);
 app.use('/login-locations', loginLocationsRouter);
 app.use('/reset', resetRouter);
+app.use('/recovery', recoveryRouter);
 
 app.use(errorHandler);

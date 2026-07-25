@@ -25,9 +25,37 @@ export function AccountPage() {
   const [rstMsg, setRstMsg] = useState('');
   const [rstErr, setRstErr] = useState('');
 
+  // Master Recovery password — can reset any user's LOGIN password (primary only).
+  const [masterEnabled, setMasterEnabled] = useState(false);
+  const [mstCur, setMstCur] = useState('');
+  const [mstNext, setMstNext] = useState('');
+  const [mstMsg, setMstMsg] = useState('');
+  const [mstErr, setMstErr] = useState('');
+
   useEffect(() => {
-    if (user?.isPrimary) api.reset.status().then((s) => setResetEnabled(s.enabled)).catch(() => {});
+    if (user?.isPrimary) {
+      api.reset.status().then((s) => setResetEnabled(s.enabled)).catch(() => {});
+      api.recovery.status().then((s) => setMasterEnabled(s.enabled)).catch(() => {});
+    }
   }, [user?.isPrimary]);
+
+  async function onSaveMaster(remove = false) {
+    setMstErr('');
+    setMstMsg('');
+    if (!remove && mstNext.length < 10) {
+      setMstErr('Master password must be at least 10 characters.');
+      return;
+    }
+    try {
+      const res = await api.recovery.setMasterPassword({ current: mstCur || undefined, next: remove ? '' : mstNext });
+      setMasterEnabled(res.enabled);
+      setMstCur('');
+      setMstNext('');
+      setMstMsg(remove ? 'Master recovery password removed.' : 'Master recovery password saved. Keep it somewhere very safe.');
+    } catch (e) {
+      setMstErr(e instanceof Error ? e.message : 'Failed to save master password');
+    }
+  }
 
   async function onSaveReset(remove = false) {
     setRstErr('');
@@ -209,6 +237,45 @@ export function AccountPage() {
           </div>
           {rstErr && <div className="login-err show">{rstErr}</div>}
           {rstMsg && <div className="muted" style={{ marginTop: 8 }}>{rstMsg}</div>}
+        </div>
+      )}
+
+      {user.isPrimary && (
+        <div style={{ marginTop: 16, padding: 14, border: '1px solid var(--line)', borderRadius: 9 }}>
+          <div style={{ fontWeight: 600 }}>Master Recovery Password — reset any forgotten login</div>
+          <div className="muted" style={{ fontSize: 11.5, marginTop: 2 }}>
+            If anyone (including you) forgets their login password, they can reset it from the login screen's
+            “Forgot password?” using this master password. Store it somewhere very safe — it is the key to
+            every account. It canNOT wipe data. Currently {masterEnabled ? 'set.' : 'not set.'}
+          </div>
+          <div style={{ marginTop: 10, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            {masterEnabled && (
+              <input
+                type="password"
+                placeholder="Current master password"
+                value={mstCur}
+                onChange={(e) => setMstCur(e.target.value)}
+                style={{ maxWidth: 210, padding: '9px 11px', border: '1px solid var(--line)', borderRadius: 8 }}
+              />
+            )}
+            <input
+              type="password"
+              placeholder={masterEnabled ? 'New master password' : 'Set a master password (10+ chars)'}
+              value={mstNext}
+              onChange={(e) => setMstNext(e.target.value)}
+              style={{ maxWidth: 230, padding: '9px 11px', border: '1px solid var(--line)', borderRadius: 8 }}
+            />
+            <button className="btn btn-sm btn-primary" onClick={() => onSaveMaster(false)}>
+              {masterEnabled ? 'Change password' : 'Set password'}
+            </button>
+            {masterEnabled && (
+              <button className="btn btn-sm btn-danger" onClick={() => onSaveMaster(true)} title="Requires the current master password">
+                Turn off
+              </button>
+            )}
+          </div>
+          {mstErr && <div className="login-err show">{mstErr}</div>}
+          {mstMsg && <div className="muted" style={{ marginTop: 8 }}>{mstMsg}</div>}
         </div>
       )}
     </div>
