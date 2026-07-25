@@ -6,7 +6,7 @@ import { toPartyDTO } from '../../lib/serializeMasters';
 import { asyncHandler } from '../../lib/asyncHandler';
 import { authenticate } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/requirePermission';
-import { ForbiddenError, NotFoundError } from '../../middleware/errorHandler';
+import { ForbiddenError, HttpError, NotFoundError } from '../../middleware/errorHandler';
 import { mutateOrQueue } from '../../lib/approvalGate';
 
 export const partiesRouter = Router();
@@ -65,6 +65,9 @@ partiesRouter.post(
     if (!hasPermission(req.user!.role, req.user!.permissions, requiredPermFor(input.type))) {
       throw new ForbiddenError(`Missing permission: ${requiredPermFor(input.type)}`);
     }
+    // No duplicate party names (case-insensitive) — prevents two "Ambica" etc.
+    const dup = await prisma.party.findFirst({ where: { name: { equals: input.name, mode: 'insensitive' } } });
+    if (dup) throw new HttpError(409, `A party named "${dup.name}" already exists`);
     const party = await prisma.party.create({ data: input });
     res.status(201).json(toPartyDTO(party));
   })
@@ -76,6 +79,12 @@ partiesRouter.patch(
     const input = partySchema.partial().parse(req.body);
     const existing = await prisma.party.findUnique({ where: { id: req.params.id } });
     if (!existing) throw new NotFoundError('Party not found');
+    if (input.name) {
+      const dup = await prisma.party.findFirst({
+        where: { name: { equals: input.name, mode: 'insensitive' }, id: { not: req.params.id } },
+      });
+      if (dup) throw new HttpError(409, `A party named "${dup.name}" already exists`);
+    }
     const requiredPerm = requiredPermFor(input.type ?? existing.type);
     if (!hasPermission(req.user!.role, req.user!.permissions, requiredPerm)) {
       throw new ForbiddenError(`Missing permission: ${requiredPerm}`);

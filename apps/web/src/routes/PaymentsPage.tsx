@@ -235,6 +235,15 @@ export function PaymentsPage() {
               <strong>{(Number(amount || 0) + Number(tds)).toFixed(2)}</strong> settled against invoices.
             </div>
           )}
+          {partyId && (() => {
+            const p = parties.find((x) => x.id === partyId);
+            return p && Number(p.opening) > 0 ? (
+              <div style={{ marginBottom: 10, color: '#b45309', fontSize: 13 }}>
+                💡 Opening balance for <strong>{p.name}</strong>: ₹{Number(p.opening).toFixed(2)} — this is also
+                pending (it isn’t tied to a specific invoice, so it settles into the party’s general balance).
+              </div>
+            ) : null;
+          })()}
           {dir === 'in' && partyId && (
             <div style={{ marginBottom: 16 }}>
               {unpaid.length === 0 ? (

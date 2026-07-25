@@ -34,6 +34,7 @@ export function PartiesPage() {
   const { required } = useFieldSettings();
   const canEdit = can('edit_parties') || can('edit_transporters');
   const [parties, setParties] = useState<Party[]>([]);
+  const [query, setQuery] = useState('');
   const [salesPersons, setSalesPersons] = useState<SalesPerson[]>([]);
   const [form, setForm] = useState({ ...EMPTY });
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -236,7 +237,15 @@ export function PartiesPage() {
           </>
         )}
         {error && <div className="login-err show">{error}</div>}
-        <table style={{ marginTop: 14 }}>
+        <div className="field" style={{ margin: '14px 0 0', maxWidth: 320 }}>
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="🔍 Search parties by name, phone or GST…"
+            style={{ width: '100%' }}
+          />
+        </div>
+        <table style={{ marginTop: 10 }}>
           <thead>
             <tr>
               <th>Name</th>
@@ -251,7 +260,17 @@ export function PartiesPage() {
             </tr>
           </thead>
           <tbody>
-            {parties.map((p) => (
+            {parties
+              .filter((p) => {
+                const q = query.trim().toLowerCase();
+                if (!q) return true;
+                return (
+                  p.name.toLowerCase().includes(q) ||
+                  (p.phone || '').toLowerCase().includes(q) ||
+                  (p.gst || '').toLowerCase().includes(q)
+                );
+              })
+              .map((p) => (
               <tr key={p.id}>
                 <td>{p.name}</td>
                 <td>{p.type}</td>
