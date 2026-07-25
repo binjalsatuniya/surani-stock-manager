@@ -159,8 +159,8 @@ export function DashboardPage() {
       ...o,
       itemId: id,
       rate: o.rate || (it ? String(it.rate) : ''),
-      // Auto-fill GST from the item's slab (when set), so it needn't be picked per order.
-      gstPct: it && Number(it.gstPct) > 0 ? String(it.gstPct) : o.gstPct,
+      // GST is fixed to the selected item's slab (set in Item Master) — not editable per order.
+      gstPct: it ? String(it.gstPct ?? 0) : o.gstPct,
     }));
   }
 
@@ -450,7 +450,7 @@ export function DashboardPage() {
               <label>GST %</label>
               {(() => {
                 const it = items.find((i) => i.id === order.itemId);
-                const locked = !!it && Number(it.gstPct) > 0;
+                const locked = !!it;
                 return (
                   <select
                     value={order.gstPct}
