@@ -39,9 +39,12 @@ export const PERMS = [
   { id: 'record_payments', label: 'Add Payments', group: 'Finance' },
   { id: 'delete_payments', label: 'Delete Payments', group: 'Finance' },
   { id: 'view_ledgers', label: 'View Ledgers (any party)', group: 'Finance' },
-  { id: 'send_whatsapp', label: 'WhatsApp Messages', group: 'Finance' },
+
+  { id: 'view_whatsapp', label: 'See WhatsApp Messages tab', group: 'WhatsApp' },
+  { id: 'send_whatsapp', label: 'Send WhatsApp Messages', group: 'WhatsApp' },
 
   { id: 'manage_users', label: 'Manage Users', group: 'Admin' },
+  { id: 'view_field_rules', label: 'See Field Rules tab', group: 'Admin' },
   { id: 'manage_financial_years', label: 'Create Financial Years', group: 'Admin' },
   { id: 'view_audit_log', label: 'View Audit Log', group: 'Admin' },
   { id: 'view_approvals', label: 'View Approval Requests', group: 'Admin' },
@@ -64,6 +67,8 @@ const LEGACY_FALLBACK: Partial<Record<PermissionKey, PermissionKey>> = {
   add_expenses: 'edit_expenses',
   delete_expenses: 'edit_expenses',
   delete_payments: 'record_payments',
+  view_whatsapp: 'send_whatsapp',
+  view_field_rules: 'manage_users',
 };
 
 export type PermissionMap = Record<PermissionKey, boolean>;
