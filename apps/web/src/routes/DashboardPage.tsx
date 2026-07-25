@@ -508,34 +508,41 @@ export function DashboardPage() {
       <div {...sectionProps('availableStock')}>
         <SectionHandle sectionKey="availableStock" />
       <div className="card">
-        <h3 style={{ marginTop: 0 }}>Available Stock</h3>
+        <h3 style={{ marginTop: 0 }}>Available Stock <span className="muted" style={{ fontSize: 12, fontWeight: 500 }}>— in-stock materials & live rate</span></h3>
         <table>
           <thead>
             <tr>
               <th>Item</th>
               <th>Unit</th>
               <th>Live Stock</th>
+              <th>Live Rate (₹)</th>
               <th>Status</th>
             </tr>
           </thead>
           <tbody>
-            {items.map((it) => {
-              const qty = stock[it.id] ?? 0;
-              const low = it.reorder > 0 && qty <= it.reorder;
-              return (
-                <tr key={it.id}>
-                  <td><strong>{it.name}</strong></td>
-                  <td className="muted">{it.unit}</td>
-                  <td style={{ fontWeight: 700 }}>{qty}</td>
-                  <td>
-                    <span style={{ color: low ? '#ef4444' : '#10b981', fontWeight: 700 }}>{low ? 'Low' : 'OK'}</span>
-                  </td>
-                </tr>
-              );
-            })}
-            {items.length === 0 && (
+            {items
+              .filter((it) => (stock[it.id] ?? 0) > 0)
+              .map((it) => {
+                const qty = stock[it.id] ?? 0;
+                const low = it.reorder > 0 && qty <= it.reorder;
+                return (
+                  <tr key={it.id}>
+                    <td><strong>{it.name}</strong></td>
+                    <td className="muted">{it.unit}</td>
+                    <td style={{ fontWeight: 700 }}>{qty}</td>
+                    <td>
+                      <strong>{it.rate ? `₹${it.rate}` : '—'}</strong>
+                      {it.rateDate && <span className="muted" style={{ fontSize: 10, marginLeft: 6 }}>{fmtDate(it.rateDate)}</span>}
+                    </td>
+                    <td>
+                      <span style={{ color: low ? '#ef4444' : '#10b981', fontWeight: 700 }}>{low ? 'Low' : 'OK'}</span>
+                    </td>
+                  </tr>
+                );
+              })}
+            {items.filter((it) => (stock[it.id] ?? 0) > 0).length === 0 && (
               <tr>
-                <td colSpan={4} className="muted">No items yet. Add them in Item Master.</td>
+                <td colSpan={5} className="muted">No materials in stock right now.</td>
               </tr>
             )}
           </tbody>
