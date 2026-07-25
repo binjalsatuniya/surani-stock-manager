@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { buildWhatsappLink, type SalesPerson, type SalesPersonExpense } from '@surani/shared';
+import { buildWhatsappLink, PAYMENT_MODES, type SalesPerson, type SalesPersonExpense } from '@surani/shared';
 import { api } from '../lib/apiClient';
 import { useAuth } from '../context/AuthContext';
 import { usePermission } from '../hooks/usePermission';
@@ -158,8 +158,27 @@ export function ExpensesPage() {
     if (ledgerSpId) openLedger(ledgerSpId);
   }
 
+  // Marking paid opens a small dialog for the mode + who paid; unmarking just clears it.
+  const [payTarget, setPayTarget] = useState<SalesPersonExpense | null>(null);
+  const [payBy, setPayBy] = useState('');
+  const [payMode, setPayMode] = useState<string>('Cash');
+
   async function onTogglePaid(exp: SalesPersonExpense) {
-    await api.expenses.setPaid(exp.id, !exp.paid);
+    if (exp.paid) {
+      await api.expenses.setPaid(exp.id, false);
+      reload();
+      if (ledgerSpId) openLedger(ledgerSpId);
+    } else {
+      setPayBy(user?.name || '');
+      setPayMode('Cash');
+      setPayTarget(exp);
+    }
+  }
+
+  async function confirmPay() {
+    if (!payTarget) return;
+    await api.expenses.setPaid(payTarget.id, true, { paidBy: payBy.trim() || null, paidMode: payMode });
+    setPayTarget(null);
     reload();
     if (ledgerSpId) openLedger(ledgerSpId);
   }
@@ -365,7 +384,9 @@ export function ExpensesPage() {
                       <td style={{ textAlign: 'right', fontWeight: 700 }}>{inr(running)}</td>
                       <td>
                         {r.paid ? (
-                          <span style={{ color: '#15803d', fontWeight: 700, fontSize: 12 }}>✅ Paid</span>
+                          <span style={{ color: '#15803d', fontWeight: 700, fontSize: 12 }}>
+                            ✅ Paid{r.paidMode ? ` · ${r.paidMode}` : ''}{r.paidBy ? ` · by ${r.paidBy}` : ''}
+                          </span>
                         ) : (
                           <span style={{ color: '#b45309', fontWeight: 700, fontSize: 12 }}>● Unpaid</span>
                         )}
@@ -465,7 +486,8 @@ export function ExpensesPage() {
                 <td>
                   {r.paid ? (
                     <span style={{ color: '#15803d', fontWeight: 700, fontSize: 12 }}>
-                      ✅ Paid{r.paidAt ? ` · ${fmtDate(r.paidAt)}` : ''}
+                      ✅ Paid{r.paidMode ? ` · ${r.paidMode}` : ''}{r.paidBy ? ` · by ${r.paidBy}` : ''}
+                      {r.paidAt ? ` · ${fmtDate(r.paidAt)}` : ''}
                     </span>
                   ) : (
                     <span style={{ color: '#b45309', fontWeight: 700, fontSize: 12 }}>● Unpaid</span>
@@ -502,6 +524,36 @@ export function ExpensesPage() {
           </tbody>
         </table>
       </div>
+
+      {payTarget && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}
+          onClick={() => setPayTarget(null)}
+        >
+          <div className="card" style={{ width: 340, maxWidth: '90%' }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ marginTop: 0 }}>Mark as paid</h3>
+            <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>
+              {payTarget.expenseFor} — {inr(payTarget.amount)}
+            </div>
+            <div className="field" style={{ margin: '0 0 10px' }}>
+              <label>Payment mode</label>
+              <select value={payMode} onChange={(e) => setPayMode(e.target.value)}>
+                {PAYMENT_MODES.map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            </div>
+            <div className="field" style={{ margin: '0 0 14px' }}>
+              <label>Paid by</label>
+              <input value={payBy} onChange={(e) => setPayBy(e.target.value)} placeholder="Who paid it" />
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-primary" style={{ flex: 1 }} onClick={confirmPay}>Confirm paid</button>
+              <button className="btn" style={{ flex: 1 }} onClick={() => setPayTarget(null)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

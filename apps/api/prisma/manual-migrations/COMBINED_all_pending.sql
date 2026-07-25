@@ -59,8 +59,10 @@ ALTER TABLE public.users
 -- 2c) Mark a sales-person expense as Paid (reimbursed) + the date paid.
 -- ---------------------------------------------------------------------
 ALTER TABLE public.salesperson_expenses
-  ADD COLUMN IF NOT EXISTS paid    boolean NOT NULL DEFAULT false,
-  ADD COLUMN IF NOT EXISTS paid_at timestamptz;
+  ADD COLUMN IF NOT EXISTS paid      boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS paid_at   timestamptz,
+  ADD COLUMN IF NOT EXISTS paid_by   text,
+  ADD COLUMN IF NOT EXISTS paid_mode text;
 
 -- ---------------------------------------------------------------------
 -- 3) (OPTIONAL — DATA ONLY) Make JAYNIL the primary Super Admin.

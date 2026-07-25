@@ -84,6 +84,8 @@ export interface SalesPersonExpense {
   attachmentName: string | null;
   paid: boolean; // reimbursed to the sales person?
   paidAt: string | null;
+  paidBy: string | null; // who paid it
+  paidMode: string | null; // Cash / bank account used
   createdAt: string;
 }
 

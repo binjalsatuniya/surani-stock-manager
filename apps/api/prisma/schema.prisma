@@ -89,6 +89,8 @@ model SalesPersonExpense {
   attachmentName String?  @map("attachment_name")
   paid           Boolean  @default(false) // whether the company has reimbursed this to the sales person
   paidAt         DateTime? @map("paid_at")
+  paidBy         String?  @map("paid_by") // who paid it
+  paidMode       String?  @map("paid_mode") // Cash / bank account used
   createdById    String?  @map("created_by_id") @db.Uuid
   createdAt      DateTime @default(now()) @map("created_at")
 

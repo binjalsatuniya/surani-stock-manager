@@ -24,7 +24,8 @@ export function createExpensesClient(http: HttpClient) {
       return http.get<SalesPersonExpense[]>(`/expenses${qs}`);
     },
     create: (input: CreateExpenseInput) => http.post<SalesPersonExpense>('/expenses', input),
-    setPaid: (id: string, paid: boolean) => http.patch<SalesPersonExpense>(`/expenses/${id}/paid`, { paid }),
+    setPaid: (id: string, paid: boolean, details?: { paidBy?: string | null; paidMode?: string | null }) =>
+      http.patch<SalesPersonExpense>(`/expenses/${id}/paid`, { paid, ...details }),
     remove: (id: string) => http.delete<void>(`/expenses/${id}`),
   };
 }

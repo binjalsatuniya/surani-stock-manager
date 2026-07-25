@@ -38,6 +38,8 @@ function toExpenseDTO(e: PrismaExpense): SalesPersonExpense {
     attachmentName: e.attachmentName,
     paid: e.paid,
     paidAt: e.paidAt ? e.paidAt.toISOString() : null,
+    paidBy: e.paidBy,
+    paidMode: e.paidMode,
     createdAt: e.createdAt.toISOString(),
   };
 }
@@ -127,18 +129,25 @@ expensesRouter.post(
   })
 );
 
-// Mark an expense paid/unpaid (reimbursed to the sales person). Records/clears the paid date.
-const paidSchema = z.object({ paid: z.boolean() });
+// Mark an expense paid/unpaid (reimbursed to the sales person). When paid, records who paid it and
+// by which payment mode; unpaid clears all of that.
+const paidSchema = z.object({
+  paid: z.boolean(),
+  paidBy: z.string().nullable().optional(),
+  paidMode: z.string().nullable().optional(),
+});
 expensesRouter.patch(
   '/:id/paid',
   requirePermission('edit_expenses'),
   asyncHandler(async (req, res) => {
-    const { paid } = paidSchema.parse(req.body);
+    const { paid, paidBy, paidMode } = paidSchema.parse(req.body);
     const existing = await prisma.salesPersonExpense.findUnique({ where: { id: req.params.id } });
     if (!existing) throw new NotFoundError('Expense not found');
     const updated = await prisma.salesPersonExpense.update({
       where: { id: existing.id },
-      data: { paid, paidAt: paid ? new Date() : null },
+      data: paid
+        ? { paid: true, paidAt: new Date(), paidBy: paidBy || null, paidMode: paidMode || null }
+        : { paid: false, paidAt: null, paidBy: null, paidMode: null },
     });
     res.json(toExpenseDTO(updated));
   })
