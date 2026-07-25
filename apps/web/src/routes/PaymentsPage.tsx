@@ -87,6 +87,11 @@ export function PaymentsPage() {
     window.open(buildWhatsappLink(phone, ''), '_blank');
   }
 
+  function callPhone(phone?: string | null) {
+    if (!phone) return;
+    window.location.href = `tel:${phone.replace(/[^\d+]/g, '')}`;
+  }
+
   function onExportDuePdf() {
     const spName = spFilter ? salesPersons.find((s) => s.id === spFilter)?.name || 'Unknown' : 'All Sales Persons';
     exportDueLedgerPdf(dueGroups, spName);
@@ -330,6 +335,11 @@ export function PaymentsPage() {
                 <span>
                   {g.party.name} — <span className="num">{g.total.toFixed(2)}</span>
                 </span>
+                {g.party.phone && (
+                  <button className="btn btn-sm" onClick={() => callPhone(g.party.phone)} title={`Call ${g.party.phone}`}>
+                    📞 Call
+                  </button>
+                )}
                 {can('send_whatsapp') && g.party.phone && (
                   <>
                     <button className="btn btn-sm btn-whatsapp" onClick={() => openWhatsapp(g.party.phone)} title="Open WhatsApp chat with this party">
@@ -427,6 +437,11 @@ export function PaymentsPage() {
                 {canRecord && (
                   <td>
                     <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                      {g.party.phone && (
+                        <button className="btn btn-sm" onClick={() => callPhone(g.party.phone)} title={`Call ${g.party.phone}`}>
+                          📞 Call
+                        </button>
+                      )}
                       {can('send_whatsapp') && g.party.phone && (
                         <button className="btn btn-sm btn-whatsapp" onClick={() => openWhatsapp(g.party.phone)} title="Open WhatsApp chat with this creditor">
                           WhatsApp

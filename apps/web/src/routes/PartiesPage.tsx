@@ -275,7 +275,15 @@ export function PartiesPage() {
                 <td>{p.name}</td>
                 <td>{p.type}</td>
                 <td>{salesPersonName(p.salesPersonId)}</td>
-                <td>{p.phone || '—'}</td>
+                <td>
+                  {p.phone ? (
+                    <a href={`tel:${p.phone.replace(/[^\d+]/g, '')}`} className="btn btn-sm" style={{ textDecoration: 'none' }} title={`Call ${p.phone}`}>
+                      📞 {p.phone}
+                    </a>
+                  ) : (
+                    '—'
+                  )}
+                </td>
                 <td>{p.gst || '—'}</td>
                 <td>{p.creditDays}</td>
                 <td>{p.opening}</td>
