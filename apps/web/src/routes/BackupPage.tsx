@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { RESET_SCOPES } from '@surani/shared';
 import { api } from '../lib/apiClient';
 import { useAuth } from '../context/AuthContext';
 
@@ -20,29 +21,41 @@ export function BackupPage() {
   const [busy, setBusy] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Danger Zone (reset all data)
+  // Danger Zone (reset selected data)
   const isAdmin = user?.role === 'superadmin' || user?.role === 'admin';
   const [resetPw, setResetPw] = useState('');
   const [resetMsg, setResetMsg] = useState('');
   const [resetErr, setResetErr] = useState('');
+  // Which categories to wipe — all ticked by default (= full reset).
+  const [scopes, setScopes] = useState<Set<string>>(new Set(RESET_SCOPES.map((s) => s.key)));
+  const toggleScope = (key: string) =>
+    setScopes((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
 
   async function onExport() {
     const data = await api.backup.export();
     downloadJson(data, `stockmgr-backup-${new Date().toISOString().slice(0, 10)}.json`);
   }
 
+  const selectedLabels = () => RESET_SCOPES.filter((s) => scopes.has(s.key)).map((s) => s.label).join('; ');
+
   async function onReset() {
     setResetErr('');
     setResetMsg('');
     if (!resetPw) return setResetErr('Enter the reset password.');
-    if (!confirm('This DELETES ALL business data (parties, items, transactions, payments…). Your login stays. A backup will download first. Continue?')) return;
+    if (scopes.size === 0) return setResetErr('Tick at least one type of data to reset.');
+    if (!confirm(`This DELETES the selected data:\n\n${selectedLabels()}\n\nYour login stays. A full backup downloads first. Continue?`)) return;
     if (!confirm('Are you absolutely sure? This cannot be undone except by restoring the backup file.')) return;
     setBusy(true);
     try {
-      const res = await api.reset.execute(resetPw);
+      const res = await api.reset.execute(resetPw, [...scopes]);
       downloadJson(res.backup, `stockmgr-BEFORE-RESET-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.json`);
       setResetPw('');
-      alert('All data has been reset. A backup was downloaded — keep it safe. The page will reload.');
+      alert('The selected data has been reset. A backup was downloaded — keep it safe. The page will reload.');
       window.location.reload();
     } catch (err) {
       setResetErr(err instanceof Error ? err.message : 'Reset failed');
@@ -54,10 +67,11 @@ export function BackupPage() {
   async function onRequestReset() {
     setResetErr('');
     setResetMsg('');
-    if (!confirm('Send a request to reset ALL data? JAYNIL must approve it before anything is deleted.')) return;
+    if (scopes.size === 0) return setResetErr('Tick at least one type of data to reset.');
+    if (!confirm(`Send a request to reset the selected data?\n\n${selectedLabels()}\n\nJAYNIL must approve it before anything is deleted.`)) return;
     setBusy(true);
     try {
-      await api.reset.request();
+      await api.reset.request([...scopes]);
       setResetMsg('Reset request sent. It will appear in Approvals for JAYNIL to approve.');
     } catch (err) {
       setResetErr(err instanceof Error ? err.message : 'Could not send the request');
@@ -109,12 +123,19 @@ export function BackupPage() {
 
       {isAdmin && (
         <div style={{ marginTop: 28, paddingTop: 18, borderTop: '2px solid #fecaca' }}>
-          <h3 style={{ margin: '0 0 4px', color: '#b91c1c' }}>⚠️ Danger Zone — Reset all data</h3>
+          <h3 style={{ margin: '0 0 4px', color: '#b91c1c' }}>⚠️ Danger Zone — Reset data</h3>
           <p className="muted" style={{ marginTop: 0 }}>
-            Permanently deletes ALL business data (parties, items, inward/outward, orders, payments,
-            expenses, ledgers). User logins are kept. A full backup downloads automatically first, so you
-            can restore it above if this was a mistake.
+            Tick exactly which data to permanently delete. User logins and app settings are always kept. A
+            full backup downloads automatically first, so you can restore it above if this was a mistake.
           </p>
+          <div style={{ display: 'grid', gap: 6, margin: '10px 0 14px' }}>
+            {RESET_SCOPES.map((s) => (
+              <label key={s.key} style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13 }}>
+                <input type="checkbox" checked={scopes.has(s.key)} onChange={() => toggleScope(s.key)} />
+                {s.label}
+              </label>
+            ))}
+          </div>
 
           {user?.isPrimary ? (
             <div className="toolbar" style={{ alignItems: 'flex-end' }}>

@@ -7,6 +7,19 @@ export interface ResetBackup {
   db: Record<string, unknown[]>;
 }
 
+// The selectable categories a reset can wipe, with friendly labels (order = display order).
+export const RESET_SCOPES: { key: string; label: string }[] = [
+  { key: 'transactions', label: 'Sales & Purchases (inward, outward, orders, payments, freight/handling)' },
+  { key: 'expenses', label: 'Expenses' },
+  { key: 'parties', label: 'Parties (needs Sales & Purchases too)' },
+  { key: 'items', label: 'Items (needs Sales & Purchases too)' },
+  { key: 'salesPersons', label: 'Sales Persons (needs Parties + Expenses too)' },
+  { key: 'loginLocations', label: 'Login-location history' },
+  { key: 'auditLog', label: 'Audit log' },
+  { key: 'approvals', label: 'Approval requests' },
+  { key: 'financialYears', label: 'Financial years' },
+];
+
 export function createResetClient(http: HttpClient) {
   return {
     // Whether the dedicated reset password is set (primary Super Admin only).
@@ -14,10 +27,11 @@ export function createResetClient(http: HttpClient) {
     // Set / change / remove the reset password. `next: ''` removes it.
     setPassword: (input: { current?: string; next: string }) =>
       http.post<{ enabled: boolean }>('/reset/password', input),
-    // JAYNIL wipes directly (returns the pre-wipe backup to download).
-    execute: (password: string) => http.post<{ ok: true; backup: ResetBackup }>('/reset/execute', { password }),
-    // A non-primary admin queues a reset for JAYNIL's approval.
-    request: () => http.post<{ queued: true }>('/reset/request', {}),
+    // JAYNIL wipes the selected data directly (returns the pre-wipe backup to download).
+    execute: (password: string, scopes?: string[]) =>
+      http.post<{ ok: true; backup: ResetBackup }>('/reset/execute', { password, scopes }),
+    // A non-primary admin queues a reset (of the selected data) for JAYNIL's approval.
+    request: (scopes?: string[]) => http.post<{ queued: true }>('/reset/request', { scopes }),
     // JAYNIL approves a queued reset (returns the pre-wipe backup to download).
     approve: (id: string, password: string) =>
       http.post<{ ok: true; backup: ResetBackup }>(`/reset/approve/${id}`, { password }),

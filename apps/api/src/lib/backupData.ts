@@ -66,26 +66,54 @@ export async function exportAllData(client: Db = prisma) {
   };
 }
 
+// The categories of data a Reset can wipe. User logins and app config are never wiped.
+export const ALL_RESET_SCOPES = [
+  'transactions',
+  'expenses',
+  'parties',
+  'items',
+  'salesPersons',
+  'loginLocations',
+  'auditLog',
+  'approvals',
+  'financialYears',
+] as const;
+export type ResetScope = (typeof ALL_RESET_SCOPES)[number];
+
+// Some categories can't be deleted unless their dependents are too (foreign keys). Returns an error
+// message if the selection is inconsistent, otherwise null.
+export function validateResetScopes(scopes: Set<string>): string | null {
+  if (scopes.size === 0) return 'Select at least one type of data to reset.';
+  if (scopes.has('parties') && !scopes.has('transactions'))
+    return 'To delete Parties you must also delete Sales & Purchases (they reference parties).';
+  if (scopes.has('items') && !scopes.has('transactions'))
+    return 'To delete Items you must also delete Sales & Purchases (they reference items).';
+  if (scopes.has('salesPersons') && (!scopes.has('parties') || !scopes.has('expenses')))
+    return 'To delete Sales Persons you must also delete Parties and Expenses.';
+  return null;
+}
+
 /**
- * Delete ALL business data but keep the things that must survive a Reset:
- *   - user logins (users) and their sessions (refresh_tokens)
- *   - app configuration (whatsapp_templates, field_settings)
- * Children are deleted before parents to respect foreign keys. Must run inside a transaction.
+ * Delete only the selected categories of business data, children before parents. User logins and
+ * app config always survive. Must run inside a transaction. Validate scopes with validateResetScopes
+ * first.
  */
-export async function wipeBusinessData(tx: Prisma.TransactionClient) {
-  await tx.paymentAllocation.deleteMany();
-  await tx.paymentInwardAllocation.deleteMany();
-  await tx.freightEntry.deleteMany();
-  await tx.handlingEntry.deleteMany();
-  await tx.auditLog.deleteMany();
-  await tx.approvalRequest.deleteMany();
-  await tx.loginLocation.deleteMany();
-  await tx.salesPersonExpense.deleteMany();
-  await tx.payment.deleteMany();
-  await tx.outward.deleteMany();
-  await tx.inward.deleteMany();
-  await tx.item.deleteMany();
-  await tx.party.deleteMany();
-  await tx.salesPerson.deleteMany();
-  await tx.financialYear.deleteMany();
+export async function wipeSelected(tx: Prisma.TransactionClient, scopes: Set<string>) {
+  if (scopes.has('transactions')) {
+    await tx.paymentAllocation.deleteMany();
+    await tx.paymentInwardAllocation.deleteMany();
+    await tx.freightEntry.deleteMany();
+    await tx.handlingEntry.deleteMany();
+    await tx.payment.deleteMany();
+    await tx.outward.deleteMany();
+    await tx.inward.deleteMany();
+  }
+  if (scopes.has('expenses')) await tx.salesPersonExpense.deleteMany();
+  if (scopes.has('loginLocations')) await tx.loginLocation.deleteMany();
+  if (scopes.has('auditLog')) await tx.auditLog.deleteMany();
+  if (scopes.has('approvals')) await tx.approvalRequest.deleteMany();
+  if (scopes.has('items')) await tx.item.deleteMany();
+  if (scopes.has('parties')) await tx.party.deleteMany();
+  if (scopes.has('salesPersons')) await tx.salesPerson.deleteMany();
+  if (scopes.has('financialYears')) await tx.financialYear.deleteMany();
 }

@@ -7,7 +7,7 @@ import { authenticate } from '../../middleware/auth';
 import { requireRole } from '../../middleware/requireRole';
 import { ForbiddenError, HttpError, NotFoundError } from '../../middleware/errorHandler';
 import { writeAuditLog } from '../../lib/audit';
-import { exportAllData, wipeBusinessData } from '../../lib/backupData';
+import { exportAllData, wipeSelected, validateResetScopes, ALL_RESET_SCOPES } from '../../lib/backupData';
 
 export const resetRouter = Router();
 resetRouter.use(authenticate);
@@ -41,19 +41,27 @@ async function verifyResetPassword(password: string) {
   if (!ok) throw new HttpError(403, 'Incorrect reset password');
 }
 
-// Snapshot everything, wipe all business data, and leave a single audit entry recording the reset.
+// Turn an optional scopes array into a validated Set. Empty/absent = everything.
+function resolveScopes(input: string[] | undefined): Set<string> {
+  const scopes = new Set(input && input.length ? input : ALL_RESET_SCOPES);
+  const err = validateResetScopes(scopes);
+  if (err) throw new HttpError(400, err);
+  return scopes;
+}
+
+// Snapshot everything (always a full backup), wipe the SELECTED data, and leave one audit entry.
 // Returns the pre-wipe snapshot so the caller can hand the user a downloadable backup.
-async function performReset(actor: { id: string; name: string }, note: string) {
+async function performReset(actor: { id: string; name: string }, note: string, scopes: Set<string>) {
   return prisma.$transaction(async (tx) => {
     const snapshot = await exportAllData(tx);
-    await wipeBusinessData(tx);
-    // Written AFTER the wipe (which clears audit_log) so this record survives as the only trace.
+    await wipeSelected(tx, scopes);
+    // Written AFTER the wipe (which may clear audit_log) so this record survives as the only trace.
     await writeAuditLog(tx, {
       action: 'reset',
       target: 'all',
       targetId: RESET_TARGET_ID,
-      label: `ALL business data reset — ${note}`,
-      details: { at: new Date().toISOString() },
+      label: `Data reset [${[...scopes].join(', ')}] — ${note}`,
+      details: { at: new Date().toISOString(), scopes: [...scopes] },
       actorId: actor.id,
       actorName: actor.name,
     });
@@ -93,24 +101,28 @@ resetRouter.post(
 );
 
 // JAYNIL (primary) resets directly. Verifies the reset password, then wipes + returns the backup.
-const executeSchema = z.object({ password: z.string() });
+const executeSchema = z.object({ password: z.string(), scopes: z.array(z.string()).optional() });
 resetRouter.post(
   '/execute',
   asyncHandler(async (req, res) => {
     assertPrimary(req);
-    const { password } = executeSchema.parse(req.body);
+    const { password, scopes } = executeSchema.parse(req.body);
+    const resolved = resolveScopes(scopes);
     await verifyResetPassword(password);
-    const backup = await performReset({ id: req.user!.id, name: req.user!.name }, `by ${req.user!.name}`);
+    const backup = await performReset({ id: req.user!.id, name: req.user!.name }, `by ${req.user!.name}`, resolved);
     res.json({ ok: true, backup });
   })
 );
 
 // A non-primary admin can only REQUEST a reset — it queues for JAYNIL's approval, no deletion yet.
+const requestSchema = z.object({ scopes: z.array(z.string()).optional() });
 resetRouter.post(
   '/request',
   requireRole('superadmin', 'admin'),
   asyncHandler(async (req, res) => {
     if (req.user!.isPrimary) throw new HttpError(400, 'You can reset directly — no request needed');
+    const { scopes } = requestSchema.parse(req.body);
+    const resolved = resolveScopes(scopes); // validate now so a bad request never queues
     const existing = await prisma.approvalRequest.findFirst({ where: { kind: 'reset', status: 'pending' } });
     if (existing) throw new HttpError(400, 'A reset request is already pending approval');
     await prisma.approvalRequest.create({
@@ -118,8 +130,8 @@ resetRouter.post(
         kind: 'reset',
         target: 'all',
         targetId: RESET_TARGET_ID,
-        payload: {},
-        label: 'Reset ALL business data',
+        payload: { scopes: [...resolved] },
+        label: `Reset data [${[...resolved].join(', ')}]`,
         requestedById: req.user!.id,
       },
     });
@@ -137,10 +149,13 @@ resetRouter.post(
     if (!request || request.kind !== 'reset') throw new NotFoundError('Reset request not found');
     if (request.status !== 'pending') throw new HttpError(400, 'Request already resolved');
     await verifyResetPassword(password);
-    // wipeBusinessData clears approval_requests too, so the row is gone after — that's the intent.
+    // Use the scopes the requester chose (fall back to everything for older requests).
+    const reqScopes = (request.payload as { scopes?: string[] } | null)?.scopes;
+    const resolved = resolveScopes(reqScopes);
     const backup = await performReset(
       { id: req.user!.id, name: req.user!.name },
-      `approved by ${req.user!.name} (requested #${request.id.slice(0, 8)})`
+      `approved by ${req.user!.name} (requested #${request.id.slice(0, 8)})`,
+      resolved
     );
     res.json({ ok: true, backup });
   })
