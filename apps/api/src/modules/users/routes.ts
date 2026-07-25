@@ -36,6 +36,8 @@ usersRouter.post(
   '/',
   requirePermission('manage_users'),
   asyncHandler(async (req, res) => {
+    // Only the main Super Admin (JAYNIL) may create new users.
+    if (!req.user!.isPrimary) throw new HttpError(403, 'Only the main Super Admin can create new users');
     const input = createSchema.parse(req.body);
     // The Super Admin is the protected default — no one else can be created with, or promoted to,
     // that role (so nobody can be made as powerful as the Super Admin).
@@ -99,19 +101,57 @@ usersRouter.patch(
   })
 );
 
-usersRouter.delete(
-  '/:id',
+// Fully remove a user, clearing the rows that would otherwise block the delete (sessions, login
+// locations). Other references (audit entries etc.) keep their stored actor name.
+async function hardDeleteUser(id: string) {
+  await prisma.$transaction(async (tx) => {
+    await tx.refreshToken.deleteMany({ where: { userId: id } });
+    await tx.loginLocation.deleteMany({ where: { userId: id } });
+    await tx.user.delete({ where: { id } });
+  });
+}
+
+// Delete a user. JAYNIL (primary) must re-enter their own login password to confirm; any other
+// admin's deletion is queued for JAYNIL's approval instead of happening immediately.
+const deleteUserSchema = z.object({ password: z.string().optional() });
+usersRouter.post(
+  '/:id/delete',
   requireRole('superadmin'),
   asyncHandler(async (req, res) => {
+    const { password } = deleteUserSchema.parse(req.body);
     const target = await prisma.user.findUnique({ where: { id: req.params.id } });
     if (!target) throw new NotFoundError('User not found');
     if (target.isPrimary) throw new HttpError(403, 'The main Super Admin account cannot be deleted');
     if (req.params.id === req.user!.id) throw new HttpError(400, 'Cannot delete your own account');
-    // Removing another Super Admin is reserved for the main Super Admin.
     if (target.role === 'superadmin' && !req.user!.isPrimary)
       throw new HttpError(403, 'Only the main Super Admin can remove another Super Admin');
-    await prisma.user.delete({ where: { id: req.params.id } });
-    res.status(204).end();
+
+    if (req.user!.isPrimary) {
+      // Re-authenticate JAYNIL with their login password before this destructive action.
+      const me = await prisma.user.findUnique({ where: { id: req.user!.id } });
+      const ok = password && me ? await bcrypt.compare(password, me.passwordHash) : false;
+      if (!ok) throw new HttpError(403, 'Incorrect password');
+      await hardDeleteUser(target.id);
+      res.json({ deleted: true });
+      return;
+    }
+
+    // Non-primary admin → queue for JAYNIL's approval.
+    const existing = await prisma.approvalRequest.findFirst({
+      where: { kind: 'delete', target: 'user', targetId: target.id, status: 'pending' },
+    });
+    if (existing) throw new HttpError(400, 'A deletion request for this user is already pending');
+    await prisma.approvalRequest.create({
+      data: {
+        kind: 'delete',
+        target: 'user',
+        targetId: target.id,
+        payload: {},
+        label: `Delete user: ${target.name} (${target.username})`,
+        requestedById: req.user!.id,
+      },
+    });
+    res.status(202).json({ queued: true });
   })
 );
 

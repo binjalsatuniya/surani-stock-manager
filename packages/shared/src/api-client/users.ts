@@ -17,7 +17,10 @@ export function createUsersClient(http: HttpClient) {
     list: () => http.get<User[]>('/users'),
     create: (input: CreateUserInput) => http.post<User>('/users', input),
     update: (id: string, input: UpdateUserInput) => http.patch<User>(`/users/${id}`, input),
-    remove: (id: string) => http.delete<void>(`/users/${id}`),
+    // JAYNIL passes their login password to delete immediately; other admins omit it and the
+    // deletion is queued for JAYNIL's approval. Returns { deleted } or { queued }.
+    remove: (id: string, password?: string) =>
+      http.post<{ deleted?: boolean; queued?: boolean }>(`/users/${id}/delete`, { password }),
     setPin: (id: string, pin: string | null) =>
       http.post<User>(`/users/${id}/security/pin`, { pin }),
     setBiometric: (id: string, enabled: boolean, credentialId?: string) =>

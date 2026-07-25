@@ -50,11 +50,20 @@ export function UsersPage() {
   }
 
   async function onDelete(id: string) {
-    if (!confirm('Delete this user?')) return;
     setError('');
     try {
-      await api.users.remove(id);
-      reload();
+      if (isPrimary) {
+        // JAYNIL re-enters their login password to confirm this destructive action.
+        const password = prompt('Enter YOUR login password to delete this user:');
+        if (!password) return;
+        await api.users.remove(id, password);
+        reload();
+      } else {
+        if (!confirm('Send a request to delete this user? JAYNIL must approve it.')) return;
+        const res = await api.users.remove(id);
+        if (res.queued) alert('Deletion request sent to JAYNIL for approval.');
+        reload();
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to delete user');
     }
@@ -133,38 +142,46 @@ export function UsersPage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div className="card">
         <h2 style={{ marginTop: 0 }}>User Master <span className="muted" style={{ fontSize: 13, fontWeight: 500 }}>— login accounts &amp; permissions</span></h2>
-        <div className="toolbar">
-          <div className="field" style={{ margin: 0 }}>
-            <label>Name</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
-          <div className="field" style={{ margin: 0 }}>
-            <label>Username</label>
-            <input value={username} onChange={(e) => setUsername(e.target.value)} />
-          </div>
-          <div className="field" style={{ margin: 0 }}>
-            <label>Password</label>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
-          </div>
-          <div className="field" style={{ margin: 0 }}>
-            <label>Role</label>
-            <select value={role} onChange={(e) => setRole(e.target.value as Role)}>
-              {CREATABLE_ROLES.map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
-            </select>
-          </div>
-          <button className="btn btn-primary" onClick={onAdd}>
-            Add User
-          </button>
-        </div>
-        <p className="muted" style={{ marginTop: 4 }}>
-          New users start with their role's default permissions. Only the Super Admin can fine-tune each
-          user's permissions with the <strong>Permissions</strong> button. Super Admin can't be assigned to
-          anyone else.
-        </p>
+        {isPrimary ? (
+          <>
+            <div className="toolbar">
+              <div className="field" style={{ margin: 0 }}>
+                <label>Name</label>
+                <input value={name} onChange={(e) => setName(e.target.value)} />
+              </div>
+              <div className="field" style={{ margin: 0 }}>
+                <label>Username</label>
+                <input value={username} onChange={(e) => setUsername(e.target.value)} />
+              </div>
+              <div className="field" style={{ margin: 0 }}>
+                <label>Password</label>
+                <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+              </div>
+              <div className="field" style={{ margin: 0 }}>
+                <label>Role</label>
+                <select value={role} onChange={(e) => setRole(e.target.value as Role)}>
+                  {CREATABLE_ROLES.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button className="btn btn-primary" onClick={onAdd}>
+                Add User
+              </button>
+            </div>
+            <p className="muted" style={{ marginTop: 4 }}>
+              New users start with their role's default permissions. Fine-tune each user's permissions with
+              the <strong>Permissions</strong> button. Super Admin can't be assigned to anyone else.
+            </p>
+          </>
+        ) : (
+          <p className="muted" style={{ marginTop: 4 }}>
+            Only the main Super Admin (JAYNIL) can create new users. You can view users below; deleting a user
+            sends a request to JAYNIL for approval.
+          </p>
+        )}
         {error && <div className="login-err show">{error}</div>}
         <table style={{ marginTop: 8 }}>
           <thead>

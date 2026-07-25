@@ -234,7 +234,7 @@ export interface HandlingEntry {
 }
 
 export type ApprovalKind = 'edit' | 'delete' | 'reset';
-export type ApprovalTarget = 'inward' | 'outward' | 'payment' | 'party' | 'item' | 'all';
+export type ApprovalTarget = 'inward' | 'outward' | 'payment' | 'party' | 'item' | 'all' | 'user';
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
 
 export interface ApprovalRequest {

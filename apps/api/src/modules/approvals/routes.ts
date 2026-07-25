@@ -52,6 +52,9 @@ approvalsRouter.post(
     // A full-data reset is far too destructive for the generic approve path — it has its own
     // password-gated, primary-only endpoint (POST /reset/approve/:id).
     if (r.kind === 'reset') throw new HttpError(400, 'Approve a reset from the Reset flow (needs the reset password)');
+    // Deleting a user can only be approved by the main Super Admin (JAYNIL).
+    if (r.target === 'user' && !req.user!.isPrimary)
+      throw new HttpError(403, 'Only the main Super Admin can approve deleting a user');
 
     await prisma.$transaction(async (tx) => {
       if (r.kind === 'delete') {
@@ -71,6 +74,11 @@ approvalsRouter.post(
           await tx.party.delete({ where: { id: r.targetId } });
         } else if (r.target === 'item') {
           await tx.item.delete({ where: { id: r.targetId } });
+        } else if (r.target === 'user') {
+          // Clear the rows that would block the delete, then remove the user.
+          await tx.refreshToken.deleteMany({ where: { userId: r.targetId } });
+          await tx.loginLocation.deleteMany({ where: { userId: r.targetId } });
+          await tx.user.delete({ where: { id: r.targetId } });
         }
         await writeAuditLog(tx, {
           action: 'delete (approved)',
