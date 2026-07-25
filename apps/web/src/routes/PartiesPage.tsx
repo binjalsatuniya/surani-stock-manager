@@ -38,6 +38,7 @@ export function PartiesPage() {
   const canEdit = can('add_parties') || canEditRow || canDelete;
   const [parties, setParties] = useState<Party[]>([]);
   const [query, setQuery] = useState('');
+  const [spFilter, setSpFilter] = useState('');
   const [salesPersons, setSalesPersons] = useState<SalesPerson[]>([]);
   const [form, setForm] = useState({ ...EMPTY });
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -240,13 +241,27 @@ export function PartiesPage() {
           </>
         )}
         {error && <div className="login-err show">{error}</div>}
-        <div className="field" style={{ margin: '14px 0 0', maxWidth: 320 }}>
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="🔍 Search parties by name, phone or GST…"
-            style={{ width: '100%' }}
-          />
+        <div className="toolbar" style={{ marginTop: 14, alignItems: 'flex-end' }}>
+          <div className="field" style={{ margin: 0, flex: 1, minWidth: 220, maxWidth: 320 }}>
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="🔍 Search parties by name, phone or GST…"
+              style={{ width: '100%' }}
+            />
+          </div>
+          <div className="field" style={{ margin: 0, minWidth: 200 }}>
+            <label>Sales Person</label>
+            <select value={spFilter} onChange={(e) => setSpFilter(e.target.value)}>
+              <option value="">All sales persons</option>
+              <option value="none">— none assigned —</option>
+              {salesPersons.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
         <table style={{ marginTop: 10 }}>
           <thead>
@@ -265,6 +280,7 @@ export function PartiesPage() {
           <tbody>
             {parties
               .filter((p) => {
+                if (spFilter === 'none' ? p.salesPersonId : spFilter && p.salesPersonId !== spFilter) return false;
                 const q = query.trim().toLowerCase();
                 if (!q) return true;
                 return (
