@@ -6,10 +6,26 @@ import { prisma } from '../../db/prisma';
 import { asyncHandler } from '../../lib/asyncHandler';
 import { authenticate } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/requirePermission';
-import { NotFoundError } from '../../middleware/errorHandler';
+import { ForbiddenError, HttpError, NotFoundError } from '../../middleware/errorHandler';
+import { addDays } from '../../lib/dateMath';
 
 export const expensesRouter = Router();
 expensesRouter.use(authenticate);
+
+// Today's date in the business timezone (Asia/Kolkata), as YYYY-MM-DD. Using IST rather than the
+// server's UTC clock means the "no old expenses" cutoff flips over at local midnight, not at 05:30.
+function istToday(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+}
+
+// The back-dating rule lives in the primary user's security JSON (no schema change). `null` means
+// no limit; a number N means an expense may be dated at most N days before today (0 = today only).
+async function getBackdateDays(): Promise<number | null> {
+  const primary = await prisma.user.findFirst({ where: { isPrimary: true }, select: { security: true } });
+  const s = (primary?.security as Record<string, unknown>) ?? {};
+  const v = s.expenseBackdateDays;
+  return typeof v === 'number' ? v : null;
+}
 
 function toExpenseDTO(e: PrismaExpense): SalesPersonExpense {
   return {
@@ -36,6 +52,30 @@ const expenseSchema = z.object({
   attachmentName: z.string().nullable().optional(),
 });
 
+// Read the back-dating rule (everyone, so their form can enforce it) — { backdateDays, today }.
+expensesRouter.get(
+  '/rule',
+  asyncHandler(async (_req, res) => {
+    res.json({ backdateDays: await getBackdateDays(), today: istToday() });
+  })
+);
+
+// Set the rule (primary only). null clears the limit; a number sets the max days an expense may be
+// back-dated (0 = today only).
+const ruleSchema = z.object({ backdateDays: z.number().int().min(0).max(3650).nullable() });
+expensesRouter.patch(
+  '/rule',
+  asyncHandler(async (req, res) => {
+    if (!req.user!.isPrimary) throw new ForbiddenError('Only the main Super Admin can set the expense rule');
+    const { backdateDays } = ruleSchema.parse(req.body);
+    const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
+    const prev = (user?.security as Record<string, unknown>) ?? {};
+    const merged = { ...prev, expenseBackdateDays: backdateDays };
+    await prisma.user.update({ where: { id: req.user!.id }, data: { security: merged } });
+    res.json({ backdateDays, today: istToday() });
+  })
+);
+
 expensesRouter.get(
   '/',
   requirePermission('view_expenses'),
@@ -55,6 +95,23 @@ expensesRouter.post(
   requirePermission('edit_expenses'),
   asyncHandler(async (req, res) => {
     const input = expenseSchema.parse(req.body);
+
+    // Enforce the "no old expenses" rule (timezone-aware). Future dates aren't allowed either.
+    const backdateDays = await getBackdateDays();
+    const today = istToday();
+    if (input.date > today) throw new HttpError(400, "Expense date can't be in the future.");
+    if (backdateDays !== null) {
+      const earliest = addDays(today, -backdateDays);
+      if (input.date < earliest) {
+        throw new HttpError(
+          400,
+          backdateDays === 0
+            ? 'Only today’s expenses can be added. Older dates are not allowed.'
+            : `Expenses can be dated at most ${backdateDays} day(s) back (not before ${earliest}).`
+        );
+      }
+    }
+
     const created = await prisma.salesPersonExpense.create({
       data: {
         salesPersonId: input.salesPersonId,

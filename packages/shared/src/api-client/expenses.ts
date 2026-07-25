@@ -10,8 +10,15 @@ export interface CreateExpenseInput {
   attachmentName?: string | null;
 }
 
+export interface ExpenseRule {
+  backdateDays: number | null; // max days an expense can be back-dated; null = no limit
+  today: string; // today's date (YYYY-MM-DD) in the business timezone
+}
+
 export function createExpensesClient(http: HttpClient) {
   return {
+    getRule: () => http.get<ExpenseRule>('/expenses/rule'),
+    setRule: (backdateDays: number | null) => http.patch<ExpenseRule>('/expenses/rule', { backdateDays }),
     list: (params?: { salesPersonId?: string }) => {
       const qs = params?.salesPersonId ? `?salesPersonId=${encodeURIComponent(params.salesPersonId)}` : '';
       return http.get<SalesPersonExpense[]>(`/expenses${qs}`);

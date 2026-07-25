@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { buildWhatsappLink, type SalesPerson, type SalesPersonExpense } from '@surani/shared';
 import { api } from '../lib/apiClient';
+import { useAuth } from '../context/AuthContext';
 import { usePermission } from '../hooks/usePermission';
 import { exportExpenseLedgerPdf } from '../lib/pdfExport';
 
@@ -16,6 +17,7 @@ const EMPTY = {
 };
 
 export function ExpensesPage() {
+  const { user } = useAuth();
   const can = usePermission();
   const canEdit = can('edit_expenses');
   const [salesPersons, setSalesPersons] = useState<SalesPerson[]>([]);
@@ -69,9 +71,37 @@ export function ExpensesPage() {
     setRows(await api.expenses.list({ salesPersonId: filterSp || undefined }));
   }
 
+  const [rule, setRule] = useState<{ backdateDays: number | null; today: string } | null>(null);
+  const [ruleInput, setRuleInput] = useState('');
+  const [ruleMsg, setRuleMsg] = useState('');
+
   useEffect(() => {
     api.salesPersons.list().then(setSalesPersons);
+    api.expenses.getRule().then((r) => {
+      setRule(r);
+      setRuleInput(r.backdateDays === null ? '' : String(r.backdateDays));
+    }).catch(() => {});
   }, []);
+
+  // Earliest date the form allows, from the rule (null = no limit).
+  const earliestDate = rule && rule.backdateDays !== null ? (() => {
+    const d = new Date(rule.today + 'T00:00:00');
+    d.setDate(d.getDate() - rule.backdateDays);
+    return d.toISOString().slice(0, 10);
+  })() : undefined;
+
+  async function onSaveRule() {
+    setRuleMsg('');
+    const n = ruleInput.trim() === '' ? null : Math.max(0, Math.floor(Number(ruleInput)));
+    if (ruleInput.trim() !== '' && Number.isNaN(Number(ruleInput))) return setRuleMsg('Enter a number of days, or leave blank for no limit.');
+    try {
+      const r = await api.expenses.setRule(n);
+      setRule(r);
+      setRuleMsg('Saved.');
+    } catch (e) {
+      setRuleMsg(e instanceof Error ? e.message : 'Failed to save rule');
+    }
+  }
 
   useEffect(() => {
     reload();
@@ -177,12 +207,36 @@ export function ExpensesPage() {
           Sales Person Expenses <span className="muted" style={{ fontSize: 13, fontWeight: 500 }}>— field / travel / other expenses</span>
         </h2>
 
+        {/* Back-dating rule — JAYNIL configures how far back an expense may be dated. */}
+        {user?.isPrimary && (
+          <div style={{ marginBottom: 12, padding: 10, border: '1px dashed var(--line)', borderRadius: 8, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 12.5, fontWeight: 600 }}>Expense date rule:</span>
+            <span className="muted" style={{ fontSize: 12 }}>allow dates up to</span>
+            <input
+              value={ruleInput}
+              onChange={(e) => setRuleInput(e.target.value)}
+              placeholder="days"
+              style={{ width: 70, padding: '6px 8px', border: '1px solid var(--line)', borderRadius: 8 }}
+            />
+            <span className="muted" style={{ fontSize: 12 }}>days old (0 = only today, blank = no limit)</span>
+            <button className="btn btn-sm btn-primary" onClick={onSaveRule}>Save rule</button>
+            {ruleMsg && <span style={{ fontSize: 12, color: '#0f766e' }}>{ruleMsg}</span>}
+          </div>
+        )}
+
         {canEdit && (
           <>
+            {rule && rule.backdateDays !== null && (
+              <div className="muted" style={{ fontSize: 11.5, marginBottom: 6 }}>
+                {rule.backdateDays === 0
+                  ? 'Only today’s expenses can be added.'
+                  : `Expenses can be dated at most ${rule.backdateDays} day(s) back (from ${earliestDate}).`}
+              </div>
+            )}
             <div className="toolbar">
               <div className="field" style={{ margin: 0 }}>
                 <label>Date</label>
-                <input type="date" value={form.date} onChange={(e) => set('date', e.target.value)} />
+                <input type="date" value={form.date} min={earliestDate} max={rule?.today} onChange={(e) => set('date', e.target.value)} />
               </div>
               <div className="field" style={{ margin: 0 }}>
                 <label>Sales Person</label>
