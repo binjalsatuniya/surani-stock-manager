@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { buildTelLink } from '@surani/shared';
 import type { Party, PartyType, SalesPerson } from '@surani/shared';
 import { api } from '../lib/apiClient';
 import { usePermission } from '../hooks/usePermission';
@@ -279,7 +280,7 @@ export function PartiesPage() {
                 <td>{salesPersonName(p.salesPersonId)}</td>
                 <td>
                   {p.phone ? (
-                    <a href={`tel:${p.phone.replace(/[^\d+]/g, '')}`} className="btn btn-sm" style={{ textDecoration: 'none' }} title={`Call ${p.phone}`}>
+                    <a href={buildTelLink(p.phone)} className="btn btn-sm" style={{ textDecoration: 'none' }} title={`Call ${p.phone}`}>
                       📞 {p.phone}
                     </a>
                   ) : (

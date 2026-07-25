@@ -217,3 +217,19 @@ export function buildWhatsappLink(phone: string | null | undefined, message: str
   const base = digits.length > 7 ? `https://wa.me/${digits}` : 'https://wa.me/';
   return `${base}?text=${encodeURIComponent(message)}`;
 }
+
+/**
+ * Builds a `tel:` link with a proper leading `+` so the country code is dialled correctly.
+ * Without the `+`, a number like `919876543210` is treated as a local number, not +91 India.
+ * - Already starts with `+` → kept as-is (any country).
+ * - Exactly 10 digits → assumed Indian mobile, gets `+91`.
+ * - Anything else with digits → gets a leading `+` (e.g. `91XXXXXXXXXX` → `+91XXXXXXXXXX`).
+ */
+export function buildTelLink(phone: string | null | undefined): string {
+  const raw = (phone || '').trim();
+  if (raw.startsWith('+')) return `tel:+${raw.slice(1).replace(/\D/g, '')}`;
+  const digits = raw.replace(/\D/g, '');
+  if (!digits) return 'tel:';
+  if (digits.length === 10) return `tel:+91${digits}`;
+  return `tel:+${digits}`;
+}

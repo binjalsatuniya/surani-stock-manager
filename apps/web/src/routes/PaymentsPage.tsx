@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { buildWhatsappLink, PAYMENT_MODES, type DueLedgerGroup, type PayableGroup, type Party, type Payment, type PaymentDirection, type PaymentMode, type SalesPerson } from '@surani/shared';
+import { buildWhatsappLink, buildTelLink, PAYMENT_MODES, type DueLedgerGroup, type PayableGroup, type Party, type Payment, type PaymentDirection, type PaymentMode, type SalesPerson } from '@surani/shared';
 import type { UnpaidInvoice } from '@surani/shared';
 import { api } from '../lib/apiClient';
 import { usePermission } from '../hooks/usePermission';
@@ -90,7 +90,7 @@ export function PaymentsPage() {
 
   function callPhone(phone?: string | null) {
     if (!phone) return;
-    window.location.href = `tel:${phone.replace(/[^\d+]/g, '')}`;
+    window.location.href = buildTelLink(phone);
   }
 
   function onExportDuePdf() {
