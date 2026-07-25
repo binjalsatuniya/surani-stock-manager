@@ -83,7 +83,7 @@ export type Role = 'superadmin' | 'admin' | 'account' | 'staff';
 export function roleLabel(role: Role): string {
   switch (role) {
     case 'superadmin':
-      return 'Super Admin';
+      return 'Admin';
     case 'admin':
       return 'Admin';
     case 'account':
