@@ -65,6 +65,12 @@ ALTER TABLE public.salesperson_expenses
   ADD COLUMN IF NOT EXISTS paid_mode text;
 
 -- ---------------------------------------------------------------------
+-- 2d) Per-item default GST slab (auto-fills GST on order/inward entries).
+-- ---------------------------------------------------------------------
+ALTER TABLE public.items
+  ADD COLUMN IF NOT EXISTS gst_pct numeric(5,2) NOT NULL DEFAULT 0;
+
+-- ---------------------------------------------------------------------
 -- 3) (OPTIONAL — DATA ONLY) Make JAYNIL the primary Super Admin.
 --    Reveals Access Settings & Login Locations, and shows the name "JAYNIL".
 --    Skip this block if you have already run it. Re-running is harmless.

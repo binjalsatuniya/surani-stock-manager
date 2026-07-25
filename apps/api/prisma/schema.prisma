@@ -145,7 +145,8 @@ model Item {
   name      String
   category  String?
   unit      String // KG | MT | pcs
-  code      String?
+  code      String? // HSN code
+  gstPct    Decimal  @default(0) @db.Decimal(5, 2) @map("gst_pct") // default GST slab for this item
   rate      Decimal  @default(0) @db.Decimal(14, 2)
   opening   Decimal  @default(0) @db.Decimal(14, 3)
   reorder   Decimal  @default(0) @db.Decimal(14, 3)

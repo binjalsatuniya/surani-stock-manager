@@ -120,7 +120,12 @@ export function InwardPage() {
   // Auto-fill the item's rate when an item is chosen and no rate typed yet.
   function onItemChange(id: string) {
     const it = items.find((i) => i.id === id);
-    setForm((f) => ({ ...f, itemId: id, rate: f.rate || (it ? String(it.rate) : '') }));
+    setForm((f) => ({
+      ...f,
+      itemId: id,
+      rate: f.rate || (it ? String(it.rate) : ''),
+      gstPct: it && Number(it.gstPct) > 0 ? String(it.gstPct) : f.gstPct,
+    }));
   }
 
   const qtyN = Number(form.qty) || 0;
@@ -301,7 +306,19 @@ export function InwardPage() {
             </div>
             <div className="field" style={{ margin: 0 }}>
               <label>GST %</label>
-              <input value={form.gstPct} onChange={(e) => set('gstPct', e.target.value)} style={{ width: 70 }} />
+              {(() => {
+                const it = items.find((i) => i.id === form.itemId);
+                const locked = !!it && Number(it.gstPct) > 0;
+                return (
+                  <input
+                    value={form.gstPct}
+                    onChange={(e) => set('gstPct', e.target.value)}
+                    style={{ width: 70 }}
+                    readOnly={locked}
+                    title={locked ? "Set automatically from the item's GST slab" : ''}
+                  />
+                );
+              })()}
             </div>
             <div className="field" style={{ margin: 0 }}>
               <FieldLabel required={required('inward.deliveryType')}>Delivery</FieldLabel>

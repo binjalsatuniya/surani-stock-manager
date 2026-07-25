@@ -96,7 +96,8 @@ export interface Item {
   name: string;
   category: string | null;
   unit: ItemUnit;
-  code: string | null;
+  code: string | null; // HSN code
+  gstPct: number; // default GST slab for this item
   rate: number;
   opening: number;
   reorder: number;

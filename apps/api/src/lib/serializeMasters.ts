@@ -28,6 +28,7 @@ export function toItemDTO(i: PrismaItem): Item {
     category: i.category,
     unit: i.unit as ItemUnit,
     code: i.code,
+    gstPct: Number(i.gstPct),
     rate: Number(i.rate),
     opening: Number(i.opening),
     reorder: Number(i.reorder),

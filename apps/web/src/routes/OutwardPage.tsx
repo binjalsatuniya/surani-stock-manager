@@ -61,7 +61,12 @@ export function OutwardPage() {
   // Pick up the item's rate, and default credit days from the selected party.
   function onItemChange(id: string) {
     const it = items.find((i) => i.id === id);
-    setForm((f) => ({ ...f, itemId: id, rate: f.rate || (it ? String(it.rate) : '') }));
+    setForm((f) => ({
+      ...f,
+      itemId: id,
+      rate: f.rate || (it ? String(it.rate) : ''),
+      gstPct: it && Number(it.gstPct) > 0 ? String(it.gstPct) : f.gstPct,
+    }));
   }
   function onPartyChange(id: string) {
     const p = parties.find((x) => x.id === id);
@@ -188,7 +193,19 @@ export function OutwardPage() {
             </div>
             <div className="field" style={{ margin: 0 }}>
               <label>GST %</label>
-              <input value={form.gstPct} onChange={(e) => set('gstPct', e.target.value)} style={{ width: 70 }} />
+              {(() => {
+                const it = items.find((i) => i.id === form.itemId);
+                const locked = !!it && Number(it.gstPct) > 0;
+                return (
+                  <input
+                    value={form.gstPct}
+                    onChange={(e) => set('gstPct', e.target.value)}
+                    style={{ width: 70 }}
+                    readOnly={locked}
+                    title={locked ? "Set automatically from the item's GST slab" : ''}
+                  />
+                );
+              })()}
             </div>
             <div className="field" style={{ margin: 0 }}>
               <label>Pay Status</label>

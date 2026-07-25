@@ -155,7 +155,13 @@ export function DashboardPage() {
   }
   function onOrderItemChange(id: string) {
     const it = items.find((i) => i.id === id);
-    setOrder((o) => ({ ...o, itemId: id, rate: o.rate || (it ? String(it.rate) : '') }));
+    setOrder((o) => ({
+      ...o,
+      itemId: id,
+      rate: o.rate || (it ? String(it.rate) : ''),
+      // Auto-fill GST from the item's slab (when set), so it needn't be picked per order.
+      gstPct: it && Number(it.gstPct) > 0 ? String(it.gstPct) : o.gstPct,
+    }));
   }
 
   const selectedParty = debtors.find((p) => p.id === order.partyId);
@@ -442,13 +448,24 @@ export function DashboardPage() {
             </div>
             <div className="field" style={{ margin: 0 }}>
               <label>GST %</label>
-              <select value={order.gstPct} onChange={(e) => setOrd('gstPct', e.target.value)}>
-                <option value="0">0%</option>
-                <option value="5">5%</option>
-                <option value="12">12%</option>
-                <option value="18">18%</option>
-                <option value="28">28%</option>
-              </select>
+              {(() => {
+                const it = items.find((i) => i.id === order.itemId);
+                const locked = !!it && Number(it.gstPct) > 0;
+                return (
+                  <select
+                    value={order.gstPct}
+                    onChange={(e) => setOrd('gstPct', e.target.value)}
+                    disabled={locked}
+                    title={locked ? "Set automatically from the item's GST slab" : ''}
+                  >
+                    <option value="0">0%</option>
+                    <option value="5">5%</option>
+                    <option value="12">12%</option>
+                    <option value="18">18%</option>
+                    <option value="28">28%</option>
+                  </select>
+                );
+              })()}
             </div>
             <div className="field" style={{ margin: 0 }}>
               <label>Delivery</label>

@@ -18,6 +18,7 @@ const itemSchema = z.object({
   category: z.string().nullable().optional(),
   unit: unitEnum,
   code: z.string().nullable().optional(),
+  gstPct: z.coerce.number().default(0),
   rate: z.coerce.number().default(0),
   opening: z.coerce.number().default(0),
   reorder: z.coerce.number().default(0),

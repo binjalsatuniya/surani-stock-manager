@@ -12,6 +12,7 @@ const EMPTY = {
   category: '',
   unit: 'KG' as ItemUnit,
   code: '',
+  gstPct: '0',
   rate: '0',
   opening: '0',
   reorder: '0',
@@ -53,6 +54,7 @@ export function ItemsPage() {
       category: form.category.trim() || null,
       unit: form.unit,
       code: form.code.trim() || null,
+      gstPct: Number(form.gstPct) || 0,
       rate: Number(form.rate) || 0,
       opening: Number(form.opening) || 0,
       reorder: Number(form.reorder) || 0,
@@ -75,6 +77,7 @@ export function ItemsPage() {
       category: i.category || '',
       unit: i.unit,
       code: i.code || '',
+      gstPct: String(i.gstPct ?? 0),
       rate: String(i.rate ?? 0),
       opening: String(i.opening ?? 0),
       reorder: String(i.reorder ?? 0),
@@ -104,8 +107,18 @@ export function ItemsPage() {
               <input value={form.category} onChange={(e) => set('category', e.target.value)} />
             </div>
             <div className="field" style={{ margin: 0 }}>
-              <FieldLabel required={required('item.code')}>Code</FieldLabel>
+              <FieldLabel required={required('item.code')}>HSN Code</FieldLabel>
               <input value={form.code} onChange={(e) => set('code', e.target.value)} style={{ width: 100 }} />
+            </div>
+            <div className="field" style={{ margin: 0 }}>
+              <label>GST %</label>
+              <select value={form.gstPct} onChange={(e) => set('gstPct', e.target.value)}>
+                <option value="0">0%</option>
+                <option value="5">5%</option>
+                <option value="12">12%</option>
+                <option value="18">18%</option>
+                <option value="28">28%</option>
+              </select>
             </div>
             <div className="field" style={{ margin: 0 }}>
               <label>Unit</label>
