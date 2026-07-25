@@ -18,8 +18,10 @@ import { createFinancialYearsClient } from './financial-years';
 import { createFieldSettingsClient } from './field-settings';
 import { createExpensesClient } from './expenses';
 import { createLoginLocationsClient } from './login-locations';
+import { createResetClient } from './reset';
 
 export * from './http';
+export * from './reset';
 export * from './items';
 export * from './parties';
 export * from './ledger';
@@ -84,6 +86,7 @@ export function createApiClient(opts: HttpClientOptions) {
     fieldSettings: createFieldSettingsClient(http),
     expenses: createExpensesClient(http),
     loginLocations: createLoginLocationsClient(http),
+    reset: createResetClient(http),
   };
 }
 

@@ -6,6 +6,7 @@ import { authenticate } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/requirePermission';
 import { requireRole } from '../../middleware/requireRole';
 import { HttpError } from '../../middleware/errorHandler';
+import { exportAllData } from '../../lib/backupData';
 
 export const backupRouter = Router();
 backupRouter.use(authenticate);
@@ -17,55 +18,7 @@ backupRouter.get(
   '/export',
   requirePermission('view_backup'),
   asyncHandler(async (_req, res) => {
-    const [
-      users,
-      parties,
-      items,
-      salesPersons,
-      inward,
-      outward,
-      payments,
-      paymentAllocations,
-      freightEntries,
-      handlingEntries,
-      approvalRequests,
-      auditLog,
-      financialYears,
-    ] = await Promise.all([
-      prisma.user.findMany(),
-      prisma.party.findMany(),
-      prisma.item.findMany(),
-      prisma.salesPerson.findMany(),
-      prisma.inward.findMany(),
-      prisma.outward.findMany(),
-      prisma.payment.findMany(),
-      prisma.paymentAllocation.findMany(),
-      prisma.freightEntry.findMany(),
-      prisma.handlingEntry.findMany(),
-      prisma.approvalRequest.findMany(),
-      prisma.auditLog.findMany(),
-      prisma.financialYear.findMany(),
-    ]);
-
-    res.json({
-      version: 2,
-      exportedAt: new Date().toISOString(),
-      db: {
-        users,
-        parties,
-        items,
-        salesPersons,
-        inward,
-        outward,
-        payments,
-        paymentAllocations,
-        freightEntries,
-        handlingEntries,
-        approvalRequests,
-        auditLog,
-        financialYears,
-      },
-    });
+    res.json({ version: 2, exportedAt: new Date().toISOString(), db: await exportAllData(prisma) });
   })
 );
 
@@ -86,10 +39,13 @@ backupRouter.post(
     await prisma.$transaction(async (tx) => {
       // Delete in FK-dependency order, then recreate in reverse (parent-first) order.
       await tx.paymentAllocation.deleteMany();
+      await tx.paymentInwardAllocation.deleteMany();
       await tx.freightEntry.deleteMany();
       await tx.handlingEntry.deleteMany();
       await tx.auditLog.deleteMany();
       await tx.approvalRequest.deleteMany();
+      await tx.loginLocation.deleteMany();
+      await tx.salesPersonExpense.deleteMany();
       await tx.payment.deleteMany();
       await tx.outward.deleteMany();
       await tx.inward.deleteMany();
@@ -102,9 +58,11 @@ backupRouter.post(
 
       if (db.users) await tx.user.createMany({ data: db.users as never[] });
       if (db.salesPersons) await tx.salesPerson.createMany({ data: db.salesPersons as never[] });
+      if (db.salespersonExpenses) await tx.salesPersonExpense.createMany({ data: db.salespersonExpenses as never[] });
       if (db.parties) await tx.party.createMany({ data: db.parties as never[] });
       if (db.items) await tx.item.createMany({ data: db.items as never[] });
       if (db.financialYears) await tx.financialYear.createMany({ data: db.financialYears as never[] });
+      if (db.loginLocations) await tx.loginLocation.createMany({ data: db.loginLocations as never[] });
       if (db.inward)
         await tx.inward.createMany({ data: (db.inward as Record<string, unknown>[]).map(({ financialYear: _fy, ...rest }) => rest) as never[] });
       if (db.outward)
@@ -112,6 +70,7 @@ backupRouter.post(
       if (db.payments)
         await tx.payment.createMany({ data: (db.payments as Record<string, unknown>[]).map(({ financialYear: _fy, ...rest }) => rest) as never[] });
       if (db.paymentAllocations) await tx.paymentAllocation.createMany({ data: db.paymentAllocations as never[] });
+      if (db.paymentInwardAllocations) await tx.paymentInwardAllocation.createMany({ data: db.paymentInwardAllocations as never[] });
       if (db.freightEntries) await tx.freightEntry.createMany({ data: db.freightEntries as never[] });
       if (db.handlingEntries) await tx.handlingEntry.createMany({ data: db.handlingEntries as never[] });
       if (db.approvalRequests) await tx.approvalRequest.createMany({ data: db.approvalRequests as never[] });

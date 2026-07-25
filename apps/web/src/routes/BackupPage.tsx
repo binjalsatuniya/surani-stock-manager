@@ -2,23 +2,68 @@ import { useRef, useState } from 'react';
 import { api } from '../lib/apiClient';
 import { useAuth } from '../context/AuthContext';
 
+function downloadJson(data: unknown, name: string) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 export function BackupPage() {
   const { user } = useAuth();
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Danger Zone (reset all data)
+  const isAdmin = user?.role === 'superadmin' || user?.role === 'admin';
+  const [resetPw, setResetPw] = useState('');
+  const [resetMsg, setResetMsg] = useState('');
+  const [resetErr, setResetErr] = useState('');
+
   async function onExport() {
     const data = await api.backup.export();
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `stockmgr-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    downloadJson(data, `stockmgr-backup-${new Date().toISOString().slice(0, 10)}.json`);
+  }
+
+  async function onReset() {
+    setResetErr('');
+    setResetMsg('');
+    if (!resetPw) return setResetErr('Enter the reset password.');
+    if (!confirm('This DELETES ALL business data (parties, items, transactions, payments…). Your login stays. A backup will download first. Continue?')) return;
+    if (!confirm('Are you absolutely sure? This cannot be undone except by restoring the backup file.')) return;
+    setBusy(true);
+    try {
+      const res = await api.reset.execute(resetPw);
+      downloadJson(res.backup, `stockmgr-BEFORE-RESET-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.json`);
+      setResetPw('');
+      alert('All data has been reset. A backup was downloaded — keep it safe. The page will reload.');
+      window.location.reload();
+    } catch (err) {
+      setResetErr(err instanceof Error ? err.message : 'Reset failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onRequestReset() {
+    setResetErr('');
+    setResetMsg('');
+    if (!confirm('Send a request to reset ALL data? JAYNIL must approve it before anything is deleted.')) return;
+    setBusy(true);
+    try {
+      await api.reset.request();
+      setResetMsg('Reset request sent. It will appear in Approvals for JAYNIL to approve.');
+    } catch (err) {
+      setResetErr(err instanceof Error ? err.message : 'Could not send the request');
+    } finally {
+      setBusy(false);
+    }
   }
 
   function onImportClick() {
@@ -61,6 +106,41 @@ export function BackupPage() {
         <input ref={fileInputRef} type="file" accept=".json,application/json" style={{ display: 'none' }} onChange={onFileChosen} />
       </div>
       {error && <div className="login-err show">{error}</div>}
+
+      {isAdmin && (
+        <div style={{ marginTop: 28, paddingTop: 18, borderTop: '2px solid #fecaca' }}>
+          <h3 style={{ margin: '0 0 4px', color: '#b91c1c' }}>⚠️ Danger Zone — Reset all data</h3>
+          <p className="muted" style={{ marginTop: 0 }}>
+            Permanently deletes ALL business data (parties, items, inward/outward, orders, payments,
+            expenses, ledgers). User logins are kept. A full backup downloads automatically first, so you
+            can restore it above if this was a mistake.
+          </p>
+
+          {user?.isPrimary ? (
+            <div className="toolbar" style={{ alignItems: 'flex-end' }}>
+              <div className="field" style={{ margin: 0 }}>
+                <label>Reset password</label>
+                <input
+                  type="password"
+                  value={resetPw}
+                  onChange={(e) => setResetPw(e.target.value)}
+                  placeholder="Set this in My Account → Access Settings"
+                  style={{ minWidth: 240 }}
+                />
+              </div>
+              <button className="btn btn-danger" onClick={onReset} disabled={busy}>
+                {busy ? 'Resetting…' : 'Reset all data'}
+              </button>
+            </div>
+          ) : (
+            <button className="btn btn-danger" onClick={onRequestReset} disabled={busy}>
+              {busy ? 'Sending…' : 'Request data reset (needs JAYNIL approval)'}
+            </button>
+          )}
+          {resetMsg && <div style={{ color: '#0f766e', marginTop: 10, fontSize: 13 }}>{resetMsg}</div>}
+          {resetErr && <div className="login-err show">{resetErr}</div>}
+        </div>
+      )}
     </div>
   );
 }

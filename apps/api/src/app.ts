@@ -23,6 +23,7 @@ import { financialYearsRouter } from './modules/financial-years/routes';
 import { fieldSettingsRouter } from './modules/field-settings/routes';
 import { expensesRouter } from './modules/expenses/routes';
 import { loginLocationsRouter } from './modules/login-locations/routes';
+import { resetRouter } from './modules/reset/routes';
 
 export const app = express();
 
@@ -76,5 +77,6 @@ app.use('/financial-years', financialYearsRouter);
 app.use('/field-settings', fieldSettingsRouter);
 app.use('/expenses', expensesRouter);
 app.use('/login-locations', loginLocationsRouter);
+app.use('/reset', resetRouter);
 
 app.use(errorHandler);

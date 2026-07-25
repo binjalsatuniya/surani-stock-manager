@@ -231,8 +231,8 @@ export interface HandlingEntry {
   createdAt: string;
 }
 
-export type ApprovalKind = 'edit' | 'delete';
-export type ApprovalTarget = 'inward' | 'outward' | 'payment' | 'party' | 'item';
+export type ApprovalKind = 'edit' | 'delete' | 'reset';
+export type ApprovalTarget = 'inward' | 'outward' | 'payment' | 'party' | 'item' | 'all';
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
 
 export interface ApprovalRequest {

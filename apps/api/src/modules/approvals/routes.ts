@@ -49,6 +49,9 @@ approvalsRouter.post(
     const r = await prisma.approvalRequest.findUnique({ where: { id: req.params.id } });
     if (!r) throw new NotFoundError('Approval request not found');
     if (r.status !== 'pending') throw new HttpError(400, 'Request already resolved');
+    // A full-data reset is far too destructive for the generic approve path — it has its own
+    // password-gated, primary-only endpoint (POST /reset/approve/:id).
+    if (r.kind === 'reset') throw new HttpError(400, 'Approve a reset from the Reset flow (needs the reset password)');
 
     await prisma.$transaction(async (tx) => {
       if (r.kind === 'delete') {

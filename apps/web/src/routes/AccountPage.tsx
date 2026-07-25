@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { roleLabel } from '@surani/shared';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../lib/apiClient';
@@ -17,6 +17,35 @@ export function AccountPage() {
   const [accNext, setAccNext] = useState('');
   const [accMsg, setAccMsg] = useState('');
   const [accErr, setAccErr] = useState('');
+
+  // Reset password — the dedicated password that authorises wiping ALL data (primary only).
+  const [resetEnabled, setResetEnabled] = useState(false);
+  const [rstCur, setRstCur] = useState('');
+  const [rstNext, setRstNext] = useState('');
+  const [rstMsg, setRstMsg] = useState('');
+  const [rstErr, setRstErr] = useState('');
+
+  useEffect(() => {
+    if (user?.isPrimary) api.reset.status().then((s) => setResetEnabled(s.enabled)).catch(() => {});
+  }, [user?.isPrimary]);
+
+  async function onSaveReset(remove = false) {
+    setRstErr('');
+    setRstMsg('');
+    if (!remove && rstNext.length < 6) {
+      setRstErr('Reset password must be at least 6 characters.');
+      return;
+    }
+    try {
+      const res = await api.reset.setPassword({ current: rstCur || undefined, next: remove ? '' : rstNext });
+      setResetEnabled(res.enabled);
+      setRstCur('');
+      setRstNext('');
+      setRstMsg(remove ? 'Reset password removed.' : 'Reset password saved. It is needed to wipe all data.');
+    } catch (e) {
+      setRstErr(e instanceof Error ? e.message : 'Failed to save reset password');
+    }
+  }
 
   if (!user) return null;
 
@@ -142,6 +171,44 @@ export function AccountPage() {
           </div>
           {accErr && <div className="login-err show">{accErr}</div>}
           {accMsg && <div className="muted" style={{ marginTop: 8 }}>{accMsg}</div>}
+        </div>
+      )}
+
+      {user.isPrimary && (
+        <div style={{ marginTop: 16, padding: 14, border: '1px solid #fecaca', borderRadius: 9 }}>
+          <div style={{ fontWeight: 600, color: '#b91c1c' }}>Reset password — authorises wiping ALL data</div>
+          <div className="muted" style={{ fontSize: 11.5, marginTop: 2 }}>
+            A separate password required to reset all business data (in Backup → Danger Zone) and to
+            approve a reset another admin requests. {resetEnabled ? 'It is currently set.' : 'It is not set yet.'}
+          </div>
+          <div style={{ marginTop: 10, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            {resetEnabled && (
+              <input
+                type="password"
+                placeholder="Current reset password"
+                value={rstCur}
+                onChange={(e) => setRstCur(e.target.value)}
+                style={{ maxWidth: 200, padding: '9px 11px', border: '1px solid var(--line)', borderRadius: 8 }}
+              />
+            )}
+            <input
+              type="password"
+              placeholder={resetEnabled ? 'New reset password' : 'Set a reset password'}
+              value={rstNext}
+              onChange={(e) => setRstNext(e.target.value)}
+              style={{ maxWidth: 200, padding: '9px 11px', border: '1px solid var(--line)', borderRadius: 8 }}
+            />
+            <button className="btn btn-sm btn-primary" onClick={() => onSaveReset(false)}>
+              {resetEnabled ? 'Change password' : 'Set password'}
+            </button>
+            {resetEnabled && (
+              <button className="btn btn-sm btn-danger" onClick={() => onSaveReset(true)} title="Requires the current reset password">
+                Turn off
+              </button>
+            )}
+          </div>
+          {rstErr && <div className="login-err show">{rstErr}</div>}
+          {rstMsg && <div className="muted" style={{ marginTop: 8 }}>{rstMsg}</div>}
         </div>
       )}
     </div>
