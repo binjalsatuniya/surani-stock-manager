@@ -48,7 +48,7 @@ function loadOrder(): string[] {
 }
 
 export function Layout() {
-  const { user, logout, updateUser } = useAuth();
+  const { user, logout, updateUser, llUnlocked } = useAuth();
   const can = usePermission();
   const { fys, selectedFy, setSelectedFy, refreshFys } = useFinancialYear();
   const [pendingApprovals, setPendingApprovals] = useState(0);
@@ -88,9 +88,13 @@ export function Layout() {
     return result;
   }, [order]);
 
-  // Only the items this user is allowed to see.
+  // Only the items this user is allowed to see. Login Locations stays hidden until it's unlocked
+  // with its access password in My Account.
   const visible = orderedDefs.filter(
-    (d) => (!d.perm || can(d.perm)) && (!d.primaryOnly || user?.isPrimary)
+    (d) =>
+      (!d.perm || can(d.perm)) &&
+      (!d.primaryOnly || user?.isPrimary) &&
+      (d.key !== 'loginlocations' || llUnlocked)
   );
 
   function persist(next: string[]) {

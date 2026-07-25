@@ -7,7 +7,7 @@ const fmtDateTime = (d: string) =>
   new Date(d).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
 export function LoginLocationsPage() {
-  const { user } = useAuth();
+  const { user, llUnlocked, llPassword } = useAuth();
   const isPrimary = !!user?.isPrimary;
   const [rows, setRows] = useState<LoginLocation[]>([]);
   const [error, setError] = useState('');
@@ -18,6 +18,17 @@ export function LoginLocationsPage() {
 
   useEffect(() => {
     if (!isPrimary) return;
+    // If it was already unlocked in My Account, load straight away with the remembered password.
+    if (llUnlocked) {
+      api.loginLocations
+        .view(llPassword ?? undefined)
+        .then((data) => {
+          setRows(data);
+          setUnlocked(true);
+        })
+        .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load'));
+      return;
+    }
     api.loginLocations
       .accessStatus()
       .then((s) => {
@@ -29,7 +40,7 @@ export function LoginLocationsPage() {
         }
       })
       .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load login locations'));
-  }, [isPrimary]);
+  }, [isPrimary, llUnlocked, llPassword]);
 
   async function onUnlock() {
     setError('');

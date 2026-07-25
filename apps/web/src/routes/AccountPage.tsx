@@ -5,7 +5,22 @@ import { api } from '../lib/apiClient';
 import { rememberQuickUnlockUser, forgetQuickUnlockUser } from '../lib/quickUnlock';
 
 export function AccountPage() {
-  const { user } = useAuth();
+  const { user, llUnlocked, unlockLoginLocations } = useAuth();
+  const [llPw, setLlPw] = useState('');
+  const [llMsg, setLlMsg] = useState('');
+  const [llErr, setLlErr] = useState('');
+
+  async function onUnlockLL() {
+    setLlErr('');
+    setLlMsg('');
+    try {
+      await unlockLoginLocations(llPw);
+      setLlPw('');
+      setLlMsg('Unlocked — “Login Locations” now appears in the menu for this session.');
+    } catch (e) {
+      setLlErr(e instanceof Error ? e.message : 'Incorrect access password');
+    }
+  }
   const [pinEnabled, setPinEnabled] = useState(!!user?.security.pinEnabled);
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
@@ -199,6 +214,29 @@ export function AccountPage() {
           </div>
           {accErr && <div className="login-err show">{accErr}</div>}
           {accMsg && <div className="muted" style={{ marginTop: 8 }}>{accMsg}</div>}
+
+          <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px dashed var(--line)' }}>
+            <div style={{ fontWeight: 600, fontSize: 13 }}>Show Login Locations in the menu</div>
+            <div className="muted" style={{ fontSize: 11.5, marginTop: 2 }}>
+              Login Locations is hidden from the menu. Enter the access password here to reveal it for this
+              session. {llUnlocked ? 'It is currently visible.' : 'It is currently hidden.'}
+            </div>
+            {!llUnlocked && (
+              <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <input
+                  type="password"
+                  placeholder="Access password"
+                  value={llPw}
+                  onChange={(e) => setLlPw(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && onUnlockLL()}
+                  style={{ maxWidth: 200, padding: '9px 11px', border: '1px solid var(--line)', borderRadius: 8 }}
+                />
+                <button className="btn btn-sm btn-primary" onClick={onUnlockLL}>Show in menu</button>
+              </div>
+            )}
+            {llErr && <div className="login-err show">{llErr}</div>}
+            {llMsg && <div className="muted" style={{ marginTop: 8, color: '#0f766e' }}>{llMsg}</div>}
+          </div>
         </div>
       )}
 

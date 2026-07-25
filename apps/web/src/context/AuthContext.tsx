@@ -10,6 +10,10 @@ interface AuthContextValue {
   loginWithPin: (userId: string, pin: string) => Promise<void>;
   logout: () => Promise<void>;
   updateUser: (u: User) => void;
+  // Login Locations is hidden from the menu until unlocked with its access password.
+  llUnlocked: boolean;
+  llPassword: string | null;
+  unlockLoginLocations: (password: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -23,6 +27,16 @@ function afterLogin(setUser: (u: User) => void, user: User) {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [llUnlocked, setLlUnlocked] = useState(false);
+  const [llPassword, setLlPassword] = useState<string | null>(null);
+
+  // Verify the access password by attempting to view; on success, reveal Login Locations for
+  // this session and remember the password so the page loads without asking again.
+  async function unlockLoginLocations(password: string) {
+    await api.loginLocations.view(password);
+    setLlPassword(password);
+    setLlUnlocked(true);
+  }
 
   useEffect(() => {
     // On boot, try to silently refresh using the httpOnly cookie (survives page reloads).
@@ -51,10 +65,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function logout() {
     await api.auth.logout().catch(() => {});
     setUser(null);
+    setLlUnlocked(false);
+    setLlPassword(null);
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, loginWithPin, logout, updateUser: setUser }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider
+      value={{ user, loading, login, loginWithPin, logout, updateUser: setUser, llUnlocked, llPassword, unlockLoginLocations }}
+    >
+      {children}
+    </AuthContext.Provider>
   );
 }
 
