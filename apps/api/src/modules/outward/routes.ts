@@ -50,7 +50,7 @@ outwardRouter.get(
 // Manual outward (the "Outward" tab) — unlike Place Order, freight/handling post immediately.
 outwardRouter.post(
   '/',
-  requirePermission('edit_outward'),
+  requirePermission('add_outward'),
   asyncHandler(async (req, res) => {
     const input = outwardSchema.parse(req.body);
     const freight = Math.round(input.freightRate * input.qty * 100) / 100;
@@ -184,7 +184,7 @@ outwardRouter.patch(
 
 outwardRouter.delete(
   '/:id',
-  requirePermission('edit_outward'),
+  requirePermission('delete_outward'),
   asyncHandler(async (req, res) => {
     const existing = await prisma.outward.findUnique({ where: { id: req.params.id } });
     if (!existing) throw new NotFoundError('Outward entry not found');

@@ -19,7 +19,8 @@ const EMPTY = {
 export function ExpensesPage() {
   const { user } = useAuth();
   const can = usePermission();
-  const canEdit = can('edit_expenses');
+  const canDelete = can('delete_expenses');
+  const canEdit = can('add_expenses') || can('edit_expenses') || canDelete;
   const [salesPersons, setSalesPersons] = useState<SalesPerson[]>([]);
   const [rows, setRows] = useState<SalesPersonExpense[]>([]);
   const [filterSp, setFilterSp] = useState('');
@@ -407,9 +408,11 @@ export function ExpensesPage() {
                       </td>
                       {canEdit && (
                         <td>
-                          <button className="btn btn-sm btn-danger" onClick={() => onDelete(r.id)}>
-                            Delete
-                          </button>
+                          {canDelete && (
+                            <button className="btn btn-sm btn-danger" onClick={() => onDelete(r.id)}>
+                              Delete
+                            </button>
+                          )}
                         </td>
                       )}
                     </tr>
@@ -509,9 +512,11 @@ export function ExpensesPage() {
                 </td>
                 {canEdit && (
                   <td>
-                    <button className="btn btn-sm btn-danger" onClick={() => onDelete(r.id)}>
-                      Delete
-                    </button>
+                    {canDelete && (
+                      <button className="btn btn-sm btn-danger" onClick={() => onDelete(r.id)}>
+                        Delete
+                      </button>
+                    )}
                   </td>
                 )}
               </tr>

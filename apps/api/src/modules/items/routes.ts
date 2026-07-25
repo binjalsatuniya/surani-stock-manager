@@ -59,7 +59,7 @@ itemsRouter.get(
 
 itemsRouter.post(
   '/',
-  requirePermission('edit_items'),
+  requirePermission('add_items'),
   asyncHandler(async (req, res) => {
     const input = itemSchema.parse(req.body);
     const item = await prisma.item.create({
@@ -86,7 +86,7 @@ itemsRouter.patch(
 
 itemsRouter.delete(
   '/:id',
-  requirePermission('edit_items'),
+  requirePermission('delete_items'),
   asyncHandler(async (req, res) => {
     const existing = await prisma.item.findUnique({ where: { id: req.params.id } });
     if (!existing) throw new NotFoundError('Item not found');

@@ -147,7 +147,7 @@ paymentsRouter.post(
 
 paymentsRouter.delete(
   '/:id',
-  requirePermission('record_payments'),
+  requirePermission('delete_payments'),
   asyncHandler(async (req, res) => {
     const existing = await prisma.payment.findUnique({ where: { id: req.params.id } });
     if (!existing) throw new NotFoundError('Payment not found');

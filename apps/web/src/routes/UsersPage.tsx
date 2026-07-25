@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { PERMS, defaultPermsForRole, roleLabel, type PermissionMap, type Role, type User } from '@surani/shared';
+import { PERMS, defaultPermsForRole, hasPermission, roleLabel, type PermissionMap, type Role, type User } from '@surani/shared';
 import { api } from '../lib/apiClient';
 import { useAuth } from '../context/AuthContext';
 
@@ -102,7 +102,11 @@ export function UsersPage() {
     setError('');
     setEditUser(u);
     setEditRole(u.role);
-    setEditPerms({ ...u.permissions });
+    // Initialise every checkbox from the EFFECTIVE permission (resolves the granular-key fallback),
+    // so opening and saving a pre-split user preserves exactly what they could already do.
+    const resolved = {} as PermissionMap;
+    PERMS.forEach((p) => (resolved[p.id] = hasPermission(u.role, u.permissions, p.id)));
+    setEditPerms(resolved);
   }
 
   // Changing the role pre-fills that role's default permissions (the admin can then fine-tune).
@@ -136,7 +140,7 @@ export function UsersPage() {
     }
   }
 
-  const grantedCount = (u: User) => PERMS.filter((p) => u.permissions?.[p.id]).length;
+  const grantedCount = (u: User) => PERMS.filter((p) => hasPermission(u.role, u.permissions, p.id)).length;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>

@@ -32,7 +32,9 @@ const EMPTY = {
 export function PartiesPage() {
   const can = usePermission();
   const { required } = useFieldSettings();
-  const canEdit = can('edit_parties') || can('edit_transporters');
+  const canEditRow = can('edit_parties') || can('edit_transporters');
+  const canDelete = can('delete_parties') || can('edit_transporters');
+  const canEdit = can('add_parties') || canEditRow || canDelete;
   const [parties, setParties] = useState<Party[]>([]);
   const [query, setQuery] = useState('');
   const [salesPersons, setSalesPersons] = useState<SalesPerson[]>([]);
@@ -293,12 +295,16 @@ export function PartiesPage() {
                 {canEdit && (
                   <td>
                     <div style={{ display: 'flex', gap: 6 }}>
-                      <button className="btn btn-sm" onClick={() => onEdit(p)}>
-                        Edit
-                      </button>
-                      <button className="btn btn-sm btn-danger" onClick={() => onDelete(p.id)}>
-                        Delete
-                      </button>
+                      {canEditRow && (
+                        <button className="btn btn-sm" onClick={() => onEdit(p)}>
+                          Edit
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button className="btn btn-sm btn-danger" onClick={() => onDelete(p.id)}>
+                          Delete
+                        </button>
+                      )}
                     </div>
                   </td>
                 )}

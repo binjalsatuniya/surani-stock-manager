@@ -35,8 +35,10 @@ const partySchema = z.object({
  * master). Since transporters now live in the same `parties` table (type='transporter'),
  * preserve that granularity by checking the permission that matches the row's type.
  */
-function requiredPermFor(type: string): 'edit_transporters' | 'edit_parties' {
-  return type === 'transporter' ? 'edit_transporters' : 'edit_parties';
+function requiredPermFor(type: string, action: 'add' | 'edit' | 'delete' = 'edit') {
+  // Transporters keep their own single permission; regular parties split into add/edit/delete.
+  if (type === 'transporter') return 'edit_transporters' as const;
+  return (action === 'add' ? 'add_parties' : action === 'delete' ? 'delete_parties' : 'edit_parties') as const;
 }
 
 partiesRouter.get(
@@ -62,8 +64,8 @@ partiesRouter.post(
   '/',
   asyncHandler(async (req, res) => {
     const input = partySchema.parse(req.body);
-    if (!hasPermission(req.user!.role, req.user!.permissions, requiredPermFor(input.type))) {
-      throw new ForbiddenError(`Missing permission: ${requiredPermFor(input.type)}`);
+    if (!hasPermission(req.user!.role, req.user!.permissions, requiredPermFor(input.type, 'add'))) {
+      throw new ForbiddenError(`Missing permission: ${requiredPermFor(input.type, 'add')}`);
     }
     // No duplicate party names (case-insensitive) — prevents two "Ambica" etc.
     const dup = await prisma.party.findFirst({ where: { name: { equals: input.name, mode: 'insensitive' } } });
@@ -85,7 +87,7 @@ partiesRouter.patch(
       });
       if (dup) throw new HttpError(409, `A party named "${dup.name}" already exists`);
     }
-    const requiredPerm = requiredPermFor(input.type ?? existing.type);
+    const requiredPerm = requiredPermFor(input.type ?? existing.type, 'edit');
     if (!hasPermission(req.user!.role, req.user!.permissions, requiredPerm)) {
       throw new ForbiddenError(`Missing permission: ${requiredPerm}`);
     }
@@ -99,7 +101,7 @@ partiesRouter.delete(
   asyncHandler(async (req, res) => {
     const existing = await prisma.party.findUnique({ where: { id: req.params.id } });
     if (!existing) throw new NotFoundError('Party not found');
-    const requiredPerm = requiredPermFor(existing.type);
+    const requiredPerm = requiredPermFor(existing.type, 'delete');
     if (!hasPermission(req.user!.role, req.user!.permissions, requiredPerm)) {
       throw new ForbiddenError(`Missing permission: ${requiredPerm}`);
     }

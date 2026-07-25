@@ -3,33 +3,68 @@
 
 export const PERMS = [
   { id: 'view_dashboard', label: 'View Dashboard', group: 'Core' },
-  { id: 'view_inward', label: 'View Inward', group: 'Stock' },
-  { id: 'edit_inward', label: 'Add / Delete Inward', group: 'Stock' },
-  { id: 'view_outward', label: 'View Outward', group: 'Stock' },
-  { id: 'edit_outward', label: 'Add / Delete Outward', group: 'Stock' },
+
+  { id: 'view_inward', label: 'View Inward', group: 'Inward' },
+  { id: 'add_inward', label: 'Add Inward', group: 'Inward' },
+  { id: 'edit_inward', label: 'Edit Inward', group: 'Inward' },
+  { id: 'delete_inward', label: 'Delete Inward', group: 'Inward' },
+
+  { id: 'view_outward', label: 'View Outward', group: 'Outward' },
+  { id: 'add_outward', label: 'Add Outward', group: 'Outward' },
+  { id: 'edit_outward', label: 'Edit Outward', group: 'Outward' },
+  { id: 'delete_outward', label: 'Delete Outward', group: 'Outward' },
+
   { id: 'place_order', label: 'Place New Order', group: 'Sales' },
   { id: 'view_orderbook', label: 'View Order Book', group: 'Sales' },
   { id: 'dispatch_order', label: 'Dispatch / Deliver Orders', group: 'Sales' },
-  { id: 'view_items', label: 'View Items & Live Stock', group: 'Masters' },
-  { id: 'edit_items', label: 'Add / Edit Item Master', group: 'Masters' },
-  { id: 'view_parties', label: 'View Party Master', group: 'Masters' },
-  { id: 'edit_parties', label: 'Add / Edit Parties', group: 'Masters' },
-  { id: 'edit_transporters', label: 'Add / Delete Transporters', group: 'Masters' },
-  { id: 'edit_salespersons', label: 'Add / Delete Sales Persons', group: 'Masters' },
-  { id: 'view_expenses', label: 'View Sales Person Expenses', group: 'Masters' },
-  { id: 'edit_expenses', label: 'Add / Delete Sales Person Expenses', group: 'Masters' },
+
+  { id: 'view_items', label: 'View Items & Live Stock', group: 'Item Master' },
+  { id: 'add_items', label: 'Add Items', group: 'Item Master' },
+  { id: 'edit_items', label: 'Edit Items', group: 'Item Master' },
+  { id: 'delete_items', label: 'Delete Items', group: 'Item Master' },
+
+  { id: 'view_parties', label: 'View Party Master', group: 'Party Master' },
+  { id: 'add_parties', label: 'Add Parties', group: 'Party Master' },
+  { id: 'edit_parties', label: 'Edit Parties', group: 'Party Master' },
+  { id: 'delete_parties', label: 'Delete Parties', group: 'Party Master' },
+  { id: 'edit_transporters', label: 'Add / Edit / Delete Transporters', group: 'Party Master' },
+  { id: 'edit_salespersons', label: 'Add / Edit / Delete Sales Persons', group: 'Party Master' },
+
+  { id: 'view_expenses', label: 'View Expenses', group: 'Expenses' },
+  { id: 'add_expenses', label: 'Add Expenses', group: 'Expenses' },
+  { id: 'edit_expenses', label: 'Edit / Mark-paid Expenses', group: 'Expenses' },
+  { id: 'delete_expenses', label: 'Delete Expenses', group: 'Expenses' },
+
   { id: 'view_payments', label: 'View Payment Due', group: 'Finance' },
-  { id: 'record_payments', label: 'Record Payments', group: 'Finance' },
+  { id: 'record_payments', label: 'Add Payments', group: 'Finance' },
+  { id: 'delete_payments', label: 'Delete Payments', group: 'Finance' },
   { id: 'view_ledgers', label: 'View Ledgers (any party)', group: 'Finance' },
-  { id: 'send_whatsapp', label: 'Send WhatsApp Messages', group: 'Finance' },
-  { id: 'manage_users', label: 'Manage Users (Admin only)', group: 'Admin' },
+  { id: 'send_whatsapp', label: 'WhatsApp Messages', group: 'Finance' },
+
+  { id: 'manage_users', label: 'Manage Users', group: 'Admin' },
   { id: 'manage_financial_years', label: 'Create Financial Years', group: 'Admin' },
   { id: 'view_audit_log', label: 'View Audit Log', group: 'Admin' },
   { id: 'view_approvals', label: 'View Approval Requests', group: 'Admin' },
-  { id: 'view_backup', label: 'View Backup & Restore (download only)', group: 'Admin' },
+  { id: 'view_backup', label: 'View Backup & Restore', group: 'Admin' },
 ] as const;
 
 export type PermissionKey = (typeof PERMS)[number]['id'];
+
+// New granular keys fall back to the old combined key when not explicitly set, so existing users
+// keep exactly the access they had before the split (no data migration needed).
+const LEGACY_FALLBACK: Partial<Record<PermissionKey, PermissionKey>> = {
+  add_inward: 'edit_inward',
+  delete_inward: 'edit_inward',
+  add_outward: 'edit_outward',
+  delete_outward: 'edit_outward',
+  add_items: 'edit_items',
+  delete_items: 'edit_items',
+  add_parties: 'edit_parties',
+  delete_parties: 'edit_parties',
+  add_expenses: 'edit_expenses',
+  delete_expenses: 'edit_expenses',
+  delete_payments: 'record_payments',
+};
 
 export type PermissionMap = Record<PermissionKey, boolean>;
 
@@ -101,12 +136,20 @@ export function defaultPermsForRole(role: Role): PermissionMap {
   return o;
 }
 
-/** Server-side equivalent of the legacy client's can(perm) — superadmin always passes. */
+/**
+ * can(perm) — superadmin always passes. For a granular key that isn't explicitly set on the user,
+ * fall back to the old combined key (so pre-split users keep their access until an admin edits them).
+ */
 export function hasPermission(
   role: Role,
   permissions: Partial<PermissionMap> | null | undefined,
   perm: PermissionKey
 ): boolean {
   if (role === 'superadmin') return true;
-  return !!(permissions && permissions[perm]);
+  if (!permissions) return false;
+  const direct = permissions[perm];
+  if (typeof direct === 'boolean') return direct;
+  const fb = LEGACY_FALLBACK[perm];
+  if (fb && typeof permissions[fb] === 'boolean') return !!permissions[fb];
+  return false;
 }

@@ -25,7 +25,8 @@ const EMPTY = {
 
 export function OutwardPage() {
   const can = usePermission();
-  const canEdit = can('edit_outward');
+  const canDelete = can('delete_outward');
+  const canEdit = can('add_outward') || can('edit_outward') || canDelete;
   const { selectedFy } = useFinancialYear();
   const { required } = useFieldSettings();
   const [rows, setRows] = useState<Outward[]>([]);
@@ -302,9 +303,11 @@ export function OutwardPage() {
               <td>{r.payStatus}</td>
               {canEdit && (
                 <td>
-                  <button className="btn btn-sm btn-danger" onClick={() => onDelete(r.id)}>
-                    Delete
-                  </button>
+                  {canDelete && (
+                    <button className="btn btn-sm btn-danger" onClick={() => onDelete(r.id)}>
+                      Delete
+                    </button>
+                  )}
                 </td>
               )}
             </tr>

@@ -21,7 +21,10 @@ const EMPTY = {
 export function ItemsPage() {
   const can = usePermission();
   const { required } = useFieldSettings();
-  const canEdit = can('edit_items');
+  const canAdd = can('add_items');
+  const canEditRow = can('edit_items');
+  const canDelete = can('delete_items');
+  const canEdit = canAdd || canEditRow || canDelete; // show the form/actions if any of the three
   const [items, setItems] = useState<Item[]>([]);
   const [form, setForm] = useState({ ...EMPTY });
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -182,12 +185,16 @@ export function ItemsPage() {
               {canEdit && (
                 <td>
                   <div style={{ display: 'flex', gap: 6 }}>
-                    <button className="btn btn-sm" onClick={() => onEdit(i)}>
-                      Edit
-                    </button>
-                    <button className="btn btn-sm btn-danger" onClick={() => onDelete(i.id)}>
-                      Delete
-                    </button>
+                    {canEditRow && (
+                      <button className="btn btn-sm" onClick={() => onEdit(i)}>
+                        Edit
+                      </button>
+                    )}
+                    {canDelete && (
+                      <button className="btn btn-sm btn-danger" onClick={() => onDelete(i.id)}>
+                        Delete
+                      </button>
+                    )}
                   </div>
                 </td>
               )}

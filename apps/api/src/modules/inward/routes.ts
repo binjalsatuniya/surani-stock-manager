@@ -52,7 +52,7 @@ inwardRouter.get(
 // received (see POST /:id/mark). Invoice no./date + handling charges are captured at that step.
 inwardRouter.post(
   '/',
-  requirePermission('edit_inward'),
+  requirePermission('add_inward'),
   asyncHandler(async (req, res) => {
     const input = inwardSchema.parse(req.body);
     const gst = Math.round(input.qty * input.rate * (input.gstPct / 100) * 100) / 100;
@@ -99,7 +99,7 @@ const markSchema = z.object({
 
 inwardRouter.post(
   '/:id/mark',
-  requirePermission('edit_inward'),
+  requirePermission('add_inward'),
   asyncHandler(async (req, res) => {
     const input = markSchema.parse(req.body);
     const existing = await prisma.inward.findUnique({ where: { id: req.params.id } });
@@ -273,7 +273,7 @@ inwardRouter.patch(
 
 inwardRouter.delete(
   '/:id',
-  requirePermission('edit_inward'),
+  requirePermission('delete_inward'),
   asyncHandler(async (req, res) => {
     const existing = await prisma.inward.findUnique({ where: { id: req.params.id } });
     if (!existing) throw new NotFoundError('Inward entry not found');

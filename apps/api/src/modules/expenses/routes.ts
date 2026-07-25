@@ -94,7 +94,7 @@ expensesRouter.get(
 
 expensesRouter.post(
   '/',
-  requirePermission('edit_expenses'),
+  requirePermission('add_expenses'),
   asyncHandler(async (req, res) => {
     const input = expenseSchema.parse(req.body);
 
@@ -155,7 +155,7 @@ expensesRouter.patch(
 
 expensesRouter.delete(
   '/:id',
-  requirePermission('edit_expenses'),
+  requirePermission('delete_expenses'),
   asyncHandler(async (req, res) => {
     const existing = await prisma.salesPersonExpense.findUnique({ where: { id: req.params.id } });
     if (!existing) throw new NotFoundError('Expense not found');

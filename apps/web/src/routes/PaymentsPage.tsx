@@ -19,6 +19,7 @@ export function PaymentsPage() {
   const { selectedFy } = useFinancialYear();
   const { required } = useFieldSettings();
   const canRecord = can('record_payments');
+  const canDeletePayment = can('delete_payments');
   const [rows, setRows] = useState<Payment[]>([]);
   const [parties, setParties] = useState<Party[]>([]);
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -399,9 +400,11 @@ export function PaymentsPage() {
               <td>{p.mode}</td>
               {canRecord && (
                 <td>
-                  <button className="btn btn-sm btn-danger" onClick={() => onDelete(p.id)}>
-                    Delete
-                  </button>
+                  {canDeletePayment && (
+                    <button className="btn btn-sm btn-danger" onClick={() => onDelete(p.id)}>
+                      Delete
+                    </button>
+                  )}
                 </td>
               )}
             </tr>

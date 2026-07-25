@@ -28,7 +28,8 @@ const EMPTY = {
 export function InwardPage() {
   const can = usePermission();
   const { user } = useAuth();
-  const canEdit = can('edit_inward');
+  const canDelete = can('delete_inward');
+  const canEdit = can('add_inward') || can('edit_inward') || canDelete;
   const canEditInvoice = user?.role === 'superadmin' || user?.role === 'admin';
   const { selectedFy } = useFinancialYear();
   const { required } = useFieldSettings();
@@ -251,9 +252,11 @@ export function InwardPage() {
                   Edit
                 </button>
               )}
-              <button className="btn btn-sm btn-danger" onClick={() => onDelete(r.id)}>
-                Delete
-              </button>
+              {canDelete && (
+                <button className="btn btn-sm btn-danger" onClick={() => onDelete(r.id)}>
+                  Delete
+                </button>
+              )}
             </div>
           </td>
         )}
