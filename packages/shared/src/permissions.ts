@@ -78,7 +78,8 @@ export type PermissionMap = Record<PermissionKey, boolean>;
 export type Role = 'superadmin' | 'admin' | 'account' | 'staff';
 
 /**
- * Display label for a user's role. Shows the actual role (Super Admin / Admin / Account / Staff).
+ * Display label for a user's role: Account / Staff show as-is; both superadmin and admin
+ * display as "Admin" (the primary Super Admin isn't singled out in the UI).
  */
 export function roleLabel(role: Role): string {
   switch (role) {
