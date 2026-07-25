@@ -19,6 +19,7 @@ export const PERMS = [
   { id: 'dispatch_order', label: 'Dispatch / Deliver Orders', group: 'Sales' },
 
   { id: 'view_items', label: 'View Items & Live Stock', group: 'Item Master' },
+  { id: 'view_live_stock', label: 'See Live Stock & Rate tab', group: 'Item Master' },
   { id: 'add_items', label: 'Add Items', group: 'Item Master' },
   { id: 'edit_items', label: 'Edit Items', group: 'Item Master' },
   { id: 'delete_items', label: 'Delete Items', group: 'Item Master' },
@@ -69,6 +70,7 @@ const LEGACY_FALLBACK: Partial<Record<PermissionKey, PermissionKey>> = {
   delete_payments: 'record_payments',
   view_whatsapp: 'send_whatsapp',
   view_field_rules: 'manage_users',
+  view_live_stock: 'view_items',
 };
 
 export type PermissionMap = Record<PermissionKey, boolean>;

@@ -17,7 +17,7 @@ interface NavDef {
 
 // The default order. Users can reorder these; their order is saved per-device.
 const NAV_DEFS: NavDef[] = [
-  { key: 'dashboard', to: '/', label: 'Dashboard' },
+  { key: 'dashboard', to: '/', label: 'Dashboard', perm: 'view_dashboard' },
   { key: 'inward', to: '/inward', label: 'Inward', perm: 'view_inward' },
   { key: 'outward', to: '/outward', label: 'Outward', perm: 'view_outward' },
   { key: 'orderbook', to: '/orderbook', label: 'Order Book', perm: 'view_orderbook' },
@@ -25,7 +25,7 @@ const NAV_DEFS: NavDef[] = [
   { key: 'expenses', to: '/expenses', label: 'Expenses', perm: 'view_expenses' },
   { key: 'parties', to: '/parties', label: 'Parties', perm: 'view_parties' },
   { key: 'items', to: '/items', label: 'Items', perm: 'view_items' },
-  { key: 'livestock', to: '/live-stock', label: 'Live Stock & Rate', perm: 'view_items' },
+  { key: 'livestock', to: '/live-stock', label: 'Live Stock & Rate', perm: 'view_live_stock' },
   { key: 'users', to: '/users', label: 'Users', perm: 'manage_users' },
   { key: 'approvals', to: '/approvals', label: 'Approvals', perm: 'view_approvals' },
   { key: 'audit', to: '/audit-log', label: 'Audit Log', perm: 'view_audit_log' },
