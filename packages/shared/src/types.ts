@@ -82,6 +82,8 @@ export interface SalesPersonExpense {
   expenseFor: string;
   attachment: string | null; // data: URL (base64) of the attached invoice, or null
   attachmentName: string | null;
+  paid: boolean; // reimbursed to the sales person?
+  paidAt: string | null;
   createdAt: string;
 }
 

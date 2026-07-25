@@ -128,6 +128,12 @@ export function ExpensesPage() {
     if (ledgerSpId) openLedger(ledgerSpId);
   }
 
+  async function onTogglePaid(exp: SalesPersonExpense) {
+    await api.expenses.setPaid(exp.id, !exp.paid);
+    reload();
+    if (ledgerSpId) openLedger(ledgerSpId);
+  }
+
   function openAttachment(exp: SalesPersonExpense) {
     if (!exp.attachment) return;
     const w = window.open('', '_blank');
@@ -285,6 +291,7 @@ export function ExpensesPage() {
                 <th>Expense For</th>
                 <th style={{ textAlign: 'right' }}>Amount (₹)</th>
                 <th style={{ textAlign: 'right' }}>Running Total (₹)</th>
+                <th>Status</th>
                 <th>Attachment</th>
                 {canEdit && <th></th>}
               </tr>
@@ -302,6 +309,18 @@ export function ExpensesPage() {
                       <td>{r.expenseFor}</td>
                       <td style={{ textAlign: 'right', fontWeight: 600 }}>{inr(r.amount)}</td>
                       <td style={{ textAlign: 'right', fontWeight: 700 }}>{inr(running)}</td>
+                      <td>
+                        {r.paid ? (
+                          <span style={{ color: '#15803d', fontWeight: 700, fontSize: 12 }}>✅ Paid</span>
+                        ) : (
+                          <span style={{ color: '#b45309', fontWeight: 700, fontSize: 12 }}>● Unpaid</span>
+                        )}
+                        {canEdit && (
+                          <button className="btn btn-sm" style={{ marginLeft: 8 }} onClick={() => onTogglePaid(r)}>
+                            {r.paid ? 'Mark unpaid' : 'Mark paid'}
+                          </button>
+                        )}
+                      </td>
                       <td>
                         {r.attachment ? (
                           <button className="btn btn-sm" onClick={() => openAttachment(r)} title="View / download the attached invoice">
@@ -324,7 +343,7 @@ export function ExpensesPage() {
               })()}
               {ledgerRows.length === 0 && (
                 <tr>
-                  <td colSpan={canEdit ? 6 : 5} className="muted">No expenses for this sales person yet.</td>
+                  <td colSpan={canEdit ? 7 : 6} className="muted">No expenses for this sales person yet.</td>
                 </tr>
               )}
             </tbody>
@@ -333,6 +352,17 @@ export function ExpensesPage() {
                 <tr>
                   <td colSpan={2} style={{ fontWeight: 700 }}>Closing Total</td>
                   <td style={{ textAlign: 'right', fontWeight: 800, color: '#ef4444' }}>{inr(ledgerRows.reduce((s, r) => s + r.amount, 0))}</td>
+                  <td></td>
+                  <td></td>
+                  <td></td>
+                  {canEdit && <td></td>}
+                </tr>
+                <tr>
+                  <td colSpan={2} style={{ fontWeight: 700 }}>Still to pay (unpaid)</td>
+                  <td style={{ textAlign: 'right', fontWeight: 800, color: '#b45309' }}>
+                    {inr(ledgerRows.filter((r) => !r.paid).reduce((s, r) => s + r.amount, 0))}
+                  </td>
+                  <td></td>
                   <td></td>
                   <td></td>
                   {canEdit && <td></td>}
@@ -366,6 +396,7 @@ export function ExpensesPage() {
               <th>Sales Person</th>
               <th>Expense For</th>
               <th style={{ textAlign: 'right' }}>Amount (₹)</th>
+              <th>Status</th>
               <th>Attachment</th>
               {canEdit && <th></th>}
             </tr>
@@ -377,6 +408,20 @@ export function ExpensesPage() {
                 <td>{spName(r.salesPersonId)}</td>
                 <td>{r.expenseFor}</td>
                 <td style={{ textAlign: 'right', fontWeight: 600 }}>{inr(r.amount)}</td>
+                <td>
+                  {r.paid ? (
+                    <span style={{ color: '#15803d', fontWeight: 700, fontSize: 12 }}>
+                      ✅ Paid{r.paidAt ? ` · ${fmtDate(r.paidAt)}` : ''}
+                    </span>
+                  ) : (
+                    <span style={{ color: '#b45309', fontWeight: 700, fontSize: 12 }}>● Unpaid</span>
+                  )}
+                  {canEdit && (
+                    <button className="btn btn-sm" style={{ marginLeft: 8 }} onClick={() => onTogglePaid(r)}>
+                      {r.paid ? 'Mark unpaid' : 'Mark paid'}
+                    </button>
+                  )}
+                </td>
                 <td>
                   {r.attachment ? (
                     <button className="btn btn-sm" onClick={() => openAttachment(r)} title="View / download the attached invoice">
@@ -397,7 +442,7 @@ export function ExpensesPage() {
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={canEdit ? 6 : 5} className="muted">No expenses for this selection.</td>
+                <td colSpan={canEdit ? 7 : 6} className="muted">No expenses for this selection.</td>
               </tr>
             )}
           </tbody>

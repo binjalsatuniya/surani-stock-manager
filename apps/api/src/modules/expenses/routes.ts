@@ -20,6 +20,8 @@ function toExpenseDTO(e: PrismaExpense): SalesPersonExpense {
     expenseFor: e.expenseFor,
     attachment: e.attachment,
     attachmentName: e.attachmentName,
+    paid: e.paid,
+    paidAt: e.paidAt ? e.paidAt.toISOString() : null,
     createdAt: e.createdAt.toISOString(),
   };
 }
@@ -65,6 +67,23 @@ expensesRouter.post(
       },
     });
     res.status(201).json(toExpenseDTO(created));
+  })
+);
+
+// Mark an expense paid/unpaid (reimbursed to the sales person). Records/clears the paid date.
+const paidSchema = z.object({ paid: z.boolean() });
+expensesRouter.patch(
+  '/:id/paid',
+  requirePermission('edit_expenses'),
+  asyncHandler(async (req, res) => {
+    const { paid } = paidSchema.parse(req.body);
+    const existing = await prisma.salesPersonExpense.findUnique({ where: { id: req.params.id } });
+    if (!existing) throw new NotFoundError('Expense not found');
+    const updated = await prisma.salesPersonExpense.update({
+      where: { id: existing.id },
+      data: { paid, paidAt: paid ? new Date() : null },
+    });
+    res.json(toExpenseDTO(updated));
   })
 );
 

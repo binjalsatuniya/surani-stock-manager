@@ -56,6 +56,13 @@ ALTER TABLE public.users
   ADD COLUMN IF NOT EXISTS preferences jsonb NOT NULL DEFAULT '{}'::jsonb;
 
 -- ---------------------------------------------------------------------
+-- 2c) Mark a sales-person expense as Paid (reimbursed) + the date paid.
+-- ---------------------------------------------------------------------
+ALTER TABLE public.salesperson_expenses
+  ADD COLUMN IF NOT EXISTS paid    boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS paid_at timestamptz;
+
+-- ---------------------------------------------------------------------
 -- 3) (OPTIONAL — DATA ONLY) Make JAYNIL the primary Super Admin.
 --    Reveals Access Settings & Login Locations, and shows the name "JAYNIL".
 --    Skip this block if you have already run it. Re-running is harmless.
