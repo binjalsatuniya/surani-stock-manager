@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { buildTelLink } from '@surani/shared';
 import type { Party, PartyType, SalesPerson } from '@surani/shared';
@@ -120,7 +120,6 @@ export function PartiesPage() {
       locationUrl: p.locationUrl || '',
       vehicle: p.vehicle || '',
     });
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   async function onDelete(id: string) {
@@ -156,91 +155,91 @@ export function PartiesPage() {
   const salesPersonName = (id: string | null) =>
     id ? salesPersons.find((s) => s.id === id)?.name || '—' : '—';
 
+  // Shared add/edit fields — used by the top "Add Party" form and the inline "Edit" panel.
+  const partyFields = (
+    <div className="toolbar">
+      <div className="field" style={{ margin: 0 }}>
+        <label>Name</label>
+        <input value={form.name} onChange={(e) => set('name', e.target.value)} />
+      </div>
+      <div className="field" style={{ margin: 0 }}>
+        <label>Type</label>
+        <select value={form.type} onChange={(e) => set('type', e.target.value)}>
+          {TYPES.map((t) => (
+            <option key={t.value} value={t.value}>
+              {t.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="field" style={{ margin: 0 }}>
+        <FieldLabel required={required('party.salesPerson')}>Sales Person</FieldLabel>
+        <select value={form.salesPersonId} onChange={(e) => set('salesPersonId', e.target.value)}>
+          <option value="">— none —</option>
+          {salesPersons.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="field" style={{ margin: 0 }}>
+        <FieldLabel required={required('party.phone')}>WhatsApp / Phone</FieldLabel>
+        <input value={form.phone} onChange={(e) => set('phone', e.target.value)} placeholder="e.g. 919876543210" />
+      </div>
+      <div className="field" style={{ margin: 0 }}>
+        <FieldLabel required={required('party.email')}>Email</FieldLabel>
+        <input value={form.email} onChange={(e) => set('email', e.target.value)} />
+      </div>
+      <div className="field" style={{ margin: 0 }}>
+        <FieldLabel required={required('party.gst')}>GST No.</FieldLabel>
+        <input value={form.gst} onChange={(e) => set('gst', e.target.value)} />
+      </div>
+      <div className="field" style={{ margin: 0 }}>
+        <label>Opening Balance (₹)</label>
+        <input value={form.opening} onChange={(e) => set('opening', e.target.value)} style={{ width: 120 }} />
+      </div>
+      <div className="field" style={{ margin: 0 }}>
+        <label>Credit Days</label>
+        <input value={form.creditDays} onChange={(e) => set('creditDays', e.target.value)} style={{ width: 90 }} />
+        <span className="muted" style={{ fontSize: 10.5, marginTop: 3, maxWidth: 160 }}>
+          Applies to sales (debtor) only. Purchases from creditors are due immediately.
+        </span>
+      </div>
+      <div className="field" style={{ margin: 0 }}>
+        <label>Default Freight (₹/unit)</label>
+        <input value={form.defaultFreight} onChange={(e) => set('defaultFreight', e.target.value)} style={{ width: 120 }} />
+      </div>
+      <div className="field" style={{ margin: 0 }}>
+        <FieldLabel required={required('party.vehicle')}>Vehicle (transporters)</FieldLabel>
+        <input value={form.vehicle} onChange={(e) => set('vehicle', e.target.value)} />
+      </div>
+      <div className="field" style={{ margin: 0, flex: 1, minWidth: 220 }}>
+        <FieldLabel required={required('party.address')}>Address</FieldLabel>
+        <input value={form.address} onChange={(e) => set('address', e.target.value)} />
+      </div>
+      <div className="field" style={{ margin: 0, flex: 1, minWidth: 220 }}>
+        <FieldLabel required={required('party.locationUrl')}>Location Link (Google Maps)</FieldLabel>
+        <input value={form.locationUrl} onChange={(e) => set('locationUrl', e.target.value)} placeholder="https://maps.google.com/..." />
+      </div>
+    </div>
+  );
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div className="card">
-        <h2 style={{ marginTop: 0 }}>{editingId ? 'Edit Party' : 'Party Master'}</h2>
-        {canEdit && (
+        <h2 style={{ marginTop: 0 }}>Party Master</h2>
+        {canEdit && !editingId && (
           <>
-            <div className="toolbar">
-              <div className="field" style={{ margin: 0 }}>
-                <label>Name</label>
-                <input value={form.name} onChange={(e) => set('name', e.target.value)} />
-              </div>
-              <div className="field" style={{ margin: 0 }}>
-                <label>Type</label>
-                <select value={form.type} onChange={(e) => set('type', e.target.value)}>
-                  {TYPES.map((t) => (
-                    <option key={t.value} value={t.value}>
-                      {t.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="field" style={{ margin: 0 }}>
-                <FieldLabel required={required('party.salesPerson')}>Sales Person</FieldLabel>
-                <select value={form.salesPersonId} onChange={(e) => set('salesPersonId', e.target.value)}>
-                  <option value="">— none —</option>
-                  {salesPersons.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="field" style={{ margin: 0 }}>
-                <FieldLabel required={required('party.phone')}>WhatsApp / Phone</FieldLabel>
-                <input value={form.phone} onChange={(e) => set('phone', e.target.value)} placeholder="e.g. 919876543210" />
-              </div>
-              <div className="field" style={{ margin: 0 }}>
-                <FieldLabel required={required('party.email')}>Email</FieldLabel>
-                <input value={form.email} onChange={(e) => set('email', e.target.value)} />
-              </div>
-              <div className="field" style={{ margin: 0 }}>
-                <FieldLabel required={required('party.gst')}>GST No.</FieldLabel>
-                <input value={form.gst} onChange={(e) => set('gst', e.target.value)} />
-              </div>
-              <div className="field" style={{ margin: 0 }}>
-                <label>Opening Balance (₹)</label>
-                <input value={form.opening} onChange={(e) => set('opening', e.target.value)} style={{ width: 120 }} />
-              </div>
-              <div className="field" style={{ margin: 0 }}>
-                <label>Credit Days</label>
-                <input value={form.creditDays} onChange={(e) => set('creditDays', e.target.value)} style={{ width: 90 }} />
-                <span className="muted" style={{ fontSize: 10.5, marginTop: 3, maxWidth: 160 }}>
-                  Applies to sales (debtor) only. Purchases from creditors are due immediately.
-                </span>
-              </div>
-              <div className="field" style={{ margin: 0 }}>
-                <label>Default Freight (₹/unit)</label>
-                <input value={form.defaultFreight} onChange={(e) => set('defaultFreight', e.target.value)} style={{ width: 120 }} />
-              </div>
-              <div className="field" style={{ margin: 0 }}>
-                <FieldLabel required={required('party.vehicle')}>Vehicle (transporters)</FieldLabel>
-                <input value={form.vehicle} onChange={(e) => set('vehicle', e.target.value)} />
-              </div>
-              <div className="field" style={{ margin: 0, flex: 1, minWidth: 220 }}>
-                <FieldLabel required={required('party.address')}>Address</FieldLabel>
-                <input value={form.address} onChange={(e) => set('address', e.target.value)} />
-              </div>
-              <div className="field" style={{ margin: 0, flex: 1, minWidth: 220 }}>
-                <FieldLabel required={required('party.locationUrl')}>Location Link (Google Maps)</FieldLabel>
-                <input value={form.locationUrl} onChange={(e) => set('locationUrl', e.target.value)} placeholder="https://maps.google.com/..." />
-              </div>
-            </div>
+            {partyFields}
             <div className="toolbar" style={{ marginTop: 4 }}>
               <button className="btn btn-primary" onClick={onSave}>
-                {editingId ? 'Save Changes' : 'Add Party'}
+                Add Party
               </button>
-              {editingId && (
-                <button className="btn btn-sm" onClick={resetForm}>
-                  Cancel
-                </button>
-              )}
             </div>
           </>
         )}
-        {error && <div className="login-err show">{error}</div>}
+        {error && !editingId && <div className="login-err show">{error}</div>}
         <div className="toolbar" style={{ marginTop: 14, alignItems: 'flex-end' }}>
           <div className="field" style={{ margin: 0, flex: 1, minWidth: 220, maxWidth: 320 }}>
             <input
@@ -290,7 +289,8 @@ export function PartiesPage() {
                 );
               })
               .map((p) => (
-              <tr key={p.id}>
+              <Fragment key={p.id}>
+              <tr>
                 <td>{p.name}</td>
                 <td>{p.type}</td>
                 <td>{salesPersonName(p.salesPersonId)}</td>
@@ -326,6 +326,24 @@ export function PartiesPage() {
                   </td>
                 )}
               </tr>
+              {editingId === p.id && (
+                <tr>
+                  <td colSpan={canEdit ? 9 : 8} style={{ background: '#f8fafc' }}>
+                    <div style={{ fontWeight: 600, margin: '4px 0 8px' }}>Edit {p.name}</div>
+                    {partyFields}
+                    {error && <div className="login-err show" style={{ marginTop: 6 }}>{error}</div>}
+                    <div className="toolbar" style={{ marginTop: 6 }}>
+                      <button className="btn btn-primary" onClick={onSave}>
+                        Save Changes
+                      </button>
+                      <button className="btn btn-sm" onClick={resetForm}>
+                        Cancel
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              )}
+              </Fragment>
             ))}
             {parties.length === 0 && (
               <tr>
