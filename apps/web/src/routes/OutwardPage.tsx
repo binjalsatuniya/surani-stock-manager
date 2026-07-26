@@ -140,7 +140,7 @@ export function OutwardPage() {
               <label>Date</label>
               <input type="date" value={form.date} onChange={(e) => set('date', e.target.value)} />
             </div>
-            <div className="field" style={{ margin: 0 }}>
+            <div className="field" style={{ margin: 0, flex: 1, minWidth: 240 }}>
               <label>Party (debtor)</label>
               <SearchSelect
                 value={form.partyId}
