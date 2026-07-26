@@ -19,7 +19,7 @@ const EMPTY = {
   name: '',
   type: 'debtor' as PartyType,
   salesPersonId: '',
-  phone: '',
+  phone: '91',
   email: '',
   gst: '',
   opening: '0',
@@ -185,7 +185,13 @@ export function PartiesPage() {
       </div>
       <div className="field" style={{ margin: 0 }}>
         <FieldLabel required={required('party.phone')}>WhatsApp / Phone</FieldLabel>
-        <input value={form.phone} onChange={(e) => set('phone', e.target.value)} placeholder="e.g. 919876543210" />
+        <input
+          value={form.phone}
+          onChange={(e) => set('phone', e.target.value.replace(/\D/g, '').slice(0, 12))}
+          placeholder="e.g. 919876543210"
+          inputMode="numeric"
+          maxLength={12}
+        />
       </div>
       <div className="field" style={{ margin: 0 }}>
         <FieldLabel required={required('party.email')}>Email</FieldLabel>
