@@ -7,6 +7,7 @@ import { useWhatsappTemplates } from '../hooks/useWhatsappTemplates';
 import { useFinancialYear } from '../context/FinancialYearContext';
 import { useFieldSettings } from '../hooks/useFieldSettings';
 import { FieldLabel } from '../components/FieldLabel';
+import { SearchSelect } from '../components/SearchSelect';
 import { exportDueLedgerPdf } from '../lib/pdfExport';
 
 const MODES: PaymentMode[] = PAYMENT_MODES;
@@ -192,14 +193,12 @@ export function PaymentsPage() {
             </div>
             <div className="field" style={{ margin: 0 }}>
               <label>Party</label>
-              <select value={partyId} onChange={(e) => setPartyId(e.target.value)}>
-                <option value="">Select…</option>
-                {parties.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
+              <SearchSelect
+                value={partyId}
+                onChange={setPartyId}
+                options={parties.map((p) => ({ id: p.id, label: p.name }))}
+                placeholder="Type party name…"
+              />
             </div>
             <div className="field" style={{ margin: 0 }}>
               <label>Direction</label>

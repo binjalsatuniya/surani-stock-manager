@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { useFinancialYear } from '../context/FinancialYearContext';
 import { useFieldSettings } from '../hooks/useFieldSettings';
 import { FieldLabel } from '../components/FieldLabel';
+import { SearchSelect } from '../components/SearchSelect';
 
 const EMPTY = {
   date: new Date().toISOString().slice(0, 10),
@@ -279,14 +280,12 @@ export function InwardPage() {
             </div>
             <div className="field" style={{ margin: 0 }}>
               <label>Party (creditor)</label>
-              <select value={form.partyId} onChange={(e) => set('partyId', e.target.value)}>
-                <option value="">Select…</option>
-                {parties.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
+              <SearchSelect
+                value={form.partyId}
+                onChange={(id) => set('partyId', id)}
+                options={parties.map((p) => ({ id: p.id, label: p.name }))}
+                placeholder="Type party name…"
+              />
             </div>
             <div className="field" style={{ margin: 0 }}>
               <label>Item</label>
@@ -418,11 +417,13 @@ export function InwardPage() {
             </div>
             <div className="field" style={{ margin: 0 }}>
               <label>Party (creditor)</label>
-              <select value={ed.partyId} onChange={(e) => setEd({ ...ed, partyId: e.target.value })}>
-                {parties.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
+              <SearchSelect
+                value={ed.partyId}
+                onChange={(id) => setEd({ ...ed, partyId: id })}
+                options={parties.map((p) => ({ id: p.id, label: p.name }))}
+                placeholder="Type party name…"
+                allowClear={false}
+              />
             </div>
             <div className="field" style={{ margin: 0 }}>
               <label>Item</label>

@@ -5,6 +5,7 @@ import { usePermission } from '../hooks/usePermission';
 import { useFinancialYear } from '../context/FinancialYearContext';
 import { useFieldSettings } from '../hooks/useFieldSettings';
 import { FieldLabel } from '../components/FieldLabel';
+import { SearchSelect } from '../components/SearchSelect';
 
 const EMPTY = {
   date: new Date().toISOString().slice(0, 10),
@@ -141,14 +142,12 @@ export function OutwardPage() {
             </div>
             <div className="field" style={{ margin: 0 }}>
               <label>Party (debtor)</label>
-              <select value={form.partyId} onChange={(e) => onPartyChange(e.target.value)}>
-                <option value="">Select…</option>
-                {parties.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
+              <SearchSelect
+                value={form.partyId}
+                onChange={onPartyChange}
+                options={parties.map((p) => ({ id: p.id, label: p.name }))}
+                placeholder="Type party name…"
+              />
             </div>
             <div className="field" style={{ margin: 0 }}>
               <label>Item</label>

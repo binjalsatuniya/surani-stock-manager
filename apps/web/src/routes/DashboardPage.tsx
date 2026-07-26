@@ -54,6 +54,7 @@ import { useWhatsappTemplates } from '../hooks/useWhatsappTemplates';
 import { useFinancialYear } from '../context/FinancialYearContext';
 import { useFieldSettings } from '../hooks/useFieldSettings';
 import { FieldLabel } from '../components/FieldLabel';
+import { SearchSelect } from '../components/SearchSelect';
 
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 const inr = (n: number) => `₹${n.toFixed(2)}`;
@@ -394,14 +395,12 @@ export function DashboardPage() {
             </div>
             <div className="field" style={{ margin: 0 }}>
               <label>Party (debtor)</label>
-              <select value={order.partyId} onChange={(e) => setOrd('partyId', e.target.value)}>
-                <option value="">Select…</option>
-                {debtors.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
+              <SearchSelect
+                value={order.partyId}
+                onChange={(id) => setOrd('partyId', id)}
+                options={debtors.map((p) => ({ id: p.id, label: p.name }))}
+                placeholder="Type party name…"
+              />
             </div>
             <div className="field" style={{ margin: 0 }}>
               <label>Item</label>
