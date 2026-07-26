@@ -71,9 +71,31 @@ export function SearchSelect({
           setQuery(e.target.value);
           setOpen(true);
         }}
-        style={{ width: '100%' }}
+        style={{ width: '100%', paddingRight: 26 }}
         autoComplete="off"
       />
+      {/* dropdown arrow — makes it read as a dropdown you can also type into */}
+      <span
+        onMouseDown={(e) => {
+          e.preventDefault();
+          if (!disabled) {
+            setQuery('');
+            setOpen((v) => !v);
+          }
+        }}
+        style={{
+          position: 'absolute',
+          right: 8,
+          top: '50%',
+          transform: 'translateY(-50%)',
+          color: '#64748b',
+          fontSize: 11,
+          pointerEvents: disabled ? 'none' : 'auto',
+          cursor: 'pointer',
+        }}
+      >
+        ▾
+      </span>
       {open && !disabled && (
         <div
           style={{
