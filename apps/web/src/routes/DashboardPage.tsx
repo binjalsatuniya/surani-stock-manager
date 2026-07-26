@@ -393,7 +393,7 @@ export function DashboardPage() {
               <label>Date</label>
               <input type="date" value={order.date} onChange={(e) => setOrd('date', e.target.value)} />
             </div>
-            <div className="field" style={{ margin: 0 }}>
+            <div className="field" style={{ margin: 0, flex: 1, minWidth: 240 }}>
               <label>Party (debtor)</label>
               <SearchSelect
                 value={order.partyId}
@@ -473,9 +473,9 @@ export function DashboardPage() {
                 <option value="FOR">FOR (we deliver)</option>
               </select>
             </div>
-            <div className="field" style={{ margin: 0, flex: 1, minWidth: 160 }}>
+            <div className="field" style={{ margin: 0, width: 150 }}>
               <FieldLabel required={required('outward.note')}>Note</FieldLabel>
-              <input value={order.note} onChange={(e) => setOrd('note', e.target.value)} placeholder="Order remarks…" />
+              <input value={order.note} onChange={(e) => setOrd('note', e.target.value)} placeholder="Remarks…" style={{ width: '100%' }} />
             </div>
           </div>
           {oQty > 0 && oRate > 0 && (
