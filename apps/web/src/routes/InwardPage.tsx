@@ -349,9 +349,9 @@ export function InwardPage() {
               <FieldLabel required={required('inward.vehicle')}>Vehicle</FieldLabel>
               <input value={form.vehicle} onChange={(e) => set('vehicle', e.target.value)} style={{ width: 120 }} />
             </div>
-            <div className="field" style={{ margin: 0, flex: 1, minWidth: 180 }}>
+            <div className="field" style={{ margin: 0, width: 160 }}>
               <FieldLabel required={required('inward.note')}>Note</FieldLabel>
-              <input value={form.note} onChange={(e) => set('note', e.target.value)} />
+              <input value={form.note} onChange={(e) => set('note', e.target.value)} placeholder="Remarks…" style={{ width: '100%' }} />
             </div>
           </div>
           {qtyN > 0 && rateN > 0 && (

@@ -253,9 +253,9 @@ export function OutwardPage() {
               <label>Handling (₹/MT)</label>
               <input value={form.handlingRate} onChange={(e) => set('handlingRate', e.target.value)} style={{ width: 100 }} />
             </div>
-            <div className="field" style={{ margin: 0, flex: 1, minWidth: 180 }}>
+            <div className="field" style={{ margin: 0, width: 160 }}>
               <FieldLabel required={required('outward.note')}>Note</FieldLabel>
-              <input value={form.note} onChange={(e) => set('note', e.target.value)} />
+              <input value={form.note} onChange={(e) => set('note', e.target.value)} placeholder="Remarks…" style={{ width: '100%' }} />
             </div>
           </div>
           <div className="toolbar" style={{ marginTop: 4, alignItems: 'center' }}>
