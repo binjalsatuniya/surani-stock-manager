@@ -8,6 +8,7 @@ import { authenticate } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/requirePermission';
 import { ForbiddenError, HttpError, NotFoundError } from '../../middleware/errorHandler';
 import { mutateOrQueue } from '../../lib/approvalGate';
+import { logActivity } from '../../lib/audit';
 
 export const partiesRouter = Router();
 partiesRouter.use(authenticate);
@@ -71,6 +72,7 @@ partiesRouter.post(
     const dup = await prisma.party.findFirst({ where: { name: { equals: input.name, mode: 'insensitive' } } });
     if (dup) throw new HttpError(409, `A party named "${dup.name}" already exists`);
     const party = await prisma.party.create({ data: input });
+    await logActivity(prisma, req.user!, 'create', 'party', party.id, `Party added: ${party.name}`);
     res.status(201).json(toPartyDTO(party));
   })
 );

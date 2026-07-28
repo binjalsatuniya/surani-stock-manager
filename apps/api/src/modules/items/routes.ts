@@ -7,6 +7,7 @@ import { authenticate } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/requirePermission';
 import { NotFoundError } from '../../middleware/errorHandler';
 import { mutateOrQueue } from '../../lib/approvalGate';
+import { logActivity } from '../../lib/audit';
 
 export const itemsRouter = Router();
 itemsRouter.use(authenticate);
@@ -65,6 +66,7 @@ itemsRouter.post(
     const item = await prisma.item.create({
       data: { ...input, rateDate: input.rateDate ? new Date(input.rateDate) : null },
     });
+    await logActivity(prisma, req.user!, 'create', 'item', item.id, `Item added: ${item.name}`);
     res.status(201).json(toItemDTO(item));
   })
 );

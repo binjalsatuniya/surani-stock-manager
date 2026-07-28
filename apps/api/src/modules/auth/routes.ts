@@ -6,6 +6,7 @@ import { prisma } from '../../db/prisma';
 import { generateRefreshToken, hashRefreshToken, signAccessToken } from '../../lib/tokens';
 import { toUserDTO } from '../../lib/serialize';
 import { asyncHandler } from '../../lib/asyncHandler';
+import { logActivity } from '../../lib/audit';
 import { authenticate } from '../../middleware/auth';
 import { UnauthorizedError } from '../../middleware/errorHandler';
 import { env } from '../../config/env';
@@ -53,6 +54,7 @@ authRouter.post(
       user.id,
       req.headers['user-agent']?.slice(0, 200) ?? null
     );
+    await logActivity(prisma, { id: user.id, name: user.name }, 'login', 'user', user.id, `${user.name} signed in`);
     res.cookie(REFRESH_COOKIE, refreshToken, cookieOptions);
     res.json({ accessToken, refreshToken, user: toUserDTO(user) });
   })
@@ -97,10 +99,13 @@ authRouter.post(
     const incoming: string | undefined = req.body?.refreshToken || req.cookies?.[REFRESH_COOKIE];
     if (incoming) {
       const tokenHash = hashRefreshToken(incoming);
+      const tok = await prisma.refreshToken.findUnique({ where: { tokenHash } });
       await prisma.refreshToken.updateMany({
         where: { tokenHash, revokedAt: null },
         data: { revokedAt: new Date() },
       });
+      const u = tok ? await prisma.user.findUnique({ where: { id: tok.userId }, select: { id: true, name: true } }) : null;
+      if (u) await logActivity(prisma, { id: u.id, name: u.name }, 'logout', 'user', u.id, `${u.name} signed out`);
     }
     res.clearCookie(REFRESH_COOKIE);
     res.status(204).end();

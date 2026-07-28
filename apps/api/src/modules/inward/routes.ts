@@ -7,6 +7,7 @@ import { authenticate } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/requirePermission';
 import { NotFoundError } from '../../middleware/errorHandler';
 import { mutateOrQueue } from '../../lib/approvalGate';
+import { logActivity } from '../../lib/audit';
 import { fyDateWhere } from '../../lib/fyFilter';
 
 export const inwardRouter = Router();
@@ -84,6 +85,12 @@ inwardRouter.post(
       },
     });
 
+    const [ip, ii] = await Promise.all([
+      prisma.party.findUnique({ where: { id: input.partyId }, select: { name: true } }),
+      prisma.item.findUnique({ where: { id: input.itemId }, select: { name: true } }),
+    ]);
+    await logActivity(prisma, req.user!, 'create', 'inward', created.id,
+      `Inward (purchase): ${ip?.name ?? 'party'} · ${ii?.name ?? 'item'} · ${input.qty}`);
     res.status(201).json(toInwardDTO(created));
   })
 );
@@ -150,6 +157,14 @@ inwardRouter.post(
       return row;
     });
 
+    {
+      const [mp, mi] = await Promise.all([
+        prisma.party.findUnique({ where: { id: existing.partyId }, select: { name: true } }),
+        prisma.item.findUnique({ where: { id: existing.itemId }, select: { name: true } }),
+      ]);
+      await logActivity(prisma, req.user!, 'received', 'inward', existing.id,
+        `Inward received: ${mp?.name ?? 'party'} · ${mi?.name ?? 'item'} · ${Number(existing.qty)}`);
+    }
     res.json(toInwardDTO(updated));
   })
 );

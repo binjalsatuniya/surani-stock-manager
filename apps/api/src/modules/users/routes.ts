@@ -5,6 +5,7 @@ import { defaultPermsForRole, type Role } from '@surani/shared';
 import { prisma } from '../../db/prisma';
 import { toUserDTO } from '../../lib/serialize';
 import { asyncHandler } from '../../lib/asyncHandler';
+import { logActivity } from '../../lib/audit';
 import { authenticate } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/requirePermission';
 import { requireRole } from '../../middleware/requireRole';
@@ -57,6 +58,7 @@ usersRouter.post(
         security: { pinEnabled: false, pinHash: null, biometricEnabled: false, biometricCredentialId: null },
       },
     });
+    await logActivity(prisma, req.user!, 'create', 'user', user.id, `User created: ${user.name} (${user.role})`);
     res.status(201).json(toUserDTO(user));
   })
 );
@@ -129,6 +131,7 @@ usersRouter.patch(
     if (input.password) data.passwordHash = await bcrypt.hash(input.password, 12);
 
     const user = await prisma.user.update({ where: { id: req.params.id }, data });
+    await logActivity(prisma, req.user!, 'update', 'user', user.id, `User updated: ${existing.name}`);
     res.json(toUserDTO(user));
   })
 );
@@ -164,6 +167,7 @@ usersRouter.post(
       const ok = password && me ? await bcrypt.compare(password, me.passwordHash) : false;
       if (!ok) throw new HttpError(403, 'Incorrect password');
       await hardDeleteUser(target.id);
+      await logActivity(prisma, req.user!, 'delete', 'user', target.id, `User deleted: ${target.name}`);
       res.json({ deleted: true });
       return;
     }

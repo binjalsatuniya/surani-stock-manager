@@ -8,6 +8,7 @@ import { authenticate } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/requirePermission';
 import { ForbiddenError, HttpError, NotFoundError } from '../../middleware/errorHandler';
 import { addDays } from '../../lib/dateMath';
+import { logActivity } from '../../lib/audit';
 
 export const expensesRouter = Router();
 expensesRouter.use(authenticate);
@@ -125,6 +126,8 @@ expensesRouter.post(
         createdById: req.user!.id,
       },
     });
+    await logActivity(prisma, req.user!, 'create', 'expense', created.id,
+      `Expense added: ₹${input.amount.toLocaleString('en-IN')} · ${input.expenseFor}`);
     res.status(201).json(toExpenseDTO(created));
   })
 );
@@ -149,6 +152,8 @@ expensesRouter.patch(
         ? { paid: true, paidAt: new Date(), paidBy: paidBy || null, paidMode: paidMode || null }
         : { paid: false, paidAt: null, paidBy: null, paidMode: null },
     });
+    await logActivity(prisma, req.user!, paid ? 'mark paid' : 'mark unpaid', 'expense', existing.id,
+      `Expense marked ${paid ? 'paid' : 'unpaid'}: ₹${Number(existing.amount).toLocaleString('en-IN')}`);
     res.json(toExpenseDTO(updated));
   })
 );

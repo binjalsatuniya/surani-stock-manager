@@ -7,6 +7,7 @@ import { authenticate } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/requirePermission';
 import { NotFoundError } from '../../middleware/errorHandler';
 import { mutateOrQueue } from '../../lib/approvalGate';
+import { logActivity } from '../../lib/audit';
 import { fyDateWhere } from '../../lib/fyFilter';
 
 export const outwardRouter = Router();
@@ -124,6 +125,12 @@ outwardRouter.post(
       return outward;
     });
 
+    const [op, oi] = await Promise.all([
+      prisma.party.findUnique({ where: { id: input.partyId }, select: { name: true } }),
+      prisma.item.findUnique({ where: { id: input.itemId }, select: { name: true } }),
+    ]);
+    await logActivity(prisma, req.user!, 'create', 'outward', created.id,
+      `Sale (outward): ${op?.name ?? 'party'} · ${oi?.name ?? 'item'} · ${input.qty} · ₹${amount.toLocaleString('en-IN')}`);
     res.status(201).json(toOutwardDTO(created));
   })
 );

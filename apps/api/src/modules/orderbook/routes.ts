@@ -7,7 +7,7 @@ import { authenticate } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/requirePermission';
 import { requireRole } from '../../middleware/requireRole';
 import { HttpError, NotFoundError } from '../../middleware/errorHandler';
-import { writeAuditLog } from '../../lib/audit';
+import { writeAuditLog, logActivity } from '../../lib/audit';
 import { fyDateWhere } from '../../lib/fyFilter';
 
 // Split into two routers so the mount paths in app.ts match the API design: POST /orders is
@@ -64,6 +64,9 @@ ordersRouter.post(
         createdById: req.user!.id,
       },
     });
+    const placeItem = await prisma.item.findUnique({ where: { id: input.itemId }, select: { name: true } });
+    await logActivity(prisma, req.user!, 'place order', 'outward', outward.id,
+      `Order placed: ${party.name} · ${placeItem?.name ?? 'item'} · ${input.qty} · ₹${amount.toLocaleString('en-IN')}`);
     res.status(201).json(toOutwardDTO(outward));
   })
 );
@@ -172,6 +175,14 @@ orderbookRouter.post(
       return order;
     });
 
+    {
+      const [dp, di] = await Promise.all([
+        prisma.party.findUnique({ where: { id: existing.partyId }, select: { name: true } }),
+        prisma.item.findUnique({ where: { id: existing.itemId }, select: { name: true } }),
+      ]);
+      await logActivity(prisma, req.user!, 'dispatch', 'outward', existing.id,
+        `Order dispatched: ${dp?.name ?? 'party'} · ${di?.name ?? 'item'} · ${Number(existing.qty)}`);
+    }
     res.json(toOutwardDTO(updated));
   })
 );
@@ -190,6 +201,14 @@ orderbookRouter.post(
       where: { id: existing.id },
       data: { fulfil: 'delivered', deliveredAt: new Date() },
     });
+    {
+      const [dp, di] = await Promise.all([
+        prisma.party.findUnique({ where: { id: existing.partyId }, select: { name: true } }),
+        prisma.item.findUnique({ where: { id: existing.itemId }, select: { name: true } }),
+      ]);
+      await logActivity(prisma, req.user!, 'deliver', 'outward', existing.id,
+        `Order delivered: ${dp?.name ?? 'party'} · ${di?.name ?? 'item'} · ${Number(existing.qty)}`);
+    }
     res.json(toOutwardDTO(updated));
   })
 );
