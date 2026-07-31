@@ -7,6 +7,7 @@ import {
   type Item,
   type Outward,
   type Party,
+  type SalesPerson,
   type StockLevel,
 } from '@surani/shared';
 import { api } from '../lib/apiClient';
@@ -109,6 +110,9 @@ export function DashboardPage() {
   const [stock, setStock] = useState<Record<string, number>>({});
   const [parties, setParties] = useState<Party[]>([]);
   const [debtors, setDebtors] = useState<Party[]>([]);
+  const [salesPersons, setSalesPersons] = useState<SalesPerson[]>([]);
+  // New Order: filter the party list to one sales person's parties.
+  const [orderSp, setOrderSp] = useState('');
   const [recent, setRecent] = useState<RecentRow[]>([]);
 
   // New Order form
@@ -119,6 +123,7 @@ export function DashboardPage() {
     api.dashboard.kpis().then(setKpis);
     api.parties.list().then(setParties);
     api.parties.list('debtor').then(setDebtors);
+    api.salesPersons.list().then(setSalesPersons);
     Promise.all([api.items.list(), api.items.stock()]).then(([its, levels]) => {
       setItems(its);
       setStock(Object.fromEntries(levels.map((l: StockLevel) => [l.itemId, l.qty])));
@@ -393,13 +398,35 @@ export function DashboardPage() {
               <label>Date</label>
               <input type="date" value={order.date} onChange={(e) => setOrd('date', e.target.value)} />
             </div>
+            <div className="field" style={{ margin: 0, minWidth: 170 }}>
+              <label>Sales Person</label>
+              <select
+                value={orderSp}
+                onChange={(e) => {
+                  const sp = e.target.value;
+                  setOrderSp(sp);
+                  // If the chosen party isn't this sales person's, clear it.
+                  if (sp && order.partyId) {
+                    const p = debtors.find((d) => d.id === order.partyId);
+                    if (!p || p.salesPersonId !== sp) setOrd('partyId', '');
+                  }
+                }}
+              >
+                <option value="">All sales persons</option>
+                {salesPersons.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div className="field" style={{ margin: 0, flex: 1, minWidth: 240 }}>
               <label>Party (debtor)</label>
               <SearchSelect
                 value={order.partyId}
                 onChange={(id) => setOrd('partyId', id)}
-                options={debtors.map((p) => ({ id: p.id, label: p.name }))}
-                placeholder="Type party name…"
+                options={(orderSp ? debtors.filter((p) => p.salesPersonId === orderSp) : debtors).map((p) => ({ id: p.id, label: p.name }))}
+                placeholder={orderSp ? 'Type a party for this sales person…' : 'Type party name…'}
               />
             </div>
             <div className="field" style={{ margin: 0 }}>
