@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, NavLink, Outlet } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { roleLabel, type PermissionKey } from '@surani/shared';
 import { useAuth } from '../context/AuthContext';
 import { usePermission } from '../hooks/usePermission';
@@ -51,6 +51,8 @@ function loadOrder(): string[] {
 export function Layout() {
   const { user, logout, updateUser, llUnlocked } = useAuth();
   const can = usePermission();
+  const navigate = useNavigate();
+  const location = useLocation();
   const { fys, selectedFy, setSelectedFy, refreshFys } = useFinancialYear();
   const [pendingApprovals, setPendingApprovals] = useState(0);
   // Prefer the account-saved order (follows the user across devices); fall back to this browser's.
@@ -219,13 +221,16 @@ export function Layout() {
       </nav>
       <div className="main">
         <div className="topbar">
-          <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {location.pathname !== '/' && (
+              <button className="btn btn-sm" onClick={() => navigate(-1)} title="Go back to the previous screen">
+                ← Back
+              </button>
+            )}
             <Link to="/account" style={{ color: 'inherit', textDecoration: 'none' }}>
               <strong>{user?.name}</strong>
             </Link>
-            <span className="muted" style={{ marginLeft: 8 }}>
-              {user ? roleLabel(user.role) : ''}
-            </span>
+            <span className="muted">{user ? roleLabel(user.role) : ''}</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <label className="muted" style={{ fontSize: 12 }}>
