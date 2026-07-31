@@ -1,7 +1,7 @@
 // Editable layout for the generated PDFs (Party Ledger, Outstanding Dues, Expense Ledger).
 // Managed by the primary Super Admin in the "PDF Layout" tab; stored server-side as key/value.
 
-export type PdfSettingKey = 'company_name' | 'address' | 'footer' | 'accent_color';
+export type PdfSettingKey = 'company_name' | 'tagline' | 'address' | 'footer' | 'accent_color';
 
 export interface PdfSettingDef {
   key: PdfSettingKey;
@@ -13,6 +13,13 @@ export interface PdfSettingDef {
 
 export const PDF_SETTINGS: PdfSettingDef[] = [
   { key: 'company_name', label: 'Company name (header)', default: 'SURANI AND SONS', type: 'text' },
+  {
+    key: 'tagline',
+    label: 'Tagline (under the name)',
+    hint: 'The italic line from your logo. Leave blank to hide.',
+    default: 'A Legacy Driven by Value',
+    type: 'text',
+  },
   {
     key: 'address',
     label: 'Address / sub-line',

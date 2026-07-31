@@ -114,8 +114,11 @@ export function PdfLayoutPage() {
         <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 20, background: '#fff' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <img src={SURANI_LOGO_DATA_URI} alt="" style={{ width: 56, height: 56, objectFit: 'contain' }} />
-            <div style={{ fontSize: 20, fontWeight: 700, color: draft.accent_color || '#147b8b' }}>
-              {draft.company_name || 'SURANI AND SONS'} <span style={{ color: '#334155' }}>— Party Ledger</span>
+            <div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: draft.accent_color || '#147b8b' }}>
+                {draft.company_name || 'SURANI AND SONS'} <span style={{ color: '#334155' }}>— Party Ledger</span>
+              </div>
+              {draft.tagline.trim() && <div style={{ fontSize: 11, fontStyle: 'italic', color: '#5b7076', marginTop: 1 }}>{draft.tagline}</div>}
             </div>
           </div>
           {draft.address.trim() && <div style={{ fontSize: 11.5, color: '#475569', marginTop: 4 }}>{draft.address}</div>}

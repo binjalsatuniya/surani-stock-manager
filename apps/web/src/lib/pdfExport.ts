@@ -26,6 +26,7 @@ function styles(accent: string) {
   .pdf-logo{width:56px;height:56px;object-fit:contain;flex:none}
   h1{font-size:20px;margin:0;color:${esc(accent)}}
   .pdf-title{color:#334155;font-weight:700}
+  .tagline{font-size:11px;font-style:italic;color:#5b7076;margin-top:1px}
   .addr{font-size:11.5px;color:#475569;margin:3px 0 10px}
   .subject{font-size:22px;font-weight:800;color:#0b1220;text-align:center;margin:10px 0 2px}
   .meta{font-size:12px;color:#64748b;text-align:center;margin-bottom:22px}
@@ -44,10 +45,11 @@ function styles(accent: string) {
 // Header (logo + company name + optional address), a prominent subject line (party / sales person),
 // then a small meta line. Built from the editable layout.
 function header(layout: PdfLayout, title: string, subject: string, meta: string) {
+  const tagline = layout.tagline.trim() ? `<div class="tagline">${esc(layout.tagline)}</div>` : '';
   const addr = layout.address.trim() ? `<div class="addr">${esc(layout.address)}</div>` : '';
   return `<div class="pdf-head">
     <img class="pdf-logo" src="${SURANI_LOGO_DATA_URI}" alt="">
-    <div><h1>${esc(layout.company_name)} <span class="pdf-title">— ${esc(title)}</span></h1>${addr}</div>
+    <div><h1>${esc(layout.company_name)} <span class="pdf-title">— ${esc(title)}</span></h1>${tagline}${addr}</div>
   </div>
   <div class="subject">${subject}</div>
   <div class="meta">${meta}</div>`;
