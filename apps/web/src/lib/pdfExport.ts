@@ -27,8 +27,8 @@ function styles(accent: string) {
   h1{font-size:20px;margin:0;color:${esc(accent)}}
   .pdf-title{color:#334155;font-weight:700}
   .addr{font-size:11.5px;color:#475569;margin:3px 0 10px}
-  .subject{font-size:17px;font-weight:700;color:#0b1220;margin:2px 0 1px}
-  .meta{font-size:12px;color:#64748b;margin-bottom:22px}
+  .subject{font-size:22px;font-weight:800;color:#0b1220;text-align:center;margin:10px 0 2px}
+  .meta{font-size:12px;color:#64748b;text-align:center;margin-bottom:22px}
   .party-block{break-inside:avoid;margin-bottom:20px}
   .party-name{font-size:13.5px;font-weight:700;background:#f0fdfa;padding:8px 12px;border:1px solid #99f6e4}
   table{width:100%;border-collapse:collapse}
