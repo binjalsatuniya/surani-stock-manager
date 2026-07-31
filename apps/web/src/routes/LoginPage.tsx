@@ -142,8 +142,8 @@ export function LoginPage() {
     return (
       <div className="login-shell">
         <div className="login-card">
-          <h1>Surani and Sons</h1>
-          <div className="sub">Welcome back, {hint.username}</div>
+          <SuraniLockup />
+          <div className="sub" style={{ marginTop: 10 }}>Welcome back, {hint.username}</div>
           <form onSubmit={onPinSubmit}>
             <div className="field">
               <label>Enter your PIN</label>
