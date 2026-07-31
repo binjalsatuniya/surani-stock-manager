@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { User } from '@surani/shared';
 import { api } from '../lib/apiClient';
 import { rememberQuickUnlockUser, forgetQuickUnlockUser } from '../lib/quickUnlock';
@@ -29,6 +30,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [llUnlocked, setLlUnlocked] = useState(false);
   const [llPassword, setLlPassword] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   // Verify the access password by attempting to view; on success, reveal Login Locations for
   // this session and remember the password so the page loads without asking again.
@@ -55,11 +57,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function login(username: string, password: string) {
     const res = await api.auth.login(username, password);
     afterLogin(setUser, res.user);
+    navigate('/'); // always land on the Dashboard after signing in
   }
 
   async function loginWithPin(userId: string, pin: string) {
     const res = await api.auth.quickUnlockPin(userId, pin);
     afterLogin(setUser, res.user);
+    navigate('/');
   }
 
   async function logout() {
@@ -67,6 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setLlUnlocked(false);
     setLlPassword(null);
+    navigate('/'); // reset so the next sign-in opens on the Dashboard
   }
 
   return (
