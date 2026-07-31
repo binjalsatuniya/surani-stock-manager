@@ -1,4 +1,5 @@
 import { defaultPdfLayout, type DueLedgerGroup, type PartyLedgerEntry, type PdfLayout, type SalesPersonExpense } from '@surani/shared';
+import { SURANI_LOGO_DATA_URI } from './suraniLogoData';
 
 const inr = (n: number) => `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
 const fmtDate = (d: string | null) => (d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
@@ -21,9 +22,12 @@ function openPrintWindow(html: string) {
 function styles(accent: string) {
   return `
   body{font-family:Arial,Helvetica,sans-serif;color:#0b1220;padding:28px;font-size:12.5px}
-  h1{font-size:19px;margin:0 0 3px;color:${esc(accent)}}
-  .addr{font-size:11.5px;color:#475569;margin:0 0 10px}
-  .sub{font-size:12px;color:#64748b;margin-bottom:22px}
+  .pdf-head{display:flex;align-items:center;gap:14px;margin-bottom:2px}
+  .pdf-logo{width:56px;height:56px;object-fit:contain;flex:none}
+  h1{font-size:20px;margin:0;color:${esc(accent)}}
+  .pdf-title{color:#334155;font-weight:700}
+  .addr{font-size:11.5px;color:#475569;margin:3px 0 10px}
+  .sub{font-size:14px;font-weight:600;color:#475569;margin-bottom:22px}
   .party-block{break-inside:avoid;margin-bottom:20px}
   .party-name{font-size:13.5px;font-weight:700;background:#f0fdfa;padding:8px 12px;border:1px solid #99f6e4}
   table{width:100%;border-collapse:collapse}
@@ -39,7 +43,11 @@ function styles(accent: string) {
 // Header (company name + optional address) and footer built from the editable layout.
 function header(layout: PdfLayout, title: string, subLine: string) {
   const addr = layout.address.trim() ? `<div class="addr">${esc(layout.address)}</div>` : '';
-  return `<h1>${esc(layout.company_name)} — ${esc(title)}</h1>${addr}<div class="sub">${subLine}</div>`;
+  return `<div class="pdf-head">
+    <img class="pdf-logo" src="${SURANI_LOGO_DATA_URI}" alt="">
+    <div><h1>${esc(layout.company_name)} <span class="pdf-title">— ${esc(title)}</span></h1>${addr}</div>
+  </div>
+  <div class="sub">${subLine}</div>`;
 }
 function footer(layout: PdfLayout) {
   return layout.footer.trim() ? `<div class="pdf-footer">${esc(layout.footer)}</div>` : '';

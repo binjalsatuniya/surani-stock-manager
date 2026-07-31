@@ -27,7 +27,7 @@ export const PDF_SETTINGS: PdfSettingDef[] = [
     default: '',
     type: 'text',
   },
-  { key: 'accent_color', label: 'Heading colour', default: '#0f766e', type: 'color' },
+  { key: 'accent_color', label: 'Heading colour', default: '#147b8b', type: 'color' },
 ];
 
 export type PdfLayout = Record<PdfSettingKey, string>;

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { PDF_SETTINGS, defaultPdfLayout, type PdfLayout, type PdfSettingKey } from '@surani/shared';
 import { api } from '../lib/apiClient';
 import { clearPdfLayoutCache } from '../lib/pdfLayout';
+import { SURANI_LOGO_DATA_URI } from '../lib/suraniLogoData';
 
 export function PdfLayoutPage() {
   const [draft, setDraft] = useState<PdfLayout | null>(null);
@@ -111,11 +112,14 @@ export function PdfLayoutPage() {
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Preview</h3>
         <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 20, background: '#fff' }}>
-          <div style={{ fontSize: 19, fontWeight: 700, color: draft.accent_color || '#0f766e' }}>
-            {(draft.company_name || 'SURANI AND SONS') + ' — Party Ledger'}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <img src={SURANI_LOGO_DATA_URI} alt="" style={{ width: 56, height: 56, objectFit: 'contain' }} />
+            <div style={{ fontSize: 20, fontWeight: 700, color: draft.accent_color || '#147b8b' }}>
+              {draft.company_name || 'SURANI AND SONS'} <span style={{ color: '#334155' }}>— Party Ledger</span>
+            </div>
           </div>
-          {draft.address.trim() && <div style={{ fontSize: 11.5, color: '#475569', marginTop: 3 }}>{draft.address}</div>}
-          <div style={{ fontSize: 12, color: '#64748b', marginTop: 6 }}>Sample Party · Generated today</div>
+          {draft.address.trim() && <div style={{ fontSize: 11.5, color: '#475569', marginTop: 4 }}>{draft.address}</div>}
+          <div style={{ fontSize: 14, fontWeight: 600, color: '#475569', marginTop: 6 }}>Sample Party · Generated today</div>
           <div style={{ marginTop: 14, border: '1px dashed #cbd5e1', borderRadius: 6, padding: 12, color: '#94a3b8', fontSize: 12 }}>
             (ledger table appears here)
           </div>
