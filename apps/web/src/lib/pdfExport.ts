@@ -27,7 +27,8 @@ function styles(accent: string) {
   h1{font-size:20px;margin:0;color:${esc(accent)}}
   .pdf-title{color:#334155;font-weight:700}
   .addr{font-size:11.5px;color:#475569;margin:3px 0 10px}
-  .sub{font-size:14px;font-weight:600;color:#475569;margin-bottom:22px}
+  .subject{font-size:17px;font-weight:700;color:#0b1220;margin:2px 0 1px}
+  .meta{font-size:12px;color:#64748b;margin-bottom:22px}
   .party-block{break-inside:avoid;margin-bottom:20px}
   .party-name{font-size:13.5px;font-weight:700;background:#f0fdfa;padding:8px 12px;border:1px solid #99f6e4}
   table{width:100%;border-collapse:collapse}
@@ -40,14 +41,16 @@ function styles(accent: string) {
 `;
 }
 
-// Header (company name + optional address) and footer built from the editable layout.
-function header(layout: PdfLayout, title: string, subLine: string) {
+// Header (logo + company name + optional address), a prominent subject line (party / sales person),
+// then a small meta line. Built from the editable layout.
+function header(layout: PdfLayout, title: string, subject: string, meta: string) {
   const addr = layout.address.trim() ? `<div class="addr">${esc(layout.address)}</div>` : '';
   return `<div class="pdf-head">
     <img class="pdf-logo" src="${SURANI_LOGO_DATA_URI}" alt="">
     <div><h1>${esc(layout.company_name)} <span class="pdf-title">— ${esc(title)}</span></h1>${addr}</div>
   </div>
-  <div class="sub">${subLine}</div>`;
+  <div class="subject">${subject}</div>
+  <div class="meta">${meta}</div>`;
 }
 function footer(layout: PdfLayout) {
   return layout.footer.trim() ? `<div class="pdf-footer">${esc(layout.footer)}</div>` : '';
@@ -86,7 +89,7 @@ export function exportDueLedgerPdf(groups: DueLedgerGroup[], spName: string, lay
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Outstanding Dues — ${spName}</title>
 <style>${styles(layout.accent_color)}</style></head>
 <body>
-  ${header(layout, 'Outstanding Dues Statement', `Sales Person: <b>${esc(spName)}</b> &middot; Generated ${fmtDate(new Date().toISOString())}`)}
+  ${header(layout, 'Outstanding Dues Statement', `Sales Person: ${esc(spName)}`, `Generated ${fmtDate(new Date().toISOString())}`)}
   ${partyBlocks}
   <div class="grand-total">Grand Total: ${inr(grandTotal)}</div>
   ${footer(layout)}
@@ -119,7 +122,7 @@ export function exportPartyLedgerPdf(partyName: string, entries: PartyLedgerEntr
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Ledger — ${partyName}</title>
 <style>${styles(layout.accent_color)}</style></head>
 <body>
-  ${header(layout, 'Party Ledger', `${esc(partyName)} &middot; Generated ${fmtDate(new Date().toISOString())}`)}
+  ${header(layout, 'Party Ledger', esc(partyName), `Generated ${fmtDate(new Date().toISOString())}`)}
   <table>
     <thead><tr><th>Date</th><th>Description</th><th style="text-align:right">Debit</th><th style="text-align:right">Credit</th><th style="text-align:right">Balance</th></tr></thead>
     <tbody>
@@ -157,7 +160,7 @@ export function exportExpenseLedgerPdf(salesPersonName: string, expenses: SalesP
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Expense Ledger — ${salesPersonName}</title>
 <style>${styles(layout.accent_color)}</style></head>
 <body>
-  ${header(layout, 'Sales Person Expense Ledger', `${esc(salesPersonName)} &middot; Generated ${fmtDate(new Date().toISOString())}`)}
+  ${header(layout, 'Sales Person Expense Ledger', esc(salesPersonName), `Generated ${fmtDate(new Date().toISOString())}`)}
   <table>
     <thead><tr><th>Date</th><th>Expense For</th><th style="text-align:right">Amount (₹)</th><th style="text-align:right">Running Total (₹)</th></tr></thead>
     <tbody>
