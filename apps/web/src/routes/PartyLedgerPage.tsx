@@ -4,6 +4,7 @@ import type { Party, PartyLedgerEntry } from '@surani/shared';
 import { buildWhatsappLink } from '@surani/shared';
 import { api } from '../lib/apiClient';
 import { exportPartyLedgerPdf } from '../lib/pdfExport';
+import { getPdfLayout } from '../lib/pdfLayout';
 import { usePermission } from '../hooks/usePermission';
 import { useWhatsappTemplates } from '../hooks/useWhatsappTemplates';
 
@@ -62,7 +63,7 @@ export function PartyLedgerPage() {
           )}
           <button
             className="btn btn-sm btn-primary"
-            onClick={() => exportPartyLedgerPdf(party?.name || 'Party', entries, opening)}
+            onClick={async () => exportPartyLedgerPdf(party?.name || 'Party', entries, opening, await getPdfLayout())}
           >
             Export PDF
           </button>

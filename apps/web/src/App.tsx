@@ -18,6 +18,7 @@ import { BackupPage } from './routes/BackupPage';
 import { AccountPage } from './routes/AccountPage';
 import { WhatsappSettingsPage } from './routes/WhatsappSettingsPage';
 import { FieldRulesPage } from './routes/FieldRulesPage';
+import { PdfLayoutPage } from './routes/PdfLayoutPage';
 import { ExpensesPage } from './routes/ExpensesPage';
 import { LoginLocationsPage } from './routes/LoginLocationsPage';
 import { FinancialYearProvider } from './context/FinancialYearContext';
@@ -47,6 +48,7 @@ export function App() {
         <Route path="/backup" element={<BackupPage />} />
         <Route path="/whatsapp-messages" element={<WhatsappSettingsPage />} />
         <Route path="/field-rules" element={<FieldRulesPage />} />
+        <Route path="/pdf-layout" element={<PdfLayoutPage />} />
         <Route path="/expenses" element={<ExpensesPage />} />
         <Route path="/login-locations" element={<LoginLocationsPage />} />
         <Route path="/account" element={<AccountPage />} />

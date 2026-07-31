@@ -33,6 +33,7 @@ const NAV_DEFS: NavDef[] = [
   { key: 'whatsapp', to: '/whatsapp-messages', label: 'WhatsApp Messages', perm: 'view_whatsapp' },
   { key: 'fieldrules', to: '/field-rules', label: 'Field Rules', perm: 'view_field_rules' },
   { key: 'loginlocations', to: '/login-locations', label: 'Login Locations', primaryOnly: true },
+  { key: 'pdflayout', to: '/pdf-layout', label: 'PDF Layout', primaryOnly: true },
 ];
 
 const ORDER_KEY = 'surani-nav-order';

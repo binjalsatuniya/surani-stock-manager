@@ -20,6 +20,7 @@ import { createExpensesClient } from './expenses';
 import { createLoginLocationsClient } from './login-locations';
 import { createResetClient } from './reset';
 import { createRecoveryClient } from './recovery';
+import { createPdfSettingsClient } from './pdf-settings';
 
 export * from './http';
 export * from './reset';
@@ -89,6 +90,7 @@ export function createApiClient(opts: HttpClientOptions) {
     loginLocations: createLoginLocationsClient(http),
     reset: createResetClient(http),
     recovery: createRecoveryClient(http),
+    pdfSettings: createPdfSettingsClient(http),
   };
 }
 

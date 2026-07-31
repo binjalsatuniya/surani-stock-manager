@@ -4,6 +4,7 @@ import { api } from '../lib/apiClient';
 import { useAuth } from '../context/AuthContext';
 import { usePermission } from '../hooks/usePermission';
 import { exportExpenseLedgerPdf } from '../lib/pdfExport';
+import { getPdfLayout } from '../lib/pdfLayout';
 
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 const inr = (n: number) => `₹${n.toFixed(2)}`;
@@ -36,9 +37,9 @@ export function ExpensesPage() {
     api.expenses.list({ salesPersonId: id }).then(setLedgerRows);
   }
 
-  function onExportLedgerPdf() {
+  async function onExportLedgerPdf() {
     if (!ledgerSpId) return;
-    exportExpenseLedgerPdf(spName(ledgerSpId), ledgerRows);
+    exportExpenseLedgerPdf(spName(ledgerSpId), ledgerRows, await getPdfLayout());
   }
 
   function onShareLedger() {

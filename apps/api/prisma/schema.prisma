@@ -424,6 +424,15 @@ model WhatsappTemplate {
   @@map("whatsapp_templates")
 }
 
+// ============ PDF LAYOUT (superadmin: header/footer/colour of generated PDFs) ============
+model PdfSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("pdf_settings")
+}
+
 // ============ FIELD RULES (superadmin: mandatory / optional) ============
 model FieldSetting {
   key       String   @id

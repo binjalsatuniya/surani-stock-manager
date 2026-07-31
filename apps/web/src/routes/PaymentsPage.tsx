@@ -9,6 +9,7 @@ import { useFieldSettings } from '../hooks/useFieldSettings';
 import { FieldLabel } from '../components/FieldLabel';
 import { SearchSelect } from '../components/SearchSelect';
 import { exportDueLedgerPdf } from '../lib/pdfExport';
+import { getPdfLayout } from '../lib/pdfLayout';
 
 const MODES: PaymentMode[] = PAYMENT_MODES;
 
@@ -94,15 +95,15 @@ export function PaymentsPage() {
     window.location.href = buildTelLink(phone);
   }
 
-  function onExportDuePdf() {
+  async function onExportDuePdf() {
     const spName = spFilter ? salesPersons.find((s) => s.id === spFilter)?.name || 'Unknown' : 'All Sales Persons';
-    exportDueLedgerPdf(dueGroups, spName);
+    exportDueLedgerPdf(dueGroups, spName, await getPdfLayout());
   }
 
   // One party's dues as a printable PDF, then open their WhatsApp chat so the downloaded file can
   // be attached. Browsers can't attach a file to WhatsApp automatically, so this is a two-part flow.
-  function onPartyDuesPdf(g: DueLedgerGroup) {
-    exportDueLedgerPdf([g], g.party.name);
+  async function onPartyDuesPdf(g: DueLedgerGroup) {
+    exportDueLedgerPdf([g], g.party.name, await getPdfLayout());
     if (g.party.phone) openWhatsapp(g.party.phone);
   }
 
