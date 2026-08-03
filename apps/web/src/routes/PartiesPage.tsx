@@ -313,7 +313,14 @@ export function PartiesPage() {
                 <td>{p.creditDays}</td>
                 <td>{p.opening}</td>
                 <td>
-                  <Link to={`/parties/${p.id}/ledger`}>View Ledger</Link>
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                    <Link to={`/parties/${p.id}/ledger`}>View Ledger</Link>
+                    {p.locationUrl && (
+                      <a href={p.locationUrl} target="_blank" rel="noreferrer" title="Open in Google Maps" style={{ whiteSpace: 'nowrap' }}>
+                        📍 Map
+                      </a>
+                    )}
+                  </div>
                 </td>
                 {canEdit && (
                   <td>
