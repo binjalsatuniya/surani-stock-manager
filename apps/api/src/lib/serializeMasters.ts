@@ -33,6 +33,8 @@ export function toItemDTO(i: PrismaItem): Item {
     opening: Number(i.opening),
     reorder: Number(i.reorder),
     rateDate: i.rateDate ? i.rateDate.toISOString().slice(0, 10) : null,
+    tdsAttachment: i.tdsAttachment ?? null,
+    tdsAttachmentName: i.tdsAttachmentName ?? null,
     createdAt: i.createdAt.toISOString(),
     updatedAt: i.updatedAt.toISOString(),
   };

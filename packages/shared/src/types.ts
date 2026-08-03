@@ -102,6 +102,8 @@ export interface Item {
   opening: number;
   reorder: number;
   rateDate: string | null;
+  tdsAttachment: string | null; // Technical Data Sheet file as a base64 data URL
+  tdsAttachmentName: string | null;
   createdAt: string;
   updatedAt: string;
 }

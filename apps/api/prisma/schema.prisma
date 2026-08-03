@@ -151,6 +151,8 @@ model Item {
   opening   Decimal  @default(0) @db.Decimal(14, 3)
   reorder   Decimal  @default(0) @db.Decimal(14, 3)
   rateDate  DateTime? @map("rate_date") @db.Date
+  tdsAttachment     String? @map("tds_attachment")      // Technical Data Sheet file (base64 data URL)
+  tdsAttachmentName String? @map("tds_attachment_name")
   legacyId  String?  @unique @map("legacy_id")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

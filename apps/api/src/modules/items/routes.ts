@@ -24,6 +24,9 @@ const itemSchema = z.object({
   opening: z.coerce.number().default(0),
   reorder: z.coerce.number().default(0),
   rateDate: z.string().nullable().optional(),
+  // TDS (Technical Data Sheet) file as a base64 data URL, capped ~5MB encoded to keep the DB lean.
+  tdsAttachment: z.string().max(7_000_000).nullable().optional(),
+  tdsAttachmentName: z.string().nullable().optional(),
 });
 
 itemsRouter.get(

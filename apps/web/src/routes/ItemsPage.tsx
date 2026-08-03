@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { Item, ItemUnit } from '@surani/shared';
+import { buildWhatsappLink, type Item, type ItemUnit } from '@surani/shared';
 import { api } from '../lib/apiClient';
 import { usePermission } from '../hooks/usePermission';
 import { useFieldSettings } from '../hooks/useFieldSettings';
@@ -16,6 +16,8 @@ const EMPTY = {
   rate: '0',
   opening: '0',
   reorder: '0',
+  tdsAttachment: '',
+  tdsAttachmentName: '',
 };
 
 export function ItemsPage() {
@@ -62,6 +64,8 @@ export function ItemsPage() {
       opening: Number(form.opening) || 0,
       reorder: Number(form.reorder) || 0,
       rateDate: null,
+      tdsAttachment: form.tdsAttachment || null,
+      tdsAttachmentName: form.tdsAttachmentName || null,
     };
     try {
       if (editingId) await api.items.update(editingId, payload);
@@ -84,8 +88,38 @@ export function ItemsPage() {
       rate: String(i.rate ?? 0),
       opening: String(i.opening ?? 0),
       reorder: String(i.reorder ?? 0),
+      tdsAttachment: i.tdsAttachment || '',
+      tdsAttachmentName: i.tdsAttachmentName || '',
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function onPickTds(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      setError('TDS file is too large (max 5 MB). Please attach a smaller PDF/image.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      set('tdsAttachment', String(reader.result));
+      set('tdsAttachmentName', file.name);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // Download the TDS, then open WhatsApp so the user can pick the party and attach it (WhatsApp Web
+  // does not allow auto-attaching a file — this is the same flow as the Dues PDF share).
+  function shareTds(i: Item) {
+    if (!i.tdsAttachment) return;
+    const a = document.createElement('a');
+    a.href = i.tdsAttachment;
+    a.download = i.tdsAttachmentName || `${i.name}-TDS`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.open(buildWhatsappLink(null, `TDS — ${i.name}`), '_blank');
   }
 
   async function onDelete(id: string) {
@@ -145,6 +179,24 @@ export function ItemsPage() {
               <FieldLabel required={required('item.reorder')}>Reorder Level</FieldLabel>
               <input value={form.reorder} onChange={(e) => set('reorder', e.target.value)} style={{ width: 100 }} />
             </div>
+            <div className="field" style={{ margin: 0, minWidth: 220 }}>
+              <label>TDS (Technical Data Sheet)</label>
+              <input type="file" accept="application/pdf,image/*" onChange={onPickTds} />
+              {form.tdsAttachmentName && (
+                <span className="muted" style={{ fontSize: 11, marginTop: 3 }}>
+                  📄 {form.tdsAttachmentName}{' '}
+                  <a
+                    onClick={() => {
+                      set('tdsAttachment', '');
+                      set('tdsAttachmentName', '');
+                    }}
+                    style={{ cursor: 'pointer', color: '#dc2626' }}
+                  >
+                    remove
+                  </a>
+                </span>
+              )}
+            </div>
           </div>
           <div className="toolbar" style={{ marginTop: 4 }}>
             <button className="btn btn-primary" onClick={onSave}>
@@ -169,6 +221,7 @@ export function ItemsPage() {
             <th>Rate</th>
             <th>Opening</th>
             <th>Reorder</th>
+            <th>TDS</th>
             {canEdit && <th></th>}
           </tr>
         </thead>
@@ -182,6 +235,20 @@ export function ItemsPage() {
               <td>{i.rate}</td>
               <td>{i.opening}</td>
               <td>{i.reorder}</td>
+              <td>
+                {i.tdsAttachment ? (
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <a href={i.tdsAttachment} target="_blank" rel="noreferrer" className="btn btn-sm" style={{ textDecoration: 'none' }} title="Open the TDS">
+                      📄 View
+                    </a>
+                    <button className="btn btn-sm" onClick={() => shareTds(i)} title="Download the TDS and open WhatsApp to send it">
+                      📤 WhatsApp
+                    </button>
+                  </div>
+                ) : (
+                  <span className="muted">—</span>
+                )}
+              </td>
               {canEdit && (
                 <td>
                   <div style={{ display: 'flex', gap: 6 }}>
@@ -202,7 +269,7 @@ export function ItemsPage() {
           ))}
           {items.length === 0 && (
             <tr>
-              <td colSpan={8} className="muted">
+              <td colSpan={canEdit ? 9 : 8} className="muted">
                 No items yet.
               </td>
             </tr>
