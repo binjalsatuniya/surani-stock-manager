@@ -1,5 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
+import type { PermissionKey } from '@surani/shared';
 import { useAuth } from './context/AuthContext';
+import { usePermission } from './hooks/usePermission';
 import { Layout } from './components/Layout';
 import { LoginPage } from './routes/LoginPage';
 import { DashboardPage } from './routes/DashboardPage';
@@ -23,6 +25,33 @@ import { ExpensesPage } from './routes/ExpensesPage';
 import { LoginLocationsPage } from './routes/LoginLocationsPage';
 import { FinancialYearProvider } from './context/FinancialYearContext';
 
+// The landing page ("/") is the Dashboard for users who can see it; otherwise send them to the
+// first section they DO have access to (so a dispatch-only user lands on the Order Book instead of
+// a Dashboard that just spins "Loading…"). If they have nothing, show a friendly message.
+const LANDING_PRIORITY: [string, PermissionKey][] = [
+  ['/orderbook', 'view_orderbook'],
+  ['/inward', 'view_inward'],
+  ['/outward', 'view_outward'],
+  ['/payments', 'view_payments'],
+  ['/parties', 'view_parties'],
+  ['/items', 'view_items'],
+  ['/live-stock', 'view_live_stock'],
+  ['/expenses', 'view_expenses'],
+  ['/users', 'manage_users'],
+];
+
+function Home() {
+  const can = usePermission();
+  if (can('view_dashboard')) return <DashboardPage />;
+  const first = LANDING_PRIORITY.find(([, perm]) => can(perm));
+  if (first) return <Navigate to={first[0]} replace />;
+  return (
+    <div className="card" style={{ margin: 24 }}>
+      You don’t have access to any section yet. Please ask your administrator to grant permissions.
+    </div>
+  );
+}
+
 export function App() {
   const { user, loading } = useAuth();
 
@@ -33,7 +62,7 @@ export function App() {
     <FinancialYearProvider>
     <Routes>
       <Route element={<Layout />}>
-        <Route path="/" element={<DashboardPage />} />
+        <Route path="/" element={<Home />} />
         <Route path="/inward" element={<InwardPage />} />
         <Route path="/outward" element={<OutwardPage />} />
         <Route path="/orderbook" element={<OrderBookPage />} />
