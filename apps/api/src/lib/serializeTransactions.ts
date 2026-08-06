@@ -83,6 +83,11 @@ export function toOutwardDTO(o: PrismaOutward): Outward {
     cancelledAt: d(o.cancelledAt),
     cancelledBy: o.cancelledById,
     cancelNote: o.cancelNote,
+    // Present when the caller included the relations (e.g. the Order Book list); null otherwise.
+    partyName: (o as { party?: { name?: string } }).party?.name ?? null,
+    itemName: (o as { item?: { name?: string } }).item?.name ?? null,
+    transporterName: (o as { transporter?: { name?: string } }).transporter?.name ?? null,
+    handlingAgentName: (o as { handlingAgent?: { name?: string } }).handlingAgent?.name ?? null,
     note: o.note,
     createdBy: o.createdById,
     createdAt: o.createdAt.toISOString(),

@@ -233,14 +233,14 @@ export function OrderBookPage() {
       <tr key={m.id}>
         <td>{fmtDate(m.date)}</td>
         <td>{m.invNo || '—'}</td>
-        <td>{partyName(m.partyId)}</td>
-        <td>{itemName(m.itemId)}</td>
+        <td>{m.partyName || partyName(m.partyId)}</td>
+        <td>{m.itemName || itemName(m.itemId)}</td>
         <td>{m.qty}</td>
         <td>{m.handling || 0}</td>
         {canRate && <td>₹{Number(m.amount).toFixed(2)}</td>}
         <td>{m.deliveryType || '—'}</td>
         <td>{payStatusLabel(m)}</td>
-        <td>{transporterName(m.transporterId)}</td>
+        <td>{m.transporterName || transporterName(m.transporterId)}</td>
         <td style={{ textTransform: 'capitalize' }}>
           {m.fulfil}
           {m.fulfil === 'cancelled' && m.cancelNote && (

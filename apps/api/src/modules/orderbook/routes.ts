@@ -82,6 +82,13 @@ orderbookRouter.get(
     const rows = await prisma.outward.findMany({
       where: { ...fyDateWhere(fy), ...(fulfil ? { fulfil } : {}) },
       orderBy: { date: 'desc' },
+      // Embed the names so the Order Book shows them even for users without Parties/Items access.
+      include: {
+        party: { select: { name: true } },
+        item: { select: { name: true } },
+        transporter: { select: { name: true } },
+        handlingAgent: { select: { name: true } },
+      },
     });
     res.json(rows.map(toOutwardDTO));
   })
