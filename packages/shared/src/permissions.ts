@@ -16,6 +16,7 @@ export const PERMS = [
 
   { id: 'place_order', label: 'Place New Order', group: 'Sales' },
   { id: 'view_orderbook', label: 'View Order Book', group: 'Sales' },
+  { id: 'view_order_rate', label: 'See Sale Rate & Amount (Order Book)', group: 'Sales' },
   { id: 'dispatch_order', label: 'Dispatch / Deliver Orders', group: 'Sales' },
 
   { id: 'view_items', label: 'View Items & Live Stock', group: 'Item Master' },
@@ -71,6 +72,9 @@ const LEGACY_FALLBACK: Partial<Record<PermissionKey, PermissionKey>> = {
   view_whatsapp: 'send_whatsapp',
   view_field_rules: 'manage_users',
   view_live_stock: 'view_items',
+  // New: anyone who can view the Order Book keeps seeing the rate/amount until an admin turns it
+  // off for a specific user (so existing users are unaffected).
+  view_order_rate: 'view_orderbook',
 };
 
 export type PermissionMap = Record<PermissionKey, boolean>;

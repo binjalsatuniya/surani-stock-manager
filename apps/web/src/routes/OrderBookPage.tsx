@@ -29,6 +29,7 @@ function dueDateFor(m: Outward): string {
 
 export function OrderBookPage() {
   const can = usePermission();
+  const canRate = can('view_order_rate'); // whether this user may see the sale rate/amount
   const { user } = useAuth();
   const isSuper = user?.role === 'superadmin';
   const { fill } = useWhatsappTemplates();
@@ -226,7 +227,7 @@ export function OrderBookPage() {
         <td>{itemName(m.itemId)}</td>
         <td>{m.qty}</td>
         <td>{m.handling || 0}</td>
-        <td>₹{Number(m.amount).toFixed(2)}</td>
+        {canRate && <td>₹{Number(m.amount).toFixed(2)}</td>}
         <td>{m.deliveryType || '—'}</td>
         <td>{payStatusLabel(m)}</td>
         <td>{transporterName(m.transporterId)}</td>
@@ -300,7 +301,7 @@ export function OrderBookPage() {
       <th>Item</th>
       <th>Qty</th>
       <th>Handling</th>
-      <th>Total</th>
+      {canRate && <th>Total</th>}
       <th>Delivery</th>
       <th>Payment</th>
       <th>Transporter</th>
@@ -327,10 +328,12 @@ export function OrderBookPage() {
           <div className="muted">Delivered</div>
           <div style={{ fontSize: 26, fontWeight: 700 }}>{delivered.length}</div>
         </div>
-        <div className="card">
-          <div className="muted">Pending value</div>
-          <div style={{ fontSize: 26, fontWeight: 700 }}>₹{pendingValue.toFixed(2)}</div>
-        </div>
+        {canRate && (
+          <div className="card">
+            <div className="muted">Pending value</div>
+            <div style={{ fontSize: 26, fontWeight: 700 }}>₹{pendingValue.toFixed(2)}</div>
+          </div>
+        )}
       </div>
 
       {error && <div className="login-err show">{error}</div>}
