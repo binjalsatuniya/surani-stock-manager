@@ -5,7 +5,6 @@ import { prisma } from '../../db/prisma';
 import { toPartyDTO } from '../../lib/serializeMasters';
 import { asyncHandler } from '../../lib/asyncHandler';
 import { authenticate } from '../../middleware/auth';
-import { requirePermission } from '../../middleware/requirePermission';
 import { ForbiddenError, HttpError, NotFoundError } from '../../middleware/errorHandler';
 import { mutateOrQueue } from '../../lib/approvalGate';
 import { logActivity } from '../../lib/audit';
@@ -44,9 +43,16 @@ function requiredPermFor(type: string, action: 'add' | 'edit' | 'delete' = 'edit
 
 partiesRouter.get(
   '/',
-  requirePermission('view_parties'),
   asyncHandler(async (req, res) => {
     const type = req.query.type as string | undefined;
+    // The debtor/creditor master needs view_parties. But transporters and handling agents are
+    // needed to fill the dispatch form, so a dispatch-only user (dispatch_order) may load those two
+    // lists without full Party Master access.
+    const isDispatchList = type === 'transporter' || type === 'handling';
+    const allowed =
+      hasPermission(req.user!.role, req.user!.permissions, 'view_parties') ||
+      (isDispatchList && hasPermission(req.user!.role, req.user!.permissions, 'dispatch_order'));
+    if (!allowed) throw new ForbiddenError('Missing permission: view_parties');
     // A party of type 'both' is a debtor AND a creditor, so it must appear when
     // either list is requested. Transporter/handling stay exact-match.
     let where: { type?: string | { in: string[] } } | undefined;
