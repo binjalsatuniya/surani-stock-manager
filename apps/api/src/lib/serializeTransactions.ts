@@ -82,6 +82,7 @@ export function toOutwardDTO(o: PrismaOutward): Outward {
     deliveredAt: d(o.deliveredAt),
     cancelledAt: d(o.cancelledAt),
     cancelledBy: o.cancelledById,
+    cancelNote: o.cancelNote,
     note: o.note,
     createdBy: o.createdById,
     createdAt: o.createdAt.toISOString(),

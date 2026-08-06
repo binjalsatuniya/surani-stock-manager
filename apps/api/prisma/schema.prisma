@@ -264,6 +264,7 @@ model Outward {
   cancelledAt     DateTime? @map("cancelled_at") @db.Date
   cancelledById   String?   @map("cancelled_by") @db.Uuid
   cancelledBy     User?     @relation("OutwardCancelledBy", fields: [cancelledById], references: [id])
+  cancelNote      String?   @map("cancel_note")
   note            String?
   createdById     String?   @map("created_by") @db.Uuid
   createdBy       User?     @relation("OutwardCreatedBy", fields: [createdById], references: [id])

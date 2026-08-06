@@ -37,7 +37,7 @@ export function createOrderbookClient(http: HttpClient) {
     },
     dispatch: (id: string, input: DispatchInput) => http.post<Outward>(`/orderbook/${id}/dispatch`, input),
     deliver: (id: string) => http.post<Outward>(`/orderbook/${id}/deliver`),
-    cancel: (id: string) => http.post<Outward>(`/orderbook/${id}/cancel`),
+    cancel: (id: string, note?: string) => http.post<Outward>(`/orderbook/${id}/cancel`, { note }),
     restore: (id: string) => http.post<Outward>(`/orderbook/${id}/restore`),
   };
 }

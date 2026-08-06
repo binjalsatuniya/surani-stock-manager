@@ -230,6 +230,7 @@ orderbookRouter.post(
     if (existing.fulfil === 'delivered' && req.user!.role !== 'superadmin')
       throw new HttpError(400, 'Delivered orders can only be cancelled by a Super Admin');
     if (existing.fulfil === 'cancelled') throw new HttpError(400, 'Order is already cancelled');
+    const cancelNote = (z.object({ note: z.string().optional() }).parse(req.body).note || '').trim() || null;
 
     const updated = await prisma.$transaction(async (tx) => {
       // Reverse any freight/handling ledger entries already posted (e.g. if it was dispatched).
@@ -243,13 +244,14 @@ orderbookRouter.post(
           fulfil: 'cancelled',
           cancelledAt: new Date(),
           cancelledById: req.user!.id,
+          cancelNote,
         },
       });
       await writeAuditLog(tx, {
         action: 'cancel',
         target: 'outward',
         targetId: order.id,
-        label: `Order cancelled — qty ${order.qty}, amount ${order.amount}`,
+        label: `Order cancelled — qty ${order.qty}, amount ${order.amount}${cancelNote ? ` · reason: ${cancelNote}` : ''}`,
         actorId: req.user!.id,
         actorName: req.user!.name,
       });
@@ -276,6 +278,7 @@ orderbookRouter.post(
           prevFulfil: null,
           cancelledAt: null,
           cancelledById: null,
+          cancelNote: null,
         },
       });
       await writeAuditLog(tx, {

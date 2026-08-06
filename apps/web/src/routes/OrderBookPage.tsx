@@ -30,6 +30,8 @@ function dueDateFor(m: Outward): string {
 export function OrderBookPage() {
   const can = usePermission();
   const canRate = can('view_order_rate'); // whether this user may see the sale rate/amount
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
   const { user } = useAuth();
   const isSuper = user?.role === 'superadmin';
   const { fill } = useWhatsappTemplates();
@@ -142,8 +144,9 @@ export function OrderBookPage() {
     reload();
   }
   async function onCancel(id: string) {
-    if (!confirm('Cancel this order?')) return;
-    await api.orderbook.cancel(id);
+    const note = prompt('Cancel this order?\n\nReason for cancelling (optional):');
+    if (note === null) return; // dismissed
+    await api.orderbook.cancel(id, note.trim() || undefined);
     reload();
   }
   async function onRestore(id: string) {
@@ -211,10 +214,17 @@ export function OrderBookPage() {
     if (message) window.open(buildWhatsappLink(transporter.phone, message), '_blank');
   }
 
-  const pending = rows.filter((m) => m.fulfil === 'pending');
-  const dispatched = rows.filter((m) => m.fulfil === 'dispatched');
-  const delivered = rows.filter((m) => m.fulfil === 'delivered');
-  const cancelled = rows.filter((m) => m.fulfil === 'cancelled');
+  // Date-range filter (by order date) so you can view orders for a specific period.
+  const dateRows = rows.filter((m) => {
+    const d = (m.date || '').slice(0, 10);
+    if (fromDate && d < fromDate) return false;
+    if (toDate && d > toDate) return false;
+    return true;
+  });
+  const pending = dateRows.filter((m) => m.fulfil === 'pending');
+  const dispatched = dateRows.filter((m) => m.fulfil === 'dispatched');
+  const delivered = dateRows.filter((m) => m.fulfil === 'delivered');
+  const cancelled = dateRows.filter((m) => m.fulfil === 'cancelled');
   const pendingValue = pending.reduce((s, m) => s + Number(m.amount || 0), 0);
 
   function orderRow(m: Outward) {
@@ -231,7 +241,14 @@ export function OrderBookPage() {
         <td>{m.deliveryType || '—'}</td>
         <td>{payStatusLabel(m)}</td>
         <td>{transporterName(m.transporterId)}</td>
-        <td style={{ textTransform: 'capitalize' }}>{m.fulfil}</td>
+        <td style={{ textTransform: 'capitalize' }}>
+          {m.fulfil}
+          {m.fulfil === 'cancelled' && m.cancelNote && (
+            <div style={{ fontSize: 11, color: '#64748b', textTransform: 'none' }} title="Cancellation reason">
+              🚫 {m.cancelNote}
+            </div>
+          )}
+        </td>
         <td>
           <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
             {m.fulfil === 'pending' && can('dispatch_order') && (
@@ -337,6 +354,22 @@ export function OrderBookPage() {
       </div>
 
       {error && <div className="login-err show">{error}</div>}
+
+      {/* Date-range filter — view orders for a specific period. */}
+      <div className="card" style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+        <div className="field" style={{ margin: 0 }}>
+          <label>From date</label>
+          <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+        </div>
+        <div className="field" style={{ margin: 0 }}>
+          <label>To date</label>
+          <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+        </div>
+        {(fromDate || toDate) && (
+          <button className="btn btn-sm" onClick={() => { setFromDate(''); setToDate(''); }}>Clear</button>
+        )}
+        <span className="muted" style={{ fontSize: 12 }}>Showing {dateRows.length} order(s)</span>
+      </div>
 
       {/* New orders are placed from the Dashboard's "＋ New Order" card. */}
 

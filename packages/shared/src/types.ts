@@ -175,6 +175,7 @@ export interface Outward {
   deliveredAt: string | null;
   cancelledAt: string | null;
   cancelledBy: string | null;
+  cancelNote: string | null;
   note: string | null;
   createdBy: string | null;
   createdAt: string;
