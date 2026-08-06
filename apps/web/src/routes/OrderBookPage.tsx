@@ -49,6 +49,7 @@ export function OrderBookPage() {
   const [dInvDate, setDInvDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [dTransporter, setDTransporter] = useState('');
   const [dFreightRate, setDFreightRate] = useState('');
+  const [dVehicle, setDVehicle] = useState('');
   const [dHandlingAgent, setDHandlingAgent] = useState('');
   const [dHandlingRate, setDHandlingRate] = useState('');
 
@@ -76,6 +77,7 @@ export function OrderBookPage() {
     // Pre-fill freight from the order's own value, else the party's saved Default Freight (editable).
     const dfltFreight = parties.find((p) => p.id === m.partyId)?.defaultFreight || 0;
     setDFreightRate(String(m.freightRate || dfltFreight || ''));
+    setDVehicle(m.vehicle || '');
     setDHandlingAgent(m.handlingAgentId || '');
     setDHandlingRate(String(m.handlingRate || ''));
   }
@@ -88,6 +90,7 @@ export function OrderBookPage() {
         invDate: dInvDate,
         transporterId: dTransporter || null,
         freightRate: Number(dFreightRate) || 0,
+        vehicle: dVehicle.trim() || null,
         handlingAgentId: dHandlingAgent || null,
         handlingRate: Number(dHandlingRate) || 0,
       });
@@ -375,6 +378,10 @@ export function OrderBookPage() {
             <div className="field" style={{ margin: 0 }}>
               <label>Freight Rate</label>
               <input value={dFreightRate} onChange={(e) => setDFreightRate(e.target.value)} style={{ width: 90 }} />
+            </div>
+            <div className="field" style={{ margin: 0 }}>
+              <label>Vehicle Number</label>
+              <input value={dVehicle} onChange={(e) => setDVehicle(e.target.value)} placeholder="e.g. GJ-01-AB-1234" style={{ width: 150 }} />
             </div>
             <div className="field" style={{ margin: 0 }}>
               <label>Handling Agent</label>
