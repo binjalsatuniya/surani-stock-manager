@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import {
   buildWhatsappLink,
+  deliveryTermsLabel,
   type DashboardKpis,
   type DeliveryType,
   type Inward,
@@ -196,6 +197,7 @@ export function DashboardPage() {
       amount: oTotal.toFixed(2),
       date: fmtDate(order.date),
       invNo: 'N/A',
+      deliveryTerms: deliveryTermsLabel(order.deliveryType),
       payStatus,
       dueDate: 'N/A',
     });

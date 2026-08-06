@@ -36,6 +36,7 @@ export const WHATSAPP_TEMPLATES: WhatsappTemplateDef[] = [
       { token: '{amount}', description: 'Total order amount' },
       { token: '{date}', description: 'Order date' },
       { token: '{invNo}', description: 'Invoice number (or N/A)' },
+      { token: '{deliveryTerms}', description: 'Delivery terms (Ex-Works / FOR)' },
       { token: '{payStatus}', description: 'Payment status (Pending / Received / Credit)' },
       { token: '{dueDate}', description: 'Payment due date (or N/A)' },
     ],
@@ -53,6 +54,7 @@ export const WHATSAPP_TEMPLATES: WhatsappTemplateDef[] = [
       '*Rate:* ₹{rate} per unit',
       '*Total Amount:* ₹{amount}',
       '*Invoice No.:* {invNo}',
+      '*Delivery Terms:* {deliveryTerms}',
       '',
       '*Payment Status:* {payStatus}',
       '*Due Date:* {dueDate}',
@@ -201,6 +203,13 @@ export const WHATSAPP_TEMPLATES: WhatsappTemplateDef[] = [
     ].join('\n'),
   },
 ];
+
+/** Human label for an order's delivery terms, used in the order-confirmation message. */
+export function deliveryTermsLabel(deliveryType: string | null | undefined): string {
+  if (deliveryType === 'ExWorks') return 'Ex-Works';
+  if (deliveryType === 'FOR') return 'FOR';
+  return deliveryType || 'N/A';
+}
 
 export function defaultWhatsappTemplate(key: WhatsappTemplateKey): string {
   return WHATSAPP_TEMPLATES.find((t) => t.key === key)!.default;

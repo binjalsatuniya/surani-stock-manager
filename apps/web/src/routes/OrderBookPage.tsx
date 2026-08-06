@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { buildWhatsappLink, type Item, type Outward, type Party } from '@surani/shared';
+import { buildWhatsappLink, deliveryTermsLabel, type Item, type Outward, type Party } from '@surani/shared';
 import { api } from '../lib/apiClient';
 import { usePermission } from '../hooks/usePermission';
 import { useAuth } from '../context/AuthContext';
@@ -185,6 +185,7 @@ export function OrderBookPage() {
       amount: m.amount.toFixed(2),
       date: fmtDate(m.date),
       invNo: m.invNo || 'N/A',
+      deliveryTerms: deliveryTermsLabel(m.deliveryType),
       payStatus: payStatusLabel(m),
       dueDate: dueDateFor(m),
     });
