@@ -21,6 +21,7 @@ import { createLoginLocationsClient } from './login-locations';
 import { createResetClient } from './reset';
 import { createRecoveryClient } from './recovery';
 import { createPdfSettingsClient } from './pdf-settings';
+import { createPushClient } from './push';
 
 export * from './http';
 export * from './reset';
@@ -91,6 +92,7 @@ export function createApiClient(opts: HttpClientOptions) {
     reset: createResetClient(http),
     recovery: createRecoveryClient(http),
     pdfSettings: createPdfSettingsClient(http),
+    push: createPushClient(http),
   };
 }
 

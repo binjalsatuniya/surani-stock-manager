@@ -8,6 +8,7 @@ import { requirePermission } from '../../middleware/requirePermission';
 import { requireRole } from '../../middleware/requireRole';
 import { HttpError, NotFoundError } from '../../middleware/errorHandler';
 import { writeAuditLog, logActivity } from '../../lib/audit';
+import { notifyActivity } from '../../lib/notify';
 import { fyDateWhere } from '../../lib/fyFilter';
 
 // Split into two routers so the mount paths in app.ts match the API design: POST /orders is
@@ -67,6 +68,8 @@ ordersRouter.post(
     const placeItem = await prisma.item.findUnique({ where: { id: input.itemId }, select: { name: true } });
     await logActivity(prisma, req.user!, 'place order', 'outward', outward.id,
       `Order placed: ${party.name} · ${placeItem?.name ?? 'item'} · ${input.qty} · ₹${amount.toLocaleString('en-IN')}`);
+    await notifyActivity(prisma, req.user!, 'order_placed', 'New order placed',
+      `${req.user!.name} placed an order: ${party.name} · ${placeItem?.name ?? 'item'} · ${input.qty} · ₹${amount.toLocaleString('en-IN')}`);
     res.status(201).json(toOutwardDTO(outward));
   })
 );
@@ -182,6 +185,8 @@ orderbookRouter.post(
       ]);
       await logActivity(prisma, req.user!, 'dispatch', 'outward', existing.id,
         `Order dispatched: ${dp?.name ?? 'party'} · ${di?.name ?? 'item'} · ${Number(existing.qty)}`);
+      await notifyActivity(prisma, req.user!, 'order_dispatched', 'Order dispatched',
+        `${req.user!.name} dispatched an order: ${dp?.name ?? 'party'} · ${di?.name ?? 'item'} · ${Number(existing.qty)}`);
     }
     res.json(toOutwardDTO(updated));
   })
@@ -208,6 +213,8 @@ orderbookRouter.post(
       ]);
       await logActivity(prisma, req.user!, 'deliver', 'outward', existing.id,
         `Order delivered: ${dp?.name ?? 'party'} · ${di?.name ?? 'item'} · ${Number(existing.qty)}`);
+      await notifyActivity(prisma, req.user!, 'order_delivered', 'Order delivered',
+        `${req.user!.name} delivered an order: ${dp?.name ?? 'party'} · ${di?.name ?? 'item'} · ${Number(existing.qty)}`);
     }
     res.json(toOutwardDTO(updated));
   })

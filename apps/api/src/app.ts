@@ -26,6 +26,7 @@ import { expensesRouter } from './modules/expenses/routes';
 import { loginLocationsRouter } from './modules/login-locations/routes';
 import { resetRouter } from './modules/reset/routes';
 import { recoveryRouter } from './modules/recovery/routes';
+import { pushRouter } from './modules/push/routes';
 
 export const app = express();
 
@@ -82,5 +83,6 @@ app.use('/expenses', expensesRouter);
 app.use('/login-locations', loginLocationsRouter);
 app.use('/reset', resetRouter);
 app.use('/recovery', recoveryRouter);
+app.use('/push', pushRouter);
 
 app.use(errorHandler);

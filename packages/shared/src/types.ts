@@ -1,4 +1,5 @@
 import type { PermissionMap, Role } from './permissions';
+import type { NotifyPrefs } from './notifications';
 
 export interface UserSecurity {
   pinEnabled: boolean;
@@ -21,6 +22,8 @@ export interface UserPreferences {
     tiles?: string[]; // ordered tile keys (mobile)
     sections?: string[]; // ordered section keys (mobile)
   };
+  // Which business activities send this user a phone push notification (admin-managed).
+  notify?: NotifyPrefs;
 }
 
 export interface User {

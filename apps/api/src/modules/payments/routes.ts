@@ -9,6 +9,7 @@ import { requirePermission } from '../../middleware/requirePermission';
 import { HttpError, NotFoundError } from '../../middleware/errorHandler';
 import { mutateOrQueue } from '../../lib/approvalGate';
 import { logActivity } from '../../lib/audit';
+import { notifyActivity } from '../../lib/notify';
 import { fyDateWhere } from '../../lib/fyFilter';
 
 export const paymentsRouter = Router();
@@ -145,6 +146,8 @@ paymentsRouter.post(
     const payParty = await prisma.party.findUnique({ where: { id: input.partyId }, select: { name: true } });
     await logActivity(prisma, req.user!, 'create', 'payment', payment.id,
       `Payment ${input.dir === 'in' ? 'received' : 'paid'} ₹${input.amount.toLocaleString('en-IN')} — ${payParty?.name ?? 'party'}${tds ? ` (TDS ₹${tds.toLocaleString('en-IN')})` : ''} · ${input.mode}`);
+    await notifyActivity(prisma, req.user!, 'payment', 'Payment recorded',
+      `${req.user!.name} recorded a payment ${input.dir === 'in' ? 'received' : 'paid'} ₹${input.amount.toLocaleString('en-IN')} — ${payParty?.name ?? 'party'} · ${input.mode}`);
     res.status(201).json(toPaymentDTO(payment));
   })
 );

@@ -8,6 +8,7 @@ import { requirePermission } from '../../middleware/requirePermission';
 import { NotFoundError } from '../../middleware/errorHandler';
 import { mutateOrQueue } from '../../lib/approvalGate';
 import { logActivity } from '../../lib/audit';
+import { notifyActivity } from '../../lib/notify';
 import { fyDateWhere } from '../../lib/fyFilter';
 
 export const outwardRouter = Router();
@@ -131,6 +132,8 @@ outwardRouter.post(
     ]);
     await logActivity(prisma, req.user!, 'create', 'outward', created.id,
       `Sale (outward): ${op?.name ?? 'party'} · ${oi?.name ?? 'item'} · ${input.qty} · ₹${amount.toLocaleString('en-IN')}`);
+    await notifyActivity(prisma, req.user!, 'outward', 'New Outward entry',
+      `${req.user!.name} added Outward: ${op?.name ?? 'party'} · ${oi?.name ?? 'item'} · ${input.qty} · ₹${amount.toLocaleString('en-IN')}`);
     res.status(201).json(toOutwardDTO(created));
   })
 );

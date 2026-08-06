@@ -8,6 +8,7 @@ import { requirePermission } from '../../middleware/requirePermission';
 import { NotFoundError } from '../../middleware/errorHandler';
 import { mutateOrQueue } from '../../lib/approvalGate';
 import { logActivity } from '../../lib/audit';
+import { notifyActivity } from '../../lib/notify';
 import { fyDateWhere } from '../../lib/fyFilter';
 
 export const inwardRouter = Router();
@@ -91,6 +92,8 @@ inwardRouter.post(
     ]);
     await logActivity(prisma, req.user!, 'create', 'inward', created.id,
       `Inward (purchase): ${ip?.name ?? 'party'} · ${ii?.name ?? 'item'} · ${input.qty}`);
+    await notifyActivity(prisma, req.user!, 'inward', 'New Inward entry',
+      `${req.user!.name} added Inward: ${ip?.name ?? 'party'} · ${ii?.name ?? 'item'} · ${input.qty}`);
     res.status(201).json(toInwardDTO(created));
   })
 );

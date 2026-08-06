@@ -101,6 +101,8 @@ const updateSchema = z.object({
   password: z.string().min(4).optional(),
   role: roleEnum.optional(),
   permissions: z.record(z.boolean()).optional(),
+  // Which activities notify this user (merged into preferences.notify).
+  notifyPrefs: z.record(z.boolean()).optional(),
 });
 
 usersRouter.patch(
@@ -129,6 +131,10 @@ usersRouter.patch(
     if (input.role !== undefined) data.role = input.role;
     if (input.permissions !== undefined) data.permissions = input.permissions;
     if (input.password) data.passwordHash = await bcrypt.hash(input.password, 12);
+    if (input.notifyPrefs !== undefined) {
+      const prev = (existing.preferences as Record<string, unknown>) ?? {};
+      data.preferences = { ...prev, notify: input.notifyPrefs };
+    }
 
     const user = await prisma.user.update({ where: { id: req.params.id }, data });
     await logActivity(prisma, req.user!, 'update', 'user', user.id, `User updated: ${existing.name}`);

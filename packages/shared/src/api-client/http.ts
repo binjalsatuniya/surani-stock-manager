@@ -42,6 +42,10 @@ export function createHttpClient(opts: HttpClientOptions) {
       ...init,
       headers,
       credentials: opts.credentials ?? 'include',
+      // Never serve a GET from the HTTP cache. Without this, the browser/Electron net stack could
+      // return a stale list (e.g. the Order Book) that omits a just-created row until the session
+      // was reset — the reason a freshly placed order only appeared after a re-login.
+      cache: 'no-store',
     });
 
     if (res.status === 401 && !_retried && !NO_RETRY_PATHS.includes(path)) {

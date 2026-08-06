@@ -9,6 +9,7 @@ import { requirePermission } from '../../middleware/requirePermission';
 import { ForbiddenError, HttpError, NotFoundError } from '../../middleware/errorHandler';
 import { addDays } from '../../lib/dateMath';
 import { logActivity } from '../../lib/audit';
+import { notifyActivity } from '../../lib/notify';
 
 export const expensesRouter = Router();
 expensesRouter.use(authenticate);
@@ -128,6 +129,8 @@ expensesRouter.post(
     });
     await logActivity(prisma, req.user!, 'create', 'expense', created.id,
       `Expense added: ₹${input.amount.toLocaleString('en-IN')} · ${input.expenseFor}`);
+    await notifyActivity(prisma, req.user!, 'expense', 'New expense added',
+      `${req.user!.name} added an expense: ₹${input.amount.toLocaleString('en-IN')} · ${input.expenseFor}`);
     res.status(201).json(toExpenseDTO(created));
   })
 );

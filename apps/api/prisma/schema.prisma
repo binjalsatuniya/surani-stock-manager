@@ -34,8 +34,24 @@ model User {
   auditLogEntries   AuditLog[]
   financialYearsMade FinancialYear[]
   loginLocations    LoginLocation[]
+  pushTokens        PushToken[]
 
   @@map("users")
+}
+
+// A device's push-notification address (Expo/FCM token). One row per device per user; the same
+// token is upserted on login so re-installs and token refreshes don't create duplicates.
+model PushToken {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  platform  String?  // android | ios
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@map("push_tokens")
 }
 
 model LoginLocation {

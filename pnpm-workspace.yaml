@@ -23,6 +23,7 @@ allowBuilds:
   electron: true
   esbuild: true
   prisma: true
+  protobufjs: true
 minimumReleaseAgeExclude:
   - '@expo/cli@57.0.6'
   - '@expo/config-plugins@57.0.3'

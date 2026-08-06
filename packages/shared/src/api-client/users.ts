@@ -10,7 +10,11 @@ export interface CreateUserInput {
   permissions?: PermissionMap;
 }
 
-export type UpdateUserInput = Partial<Omit<CreateUserInput, 'password'>> & { password?: string };
+export type UpdateUserInput = Partial<Omit<CreateUserInput, 'password'>> & {
+  password?: string;
+  // Which activities notify this user (admin-managed, merged into preferences.notify server-side).
+  notifyPrefs?: Record<string, boolean>;
+};
 
 export function createUsersClient(http: HttpClient) {
   return {

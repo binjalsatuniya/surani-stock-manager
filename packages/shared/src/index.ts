@@ -1,5 +1,6 @@
 export * from './types';
 export * from './permissions';
+export * from './notifications';
 export * from './fy';
 export * from './whatsapp';
 export * from './field-settings';

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { PERMS, defaultPermsForRole, hasPermission, roleLabel, type PermissionMap, type Role, type User } from '@surani/shared';
+import { PERMS, defaultPermsForRole, hasPermission, roleLabel, NOTIFY_ACTIVITIES, readNotifyPrefs, type PermissionMap, type Role, type User } from '@surani/shared';
 import { api } from '../lib/apiClient';
 import { useAuth } from '../context/AuthContext';
 
@@ -22,6 +22,7 @@ export function UsersPage() {
   const [editUser, setEditUser] = useState<User | null>(null);
   const [editRole, setEditRole] = useState<Role>('staff');
   const [editPerms, setEditPerms] = useState<PermissionMap>({} as PermissionMap);
+  const [editNotify, setEditNotify] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);
 
   const groups = useMemo(() => Array.from(new Set(PERMS.map((p) => p.group))), []);
@@ -107,6 +108,12 @@ export function UsersPage() {
     const resolved = {} as PermissionMap;
     PERMS.forEach((p) => (resolved[p.id] = hasPermission(u.role, u.permissions, p.id)));
     setEditPerms(resolved);
+    const notify = readNotifyPrefs(u.preferences);
+    setEditNotify(Object.fromEntries(NOTIFY_ACTIVITIES.map((a) => [a.key, notify[a.key] === true])));
+  }
+
+  function toggleNotify(key: string, value: boolean) {
+    setEditNotify((prev) => ({ ...prev, [key]: value }));
   }
 
   // Changing the role pre-fills that role's default permissions (the admin can then fine-tune).
@@ -130,7 +137,7 @@ export function UsersPage() {
     setSaving(true);
     setError('');
     try {
-      await api.users.update(editUser.id, { role: editRole, permissions: editPerms });
+      await api.users.update(editUser.id, { role: editRole, permissions: editPerms, notifyPrefs: editNotify });
       setEditUser(null);
       reload();
     } catch (e) {
@@ -261,6 +268,27 @@ export function UsersPage() {
                 ))}
               </div>
             ))}
+          </div>
+          <div style={{ marginTop: 20, borderTop: '1px solid #e2e8f0', paddingTop: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', color: '#64748b', marginBottom: 4 }}>
+              Phone Notifications
+            </div>
+            <p className="muted" style={{ marginTop: 0, marginBottom: 8, fontSize: 12 }}>
+              Send <strong>{editUser.name}</strong> a phone notification when another user does any of these.
+              (A user is never notified about their own actions.)
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '4px 16px' }}>
+              {NOTIFY_ACTIVITIES.map((a) => (
+                <label key={a.key} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '4px 0', fontSize: 13 }}>
+                  <input
+                    type="checkbox"
+                    checked={!!editNotify[a.key]}
+                    onChange={(e) => toggleNotify(a.key, e.target.checked)}
+                  />
+                  {a.label}
+                </label>
+              ))}
+            </div>
           </div>
           <div className="toolbar" style={{ marginTop: 16 }}>
             <button className="btn btn-primary" disabled={saving} onClick={onSaveEditor}>
