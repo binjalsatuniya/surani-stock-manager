@@ -6,6 +6,7 @@ import { api } from '../lib/apiClient';
 import { usePermission } from '../hooks/usePermission';
 import { useFieldSettings } from '../hooks/useFieldSettings';
 import { FieldLabel } from '../components/FieldLabel';
+import { useDialogs } from '../components/Dialogs';
 
 const TYPES: { value: PartyType; label: string }[] = [
   { value: 'debtor', label: 'Debtor (owes you)' },
@@ -32,6 +33,7 @@ const EMPTY = {
 
 export function PartiesPage() {
   const can = usePermission();
+  const { confirm } = useDialogs();
   const { required } = useFieldSettings();
   const canEditRow = can('edit_parties') || can('edit_transporters');
   const canDelete = can('delete_parties') || can('edit_transporters');
@@ -123,10 +125,14 @@ export function PartiesPage() {
   }
 
   async function onDelete(id: string) {
-    if (!confirm('Delete this party?')) return;
-    await api.parties.remove(id);
-    if (editingId === id) resetForm();
-    reload();
+    if (!(await confirm('Delete this party?', { okLabel: 'Delete', danger: true }))) return;
+    try {
+      await api.parties.remove(id);
+      if (editingId === id) resetForm();
+      reload();
+    } catch (e) {
+      await confirm(e instanceof Error ? e.message : 'Could not delete this party.', { okLabel: 'OK', cancelLabel: 'Close' });
+    }
   }
 
   async function onSaveSalesPerson() {
@@ -147,9 +153,13 @@ export function PartiesPage() {
     setSpPhone(s.phone || '');
   }
   async function onDeleteSalesPerson(id: string) {
-    if (!confirm('Delete this sales person?')) return;
-    await api.salesPersons.remove(id);
-    reloadSalesPersons();
+    if (!(await confirm('Delete this sales person?', { okLabel: 'Delete', danger: true }))) return;
+    try {
+      await api.salesPersons.remove(id);
+      reloadSalesPersons();
+    } catch (e) {
+      await confirm(e instanceof Error ? e.message : 'Could not delete.', { okLabel: 'OK', cancelLabel: 'Close' });
+    }
   }
 
   const salesPersonName = (id: string | null) =>

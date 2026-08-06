@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { Item, Outward, Party, PayStatus } from '@surani/shared';
 import { api } from '../lib/apiClient';
 import { usePermission } from '../hooks/usePermission';
+import { useDialogs } from '../components/Dialogs';
 import { useFinancialYear } from '../context/FinancialYearContext';
 import { useFieldSettings } from '../hooks/useFieldSettings';
 import { FieldLabel } from '../components/FieldLabel';
@@ -26,6 +27,7 @@ const EMPTY = {
 
 export function OutwardPage() {
   const can = usePermission();
+  const { confirm } = useDialogs();
   const canDelete = can('delete_outward');
   const canEdit = can('add_outward') || can('edit_outward') || canDelete;
   const { selectedFy } = useFinancialYear();
@@ -122,7 +124,7 @@ export function OutwardPage() {
   }
 
   async function onDelete(id: string) {
-    if (!confirm('Delete this outward entry?')) return;
+    if (!(await confirm('Delete this outward entry?', { okLabel: 'Delete', danger: true }))) return;
     await api.outward.remove(id);
     reload();
   }

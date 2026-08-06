@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { DeliveryType, Inward, Item, Party } from '@surani/shared';
 import { api } from '../lib/apiClient';
 import { usePermission } from '../hooks/usePermission';
+import { useDialogs } from '../components/Dialogs';
 import { useAuth } from '../context/AuthContext';
 import { useFinancialYear } from '../context/FinancialYearContext';
 import { useFieldSettings } from '../hooks/useFieldSettings';
@@ -28,6 +29,7 @@ const EMPTY = {
 
 export function InwardPage() {
   const can = usePermission();
+  const { confirm } = useDialogs();
   const { user } = useAuth();
   const canDelete = can('delete_inward');
   const canEdit = can('add_inward') || can('edit_inward') || canDelete;
@@ -203,7 +205,7 @@ export function InwardPage() {
   }
 
   async function onDelete(id: string) {
-    if (!confirm('Delete this inward entry?')) return;
+    if (!(await confirm('Delete this inward entry?', { okLabel: 'Delete', danger: true }))) return;
     await api.inward.remove(id);
     reload();
   }

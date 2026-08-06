@@ -114,15 +114,24 @@ partiesRouter.delete(
       throw new ForbiddenError(`Missing permission: ${requiredPerm}`);
     }
 
-    const result = await mutateOrQueue({
-      user: req.user!,
-      kind: 'delete',
-      target: 'party',
-      targetId: existing.id,
-      payload: { id: existing.id },
-      label: `Party: ${existing.name}`,
-      execute: () => prisma.party.delete({ where: { id: existing.id } }),
-    });
+    let result;
+    try {
+      result = await mutateOrQueue({
+        user: req.user!,
+        kind: 'delete',
+        target: 'party',
+        targetId: existing.id,
+        payload: { id: existing.id },
+        label: `Party: ${existing.name}`,
+        execute: () => prisma.party.delete({ where: { id: existing.id } }),
+      });
+    } catch (e) {
+      // Foreign-key violation → the party is still referenced by orders / purchases / payments.
+      if ((e as { code?: string }).code === 'P2003') {
+        throw new HttpError(409, `Cannot delete "${existing.name}" — it has linked orders, purchases, or payments. Remove or reassign those first.`);
+      }
+      throw e;
+    }
 
     if (result.executed) res.status(204).end();
     else res.status(202).json({ queued: true });

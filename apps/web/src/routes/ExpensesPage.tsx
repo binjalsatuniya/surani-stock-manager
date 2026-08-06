@@ -3,6 +3,7 @@ import { buildWhatsappLink, PAYMENT_MODES, type SalesPerson, type SalesPersonExp
 import { api } from '../lib/apiClient';
 import { useAuth } from '../context/AuthContext';
 import { usePermission } from '../hooks/usePermission';
+import { useDialogs } from '../components/Dialogs';
 import { exportExpenseLedgerPdf } from '../lib/pdfExport';
 import { getPdfLayout } from '../lib/pdfLayout';
 
@@ -20,6 +21,7 @@ const EMPTY = {
 export function ExpensesPage() {
   const { user } = useAuth();
   const can = usePermission();
+  const { confirm } = useDialogs();
   const canDelete = can('delete_expenses');
   const canEdit = can('add_expenses') || can('edit_expenses') || canDelete;
   const [salesPersons, setSalesPersons] = useState<SalesPerson[]>([]);
@@ -154,7 +156,7 @@ export function ExpensesPage() {
   }
 
   async function onDelete(id: string) {
-    if (!confirm('Delete this expense entry?')) return;
+    if (!(await confirm('Delete this expense entry?', { okLabel: 'Delete', danger: true }))) return;
     await api.expenses.remove(id);
     reload();
     if (ledgerSpId) openLedger(ledgerSpId);

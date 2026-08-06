@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import type { PermissionKey } from '@surani/shared';
 import { useAuth } from './context/AuthContext';
 import { usePermission } from './hooks/usePermission';
+import { useEnterKeyNav } from './hooks/useEnterKeyNav';
 import { Layout } from './components/Layout';
 import { LoginPage } from './routes/LoginPage';
 import { DashboardPage } from './routes/DashboardPage';
@@ -24,6 +25,7 @@ import { PdfLayoutPage } from './routes/PdfLayoutPage';
 import { ExpensesPage } from './routes/ExpensesPage';
 import { LoginLocationsPage } from './routes/LoginLocationsPage';
 import { FinancialYearProvider } from './context/FinancialYearContext';
+import { DialogProvider } from './components/Dialogs';
 
 // The landing page ("/") is the Dashboard for users who can see it; otherwise send them to the
 // first section they DO have access to (so a dispatch-only user lands on the Order Book instead of
@@ -54,11 +56,13 @@ function Home() {
 
 export function App() {
   const { user, loading } = useAuth();
+  useEnterKeyNav();
 
   if (loading) return null;
   if (!user) return <LoginPage />;
 
   return (
+    <DialogProvider>
     <FinancialYearProvider>
     <Routes>
       <Route element={<Layout />}>
@@ -85,5 +89,6 @@ export function App() {
       </Route>
     </Routes>
     </FinancialYearProvider>
+    </DialogProvider>
   );
 }

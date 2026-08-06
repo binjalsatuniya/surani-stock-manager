@@ -3,6 +3,7 @@ import { buildWhatsappLink, buildTelLink, PAYMENT_MODES, type DueLedgerGroup, ty
 import type { UnpaidInvoice } from '@surani/shared';
 import { api } from '../lib/apiClient';
 import { usePermission } from '../hooks/usePermission';
+import { useDialogs } from '../components/Dialogs';
 import { useWhatsappTemplates } from '../hooks/useWhatsappTemplates';
 import { useFinancialYear } from '../context/FinancialYearContext';
 import { useFieldSettings } from '../hooks/useFieldSettings';
@@ -17,6 +18,7 @@ const fmtDate = (d: string) => new Date(d).toLocaleDateString('en-IN', { day: '2
 
 export function PaymentsPage() {
   const can = usePermission();
+  const { confirm } = useDialogs();
   const { fill } = useWhatsappTemplates();
   const { selectedFy } = useFinancialYear();
   const { required } = useFieldSettings();
@@ -175,7 +177,7 @@ export function PaymentsPage() {
   }
 
   async function onDelete(id: string) {
-    if (!confirm('Delete this payment?')) return;
+    if (!(await confirm('Delete this payment?', { okLabel: 'Delete', danger: true }))) return;
     await api.payments.remove(id);
     reload();
   }

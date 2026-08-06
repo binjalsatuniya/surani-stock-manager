@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { buildWhatsappLink, deliveryTermsLabel, type Item, type Outward, type Party } from '@surani/shared';
 import { api } from '../lib/apiClient';
 import { usePermission } from '../hooks/usePermission';
+import { useDialogs } from '../components/Dialogs';
 import { useAuth } from '../context/AuthContext';
 import { useWhatsappTemplates } from '../hooks/useWhatsappTemplates';
 import { useFinancialYear } from '../context/FinancialYearContext';
@@ -29,6 +30,7 @@ function dueDateFor(m: Outward): string {
 
 export function OrderBookPage() {
   const can = usePermission();
+  const { promptText } = useDialogs();
   const canRate = can('view_order_rate'); // whether this user may see the sale rate/amount
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
@@ -144,7 +146,7 @@ export function OrderBookPage() {
     reload();
   }
   async function onCancel(id: string) {
-    const note = prompt('Cancel this order?\n\nReason for cancelling (optional):');
+    const note = await promptText('Cancel this order? Enter a reason (optional):', { okLabel: 'Cancel Order', cancelLabel: 'Keep Order' });
     if (note === null) return; // dismissed
     await api.orderbook.cancel(id, note.trim() || undefined);
     reload();
@@ -239,7 +241,8 @@ export function OrderBookPage() {
         <td>{m.handling || 0}</td>
         {canRate && <td>₹{Number(m.amount).toFixed(2)}</td>}
         <td>{m.deliveryType || '—'}</td>
-        <td>{payStatusLabel(m)}</td>
+        {canRate && <td>{payStatusLabel(m)}</td>}
+        <td>{m.note || '—'}</td>
         <td>{m.transporterName || transporterName(m.transporterId)}</td>
         <td style={{ textTransform: 'capitalize' }}>
           {m.fulfil}
@@ -320,7 +323,8 @@ export function OrderBookPage() {
       <th>Handling</th>
       {canRate && <th>Total</th>}
       <th>Delivery</th>
-      <th>Payment</th>
+      {canRate && <th>Payment</th>}
+      <th>Note</th>
       <th>Transporter</th>
       <th>Status</th>
       <th>Action</th>

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { buildWhatsappLink, type Item, type ItemUnit } from '@surani/shared';
 import { api } from '../lib/apiClient';
 import { usePermission } from '../hooks/usePermission';
+import { useDialogs } from '../components/Dialogs';
 import { useFieldSettings } from '../hooks/useFieldSettings';
 import { FieldLabel } from '../components/FieldLabel';
 
@@ -22,6 +23,7 @@ const EMPTY = {
 
 export function ItemsPage() {
   const can = usePermission();
+  const { confirm } = useDialogs();
   const { required } = useFieldSettings();
   const canAdd = can('add_items');
   const canEditRow = can('edit_items');
@@ -123,7 +125,7 @@ export function ItemsPage() {
   }
 
   async function onDelete(id: string) {
-    if (!confirm('Delete this item?')) return;
+    if (!(await confirm('Delete this item?', { okLabel: 'Delete', danger: true }))) return;
     await api.items.remove(id);
     if (editingId === id) resetForm();
     reload();
