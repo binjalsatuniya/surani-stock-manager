@@ -30,6 +30,7 @@ const orderSchema = z.object({
   deliveryType: z.enum(['ExWorks', 'FOR']),
   invNo: z.string().nullable().optional(),
   note: z.string().nullable().optional(),
+  deliveryDate: z.string().nullable().optional(),
 });
 
 // Place New Order — freight/handling are NOT posted now, only at dispatch (unlike manual outward).
@@ -62,6 +63,7 @@ ordersRouter.post(
         invNo: input.invNo || null,
         fulfil: 'pending',
         note: input.note || null,
+        deliveryDate: input.deliveryDate ? new Date(input.deliveryDate) : null,
         createdById: req.user!.id,
       },
     });

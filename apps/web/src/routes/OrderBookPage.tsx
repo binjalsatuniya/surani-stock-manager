@@ -241,6 +241,7 @@ export function OrderBookPage() {
         <td>{m.handling || 0}</td>
         {canRate && <td>₹{Number(m.amount).toFixed(2)}</td>}
         <td>{m.deliveryType || '—'}</td>
+        <td>{m.deliveryDate ? fmtDate(m.deliveryDate) : '—'}</td>
         {canRate && <td>{payStatusLabel(m)}</td>}
         <td>{m.note || '—'}</td>
         <td>{m.transporterName || transporterName(m.transporterId)}</td>
@@ -323,6 +324,7 @@ export function OrderBookPage() {
       <th>Handling</th>
       {canRate && <th>Total</th>}
       <th>Delivery</th>
+      <th>Delivery Date</th>
       {canRate && <th>Payment</th>}
       <th>Note</th>
       <th>Transporter</th>

@@ -24,6 +24,7 @@ const EMPTY = {
 export function ItemsPage() {
   const can = usePermission();
   const { confirm } = useDialogs();
+  const [tdsView, setTdsView] = useState<{ url: string; name: string } | null>(null);
   const { required } = useFieldSettings();
   const canAdd = can('add_items');
   const canEditRow = can('edit_items');
@@ -188,6 +189,12 @@ export function ItemsPage() {
                 <span className="muted" style={{ fontSize: 11, marginTop: 3 }}>
                   📄 {form.tdsAttachmentName}{' '}
                   <a
+                    onClick={() => setTdsView({ url: form.tdsAttachment, name: form.tdsAttachmentName })}
+                    style={{ cursor: 'pointer', color: '#147b8b' }}
+                  >
+                    view
+                  </a>{' · '}
+                  <a
                     onClick={() => {
                       set('tdsAttachment', '');
                       set('tdsAttachmentName', '');
@@ -240,9 +247,9 @@ export function ItemsPage() {
               <td>
                 {i.tdsAttachment ? (
                   <div style={{ display: 'flex', gap: 6 }}>
-                    <a href={i.tdsAttachment} target="_blank" rel="noreferrer" className="btn btn-sm" style={{ textDecoration: 'none' }} title="Open the TDS">
+                    <button className="btn btn-sm" onClick={() => setTdsView({ url: i.tdsAttachment, name: i.tdsAttachmentName || i.name })} title="Open the TDS">
                       📄 View
-                    </a>
+                    </button>
                     <button className="btn btn-sm" onClick={() => shareTds(i)} title="Download the TDS and open WhatsApp to send it">
                       📤 WhatsApp
                     </button>
@@ -278,6 +285,25 @@ export function ItemsPage() {
           )}
         </tbody>
       </table>
+
+      {tdsView && (
+        <div
+          onClick={() => setTdsView(null)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}
+        >
+          <div className="card" onClick={(e) => e.stopPropagation()} style={{ width: '90%', maxWidth: 900, height: '85%', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+              <strong style={{ flex: 1 }}>📄 {tdsView.name}</strong>
+              <button className="btn btn-sm" onClick={() => setTdsView(null)}>Close</button>
+            </div>
+            {tdsView.url.startsWith('data:image') || /\.(png|jpe?g|gif|webp)$/i.test(tdsView.name) ? (
+              <img src={tdsView.url} alt={tdsView.name} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', margin: 'auto' }} />
+            ) : (
+              <iframe src={tdsView.url} title={tdsView.name} style={{ flex: 1, border: 'none', width: '100%' }} />
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

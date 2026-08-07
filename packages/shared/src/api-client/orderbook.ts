@@ -11,6 +11,7 @@ export interface CreateOrderInput {
   deliveryType: 'ExWorks' | 'FOR';
   invNo?: string | null;
   note?: string | null;
+  deliveryDate?: string | null;
 }
 
 export interface DispatchInput {

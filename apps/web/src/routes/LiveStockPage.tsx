@@ -54,6 +54,7 @@ export function LiveStockPage() {
             <th>Live Stock</th>
             <th>Reorder Level</th>
             <th>Current Rate</th>
+            <th>Rate Updated</th>
             {canEdit && <th>Update Rate</th>}
           </tr>
         </thead>
@@ -71,6 +72,7 @@ export function LiveStockPage() {
                 <td style={{ fontWeight: 700 }}>{qty}</td>
                 <td>{i.reorder}</td>
                 <td>{i.rate}</td>
+                <td className="muted">{i.rateDate ? new Date(i.rateDate).toLocaleDateString('en-IN') : '—'}</td>
                 {canEdit && (
                   <td>
                     <div style={{ display: 'flex', gap: 6 }}>

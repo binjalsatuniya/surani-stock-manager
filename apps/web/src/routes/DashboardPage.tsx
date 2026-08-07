@@ -80,6 +80,7 @@ const EMPTY_ORDER = {
   gstPct: '18',
   deliveryType: 'ExWorks' as DeliveryType,
   note: '',
+  deliveryDate: '',
 };
 
 export function DashboardPage() {
@@ -216,6 +217,7 @@ export function DashboardPage() {
         gstPct: Number(order.gstPct) || 0,
         deliveryType: order.deliveryType,
         note: order.note.trim() || null,
+        deliveryDate: order.deliveryDate || null,
       });
 
       // Redirect that tab straight to WhatsApp (with the party's number if saved, otherwise
@@ -505,6 +507,10 @@ export function DashboardPage() {
             <div className="field" style={{ margin: 0, width: 150 }}>
               <FieldLabel required={required('outward.note')}>Note</FieldLabel>
               <input value={order.note} onChange={(e) => setOrd('note', e.target.value)} placeholder="Remarks…" style={{ width: '100%' }} />
+            </div>
+            <div className="field" style={{ margin: 0, width: 150 }}>
+              <label>Delivery Date</label>
+              <input type="date" value={order.deliveryDate} onChange={(e) => setOrd('deliveryDate', e.target.value)} style={{ width: '100%' }} />
             </div>
           </div>
           {oQty > 0 && oRate > 0 && (

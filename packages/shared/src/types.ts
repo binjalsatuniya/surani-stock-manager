@@ -173,6 +173,7 @@ export interface Outward {
   prevFulfil: FulfilStatus | null;
   dispatchedAt: string | null;
   deliveredAt: string | null;
+  deliveryDate: string | null;
   cancelledAt: string | null;
   cancelledBy: string | null;
   cancelNote: string | null;

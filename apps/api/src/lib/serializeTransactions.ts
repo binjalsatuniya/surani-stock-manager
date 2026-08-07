@@ -80,6 +80,7 @@ export function toOutwardDTO(o: PrismaOutward): Outward {
     prevFulfil: o.prevFulfil as FulfilStatus | null,
     dispatchedAt: d(o.dispatchedAt),
     deliveredAt: d(o.deliveredAt),
+    deliveryDate: d(o.deliveryDate),
     cancelledAt: d(o.cancelledAt),
     cancelledBy: o.cancelledById,
     cancelNote: o.cancelNote,

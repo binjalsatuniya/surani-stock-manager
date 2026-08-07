@@ -261,6 +261,7 @@ model Outward {
   prevFulfil      String?   @map("prev_fulfil")
   dispatchedAt    DateTime? @map("dispatched_at") @db.Date
   deliveredAt     DateTime? @map("delivered_at") @db.Date
+  deliveryDate    DateTime? @map("delivery_date") @db.Date
   cancelledAt     DateTime? @map("cancelled_at") @db.Date
   cancelledById   String?   @map("cancelled_by") @db.Uuid
   cancelledBy     User?     @relation("OutwardCancelledBy", fields: [cancelledById], references: [id])
