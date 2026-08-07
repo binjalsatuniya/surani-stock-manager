@@ -62,6 +62,7 @@ export function Layout() {
   const [order, setOrder] = useState<string[]>(() => user?.preferences?.menuOrder ?? loadOrder());
   const [customizing, setCustomizing] = useState(false);
   const [dragKey, setDragKey] = useState<string | null>(null);
+  const [mobileNav, setMobileNav] = useState(false); // phone: sidebar drawer open?
 
   useEffect(() => {
     if (!can('view_approvals')) return;
@@ -146,7 +147,8 @@ export function Layout() {
 
   return (
     <div className="app-shell">
-      <nav className="sidebar">
+      {mobileNav && <div className="nav-backdrop" onClick={() => setMobileNav(false)} />}
+      <nav className={`sidebar${mobileNav ? ' open' : ''}`}>
         <div className="brand" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <SuraniFlame size={30} />
           <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.15 }}>
@@ -200,7 +202,7 @@ export function Layout() {
                 {d.label}
               </span>
             ) : (
-              <NavLink to={d.to} end={d.to === '/'} style={{ flex: 1 }}>
+              <NavLink to={d.to} end={d.to === '/'} style={{ flex: 1 }} onClick={() => setMobileNav(false)}>
                 {d.label}
                 {d.key === 'approvals' && pendingApprovals > 0 && (
                   <span
@@ -225,6 +227,7 @@ export function Layout() {
       <div className="main">
         <div className="topbar">
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button className="hamburger" onClick={() => setMobileNav((v) => !v)} title="Menu" aria-label="Menu">☰</button>
             {location.pathname !== '/' && (
               <button className="btn btn-sm" onClick={() => navigate(-1)} title="Go back to the previous screen">
                 ← Back
