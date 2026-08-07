@@ -26,7 +26,9 @@ export function SearchSelect({
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const [highlight, setHighlight] = useState(0);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
   const selected = options.find((o) => o.id === value);
   // Closed: show the chosen name. Open: show what the user is typing.
@@ -37,6 +39,21 @@ export function SearchSelect({
     if (!q) return options;
     return options.filter((o) => o.label.toLowerCase().includes(q));
   }, [options, query]);
+
+  // The keyboard-navigable list = an optional "Select…" (clear) row followed by the filtered options.
+  const items: SearchSelectOption[] = allowClear ? [{ id: '', label: 'Select…' }, ...filtered] : filtered;
+
+  // Default the highlight to the first real option whenever the list changes.
+  useEffect(() => {
+    setHighlight(allowClear && filtered.length ? 1 : 0);
+  }, [query, open, allowClear, filtered.length]);
+
+  // Keep the highlighted row scrolled into view.
+  useEffect(() => {
+    if (!open || !listRef.current) return;
+    const el = listRef.current.querySelector(`[data-idx="${highlight}"]`) as HTMLElement | null;
+    el?.scrollIntoView({ block: 'nearest' });
+  }, [highlight, open]);
 
   useEffect(() => {
     function onDocMouseDown(e: MouseEvent) {
@@ -71,6 +88,29 @@ export function SearchSelect({
           setQuery(e.target.value);
           setOpen(true);
         }}
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            setOpen(true);
+            setHighlight((h) => Math.min(h + 1, items.length - 1));
+          } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            setHighlight((h) => Math.max(h - 1, 0));
+          } else if (e.key === 'Enter') {
+            if (open && items[highlight]) {
+              // Select the highlighted row; stop the global "Enter = next field" from also firing.
+              e.preventDefault();
+              e.stopPropagation();
+              choose(items[highlight].id);
+            }
+          } else if (e.key === 'Escape') {
+            if (open) {
+              e.stopPropagation();
+              setOpen(false);
+              setQuery('');
+            }
+          }
+        }}
         style={{ width: '100%', paddingRight: 26 }}
         autoComplete="off"
       />
@@ -98,6 +138,7 @@ export function SearchSelect({
       </span>
       {open && !disabled && (
         <div
+          ref={listRef}
           style={{
             position: 'absolute',
             zIndex: 50,
@@ -113,28 +154,20 @@ export function SearchSelect({
             boxShadow: '0 8px 24px rgba(0,0,0,.12)',
           }}
         >
-          {allowClear && (
+          {items.map((o, idx) => (
             <div
-              onMouseDown={(e) => {
-                e.preventDefault();
-                choose('');
-              }}
-              style={{ padding: '8px 10px', cursor: 'pointer', color: '#64748b' }}
-            >
-              Select…
-            </div>
-          )}
-          {filtered.map((o) => (
-            <div
-              key={o.id}
+              key={o.id || '__clear'}
+              data-idx={idx}
               onMouseDown={(e) => {
                 e.preventDefault();
                 choose(o.id);
               }}
+              onMouseEnter={() => setHighlight(idx)}
               style={{
                 padding: '8px 10px',
                 cursor: 'pointer',
-                background: o.id === value ? '#f0fdfa' : '#fff',
+                color: o.id === '' ? '#64748b' : undefined,
+                background: idx === highlight ? '#e0f2f1' : o.id === value && o.id ? '#f0fdfa' : '#fff',
               }}
             >
               {o.label}
