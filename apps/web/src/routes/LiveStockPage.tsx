@@ -5,7 +5,7 @@ import { usePermission } from '../hooks/usePermission';
 
 export function LiveStockPage() {
   const can = usePermission();
-  const canEdit = can('edit_items');
+  const canEdit = can('edit_rate');
   const [items, setItems] = useState<Item[]>([]);
   const [stock, setStock] = useState<Record<string, number>>({});
   const [rateEdits, setRateEdits] = useState<Record<string, string>>({});

@@ -23,6 +23,7 @@ export const PERMS = [
 
   { id: 'view_items', label: 'View Items & Live Stock', group: 'Item Master' },
   { id: 'view_live_stock', label: 'See Live Stock & Rate tab', group: 'Item Master' },
+  { id: 'edit_rate', label: 'Update Live Stock Rate', group: 'Item Master' },
   { id: 'add_items', label: 'Add Items', group: 'Item Master' },
   { id: 'edit_items', label: 'Edit Items', group: 'Item Master' },
   { id: 'delete_items', label: 'Delete Items', group: 'Item Master' },
@@ -74,6 +75,8 @@ const LEGACY_FALLBACK: Partial<Record<PermissionKey, PermissionKey>> = {
   view_whatsapp: 'send_whatsapp',
   view_field_rules: 'manage_users',
   view_live_stock: 'view_items',
+  // Updating the rate used to require edit_items; keep that access for existing users.
+  edit_rate: 'edit_items',
   // New: anyone who can view the Order Book keeps seeing the rate/amount until an admin turns it
   // off for a specific user (so existing users are unaffected).
   view_order_rate: 'view_orderbook',

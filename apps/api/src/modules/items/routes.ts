@@ -5,7 +5,8 @@ import { toItemDTO } from '../../lib/serializeMasters';
 import { asyncHandler } from '../../lib/asyncHandler';
 import { authenticate } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/requirePermission';
-import { NotFoundError } from '../../middleware/errorHandler';
+import { hasPermission } from '@surani/shared';
+import { NotFoundError, ForbiddenError } from '../../middleware/errorHandler';
 import { mutateOrQueue } from '../../lib/approvalGate';
 import { logActivity } from '../../lib/audit';
 
@@ -76,9 +77,15 @@ itemsRouter.post(
 
 itemsRouter.patch(
   '/:id',
-  requirePermission('edit_items'),
   asyncHandler(async (req, res) => {
     const input = itemSchema.partial().parse(req.body);
+    // Full item edits need edit_items. A rate-only update (Live Stock "Update Rate") also accepts
+    // the narrower edit_rate permission, so someone can maintain prices without full item editing.
+    const rateOnly = Object.keys(input).every((k) => k === 'rate' || k === 'rateDate');
+    const allowed =
+      hasPermission(req.user!.role, req.user!.permissions, 'edit_items') ||
+      (rateOnly && hasPermission(req.user!.role, req.user!.permissions, 'edit_rate'));
+    if (!allowed) throw new ForbiddenError('Missing permission: edit_items');
     const existing = await prisma.item.findUnique({ where: { id: req.params.id } });
     if (!existing) throw new NotFoundError('Item not found');
     const item = await prisma.item.update({
