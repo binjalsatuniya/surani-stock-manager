@@ -3,6 +3,7 @@
 
 export const PERMS = [
   { id: 'view_dashboard', label: 'View Dashboard', group: 'Core' },
+  { id: 'view_shortcuts', label: 'See Shortcuts page', group: 'Core' },
 
   { id: 'view_inward', label: 'View Inward', group: 'Inward' },
   { id: 'add_inward', label: 'Add Inward', group: 'Inward' },
@@ -75,6 +76,8 @@ const LEGACY_FALLBACK: Partial<Record<PermissionKey, PermissionKey>> = {
   // New: anyone who can view the Order Book keeps seeing the rate/amount until an admin turns it
   // off for a specific user (so existing users are unaffected).
   view_order_rate: 'view_orderbook',
+  // Shortcuts page defaults to visible (falls back to Dashboard access) until an admin turns it off.
+  view_shortcuts: 'view_dashboard',
 };
 
 export type PermissionMap = Record<PermissionKey, boolean>;
