@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { NAV_SHORTCUTS, getNavKey } from '../hooks/useAppShortcuts';
+import { usePermission } from '../hooks/usePermission';
 
 // On/off flags (read live by the handlers).
 export const SHORTCUT_KEYS = { enterNav: 'shortcut.enterNav', escSave: 'shortcut.escSave', navKeys: 'shortcut.navKeys' } as const;
@@ -24,6 +25,7 @@ const FIXED: { key: string; what: string }[] = [
 ];
 
 export function ShortcutsPage() {
+  const canEdit = usePermission()('edit_shortcuts');
   const [enterNav, setEnterNav] = useState(shortcutEnabled('enterNav'));
   const [escSave, setEscSave] = useState(shortcutEnabled('escSave'));
   const [navKeys, setNavKeys] = useState(shortcutEnabled('navKeys'));
@@ -62,7 +64,7 @@ export function ShortcutsPage() {
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Jump to a section</h3>
         <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
-          Hold <strong>Alt</strong> and press the letter. You can change any letter below.
+          Hold <strong>Alt</strong> and press the letter.{canEdit ? ' You can change any letter below.' : ' (View only — an admin controls these.)'}
         </p>
         {NAV_SHORTCUTS.map((n) => (
           <div key={n.to} style={rowStyle}>
@@ -72,6 +74,7 @@ export function ShortcutsPage() {
                 value={(navMap[n.to] || '').toUpperCase()}
                 onChange={(e) => setNavKey(n.to, e.target.value)}
                 maxLength={1}
+                disabled={!canEdit}
                 style={{ width: 42, textAlign: 'center', textTransform: 'uppercase', fontWeight: 700 }}
               />
             </div>
@@ -83,15 +86,15 @@ export function ShortcutsPage() {
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Turn shortcuts on / off</h3>
         <label style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '6px 0' }}>
-          <input type="checkbox" checked={enterNav} onChange={(e) => toggle('enterNav', e.target.checked, setEnterNav)} />
+          <input type="checkbox" disabled={!canEdit} checked={enterNav} onChange={(e) => toggle('enterNav', e.target.checked, setEnterNav)} />
           <span><strong>Enter</strong> moves to the next field and saves on the last field</span>
         </label>
         <label style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '6px 0' }}>
-          <input type="checkbox" checked={escSave} onChange={(e) => toggle('escSave', e.target.checked, setEscSave)} />
+          <input type="checkbox" disabled={!canEdit} checked={escSave} onChange={(e) => toggle('escSave', e.target.checked, setEscSave)} />
           <span><strong>Esc</strong> asks to save unsaved changes in an edit form</span>
         </label>
         <label style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '6px 0' }}>
-          <input type="checkbox" checked={navKeys} onChange={(e) => toggle('navKeys', e.target.checked, setNavKeys)} />
+          <input type="checkbox" disabled={!canEdit} checked={navKeys} onChange={(e) => toggle('navKeys', e.target.checked, setNavKeys)} />
           <span><strong>Alt + key</strong> section jumps, and <strong>Ctrl + S</strong> to save</span>
         </label>
         <p className="muted" style={{ fontSize: 12 }}>Changes apply immediately on this device.</p>
