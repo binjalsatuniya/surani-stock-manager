@@ -38,6 +38,34 @@ export function DialogProvider({ children }: { children: ReactNode }) {
     if (pending?.kind === 'prompt') setTimeout(() => inputRef.current?.focus(), 30);
   }, [pending]);
 
+  // Global Esc: if the user is typing in an editor form (a .card/form that has a "Cancel" button)
+  // and no dialog is open, ask whether to save the unsaved changes, then Save or Discard.
+  const pendingRef = useRef<Pending | null>(null);
+  useEffect(() => { pendingRef.current = pending; }, [pending]);
+  useEffect(() => {
+    function onEsc(e: KeyboardEvent) {
+      if (e.key !== 'Escape' || pendingRef.current) return;
+      const active = document.activeElement as HTMLElement | null;
+      if (!active) return;
+      if (!['INPUT', 'SELECT', 'TEXTAREA'].includes(active.tagName)) return;
+      const container = active.closest('form, .card') as HTMLElement | null;
+      if (!container) return;
+      const buttons = Array.from(container.querySelectorAll('button')) as HTMLButtonElement[];
+      const cancelBtn = buttons.find((b) => /^\s*cancel\s*$/i.test(b.textContent || ''));
+      if (!cancelBtn) return; // not an editor form (add-forms have no Cancel)
+      const saveBtn = container.querySelector('button.btn-primary') as HTMLButtonElement | null;
+      e.preventDefault();
+      active.blur();
+      void (async () => {
+        const save = await confirm('You have unsaved changes. Save them?', { okLabel: 'Save', cancelLabel: 'Discard' });
+        if (save) saveBtn?.click();
+        else cancelBtn.click();
+      })();
+    }
+    document.addEventListener('keydown', onEsc);
+    return () => document.removeEventListener('keydown', onEsc);
+  }, [confirm]);
+
   function settle(value: boolean | string | null) {
     if (!pending) return;
     if (pending.kind === 'confirm') pending.resolve(value as boolean);
