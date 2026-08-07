@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 import { roleLabel, type PermissionKey } from '@surani/shared';
 import { useAuth } from '../context/AuthContext';
 import { usePermission } from '../hooks/usePermission';
+import { useAppShortcuts } from '../hooks/useAppShortcuts';
 import { useFinancialYear } from '../context/FinancialYearContext';
 import { SuraniFlame } from './Logo';
 import { api } from '../lib/apiClient';
@@ -54,6 +55,7 @@ export function Layout() {
   const can = usePermission();
   const navigate = useNavigate();
   const location = useLocation();
+  useAppShortcuts(navigate, can);
   const { fys, selectedFy, setSelectedFy, refreshFys } = useFinancialYear();
   const [pendingApprovals, setPendingApprovals] = useState(0);
   // Prefer the account-saved order (follows the user across devices); fall back to this browser's.
