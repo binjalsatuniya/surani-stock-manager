@@ -45,6 +45,7 @@ export function DialogProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     function onEsc(e: KeyboardEvent) {
       if (e.key !== 'Escape' || pendingRef.current) return;
+      if (localStorage.getItem('shortcut.escSave') === 'off') return;
       const active = document.activeElement as HTMLElement | null;
       if (!active) return;
       if (!['INPUT', 'SELECT', 'TEXTAREA'].includes(active.tagName)) return;

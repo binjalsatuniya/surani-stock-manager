@@ -464,6 +464,12 @@ export function DashboardPage() {
                   >
                     Live stock: {avail} {it?.unit || ''}
                     {short ? ' · not enough!' : low ? ' · low' : ''}
+                    {it && (
+                      <span style={{ fontWeight: 500 }}>
+                        {' · '}Rate ₹{it.rate}
+                        {it.rateDate ? ` (updated ${fmtDate(it.rateDate)})` : ''}
+                      </span>
+                    )}
                   </div>
                 );
               })()}

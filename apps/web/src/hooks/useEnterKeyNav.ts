@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { shortcutEnabled } from '../routes/ShortcutsPage';
 
 // Enter moves focus to the next field in the same form/card; on the last field it triggers the
 // form's primary (Save/Add) button. Textareas keep Enter for newlines. This is the data-entry flow
@@ -7,6 +8,7 @@ export function useEnterKeyNav() {
   useEffect(() => {
     function handler(e: KeyboardEvent) {
       if (e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (!shortcutEnabled('enterNav')) return;
       const target = e.target as HTMLElement | null;
       if (!target) return;
       const tag = target.tagName;
