@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ChangeEvent } from 'react';
 import { buildWhatsappLink, deliveryTermsLabel, type Item, type Outward, type Party } from '@surani/shared';
 import { api } from '../lib/apiClient';
 import { usePermission } from '../hooks/usePermission';
@@ -55,6 +55,9 @@ export function OrderBookPage() {
   const [dTransporter, setDTransporter] = useState('');
   const [dFreightRate, setDFreightRate] = useState('');
   const [dVehicle, setDVehicle] = useState('');
+  const [dInvoiceFile, setDInvoiceFile] = useState(''); // new invoice PDF as a data URL (empty = keep existing)
+  const [dInvoiceName, setDInvoiceName] = useState('');
+  const [invoiceView, setInvoiceView] = useState<{ url: string; name: string } | null>(null);
   const [dHandlingAgent, setDHandlingAgent] = useState('');
   const [dHandlingRate, setDHandlingRate] = useState('');
 
@@ -83,6 +86,8 @@ export function OrderBookPage() {
     const dfltFreight = parties.find((p) => p.id === m.partyId)?.defaultFreight || 0;
     setDFreightRate(String(m.freightRate || dfltFreight || ''));
     setDVehicle(m.vehicle || '');
+    setDInvoiceFile('');
+    setDInvoiceName(m.invoiceFileName || '');
     setDHandlingAgent(m.handlingAgentId || '');
     setDHandlingRate(String(m.handlingRate || ''));
   }
@@ -96,6 +101,8 @@ export function OrderBookPage() {
         transporterId: dTransporter || null,
         freightRate: Number(dFreightRate) || 0,
         vehicle: dVehicle.trim() || null,
+        invoiceFile: dInvoiceFile || undefined, // undefined = keep the existing file
+        invoiceFileName: dInvoiceFile ? dInvoiceName || undefined : undefined,
         handlingAgentId: dHandlingAgent || null,
         handlingRate: Number(dHandlingRate) || 0,
       });
@@ -150,6 +157,32 @@ export function OrderBookPage() {
     if (note === null) return; // dismissed
     await api.orderbook.cancel(id, note.trim() || undefined);
     reload();
+  }
+  function onPickInvoice(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { setError('Invoice file is too large (max 5 MB).'); return; }
+    const reader = new FileReader();
+    reader.onload = () => { setDInvoiceFile(String(reader.result)); setDInvoiceName(file.name); };
+    reader.readAsDataURL(file);
+  }
+  async function openInvoice(m: Outward) {
+    try {
+      const res = await api.orderbook.getInvoice(m.id);
+      if (res.invoiceFile) setInvoiceView({ url: res.invoiceFile, name: res.invoiceFileName || 'Invoice' });
+    } catch (e) { setError(e instanceof Error ? e.message : 'Could not open the invoice'); }
+  }
+  async function shareInvoice(m: Outward) {
+    try {
+      const res = await api.orderbook.getInvoice(m.id);
+      if (!res.invoiceFile) return;
+      const a = document.createElement('a');
+      a.href = res.invoiceFile;
+      a.download = res.invoiceFileName || `${partyName(m.partyId)}-invoice`;
+      document.body.appendChild(a); a.click(); a.remove();
+      const party = partyById(m.partyId);
+      window.open(buildWhatsappLink(party?.phone, `Invoice — ${partyName(m.partyId)}`), '_blank');
+    } catch (e) { setError(e instanceof Error ? e.message : 'Could not share the invoice'); }
   }
   async function onRestore(id: string) {
     await api.orderbook.restore(id);
@@ -299,6 +332,16 @@ export function OrderBookPage() {
                 Slip
               </button>
             )}
+            {m.invoiceFileName && can('view_invoice') && (
+              <button className="btn btn-sm" onClick={() => openInvoice(m)} title="View the attached invoice">
+                📄 Invoice
+              </button>
+            )}
+            {m.invoiceFileName && can('send_whatsapp') && (
+              <button className="btn btn-sm btn-whatsapp" onClick={() => shareInvoice(m)} title="Download invoice & open WhatsApp to share">
+                📤 Invoice
+              </button>
+            )}
             {can('send_whatsapp') &&
               (m.fulfil === 'dispatched' || m.fulfil === 'delivered') &&
               m.transporterId &&
@@ -425,6 +468,16 @@ export function OrderBookPage() {
               <label>Vehicle Number</label>
               <input value={dVehicle} onChange={(e) => setDVehicle(e.target.value)} placeholder="e.g. GJ-01-AB-1234" style={{ width: 150 }} />
             </div>
+            <div className="field" style={{ margin: 0, minWidth: 220 }}>
+              <label>Invoice PDF (scan)</label>
+              <input type="file" accept="application/pdf,image/*" onChange={onPickInvoice} />
+              {dInvoiceName && (
+                <span className="muted" style={{ fontSize: 11, marginTop: 3 }}>
+                  📄 {dInvoiceName}
+                  {dInvoiceFile ? '' : ' (already attached)'}
+                </span>
+              )}
+            </div>
             <div className="field" style={{ margin: 0 }}>
               <label>Handling Agent</label>
               <select value={dHandlingAgent} onChange={(e) => setDHandlingAgent(e.target.value)}>
@@ -533,6 +586,25 @@ export function OrderBookPage() {
           <div className="toolbar" style={{ marginTop: 4 }}>
             <button className="btn btn-primary" onClick={confirmEdit}>Save Changes</button>
             <button className="btn btn-sm" onClick={() => setEditing(null)}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {invoiceView && (
+        <div
+          onClick={() => setInvoiceView(null)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}
+        >
+          <div className="card" onClick={(e) => e.stopPropagation()} style={{ width: '90%', maxWidth: 900, height: '85%', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+              <strong style={{ flex: 1 }}>📄 {invoiceView.name}</strong>
+              <button className="btn btn-sm" onClick={() => setInvoiceView(null)}>Close</button>
+            </div>
+            {invoiceView.url.startsWith('data:image') || /\.(png|jpe?g|gif|webp)$/i.test(invoiceView.name) ? (
+              <img src={invoiceView.url} alt={invoiceView.name} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', margin: 'auto' }} />
+            ) : (
+              <iframe src={invoiceView.url} title={invoiceView.name} style={{ flex: 1, border: 'none', width: '100%' }} />
+            )}
           </div>
         </div>
       )}

@@ -22,6 +22,8 @@ export interface DispatchInput {
   handlingAgentId?: string | null;
   handlingRate?: number;
   vehicle?: string | null;
+  invoiceFile?: string | null;
+  invoiceFileName?: string | null;
 }
 
 export function createOrdersClient(http: HttpClient) {
@@ -39,6 +41,7 @@ export function createOrderbookClient(http: HttpClient) {
     dispatch: (id: string, input: DispatchInput) => http.post<Outward>(`/orderbook/${id}/dispatch`, input),
     deliver: (id: string) => http.post<Outward>(`/orderbook/${id}/deliver`),
     cancel: (id: string, note?: string) => http.post<Outward>(`/orderbook/${id}/cancel`, { note }),
+    getInvoice: (id: string) => http.get<{ invoiceFile: string | null; invoiceFileName: string | null }>(`/orderbook/${id}/invoice`),
     restore: (id: string) => http.post<Outward>(`/orderbook/${id}/restore`),
   };
 }

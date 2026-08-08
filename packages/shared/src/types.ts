@@ -177,6 +177,8 @@ export interface Outward {
   cancelledAt: string | null;
   cancelledBy: string | null;
   cancelNote: string | null;
+  invoiceFile: string | null;
+  invoiceFileName: string | null;
   // Resolved names embedded by the server (Order Book list) so screens can show them without
   // loading the permission-gated Parties/Items lists. Optional — other endpoints may omit them.
   partyName?: string | null;

@@ -84,6 +84,10 @@ export function toOutwardDTO(o: PrismaOutward): Outward {
     cancelledAt: d(o.cancelledAt),
     cancelledBy: o.cancelledById,
     cancelNote: o.cancelNote,
+    // The blob itself is stripped from list responses (fetched on demand); the name always rides
+    // along so the UI knows an invoice is attached.
+    invoiceFile: o.invoiceFile,
+    invoiceFileName: o.invoiceFileName,
     // Present when the caller included the relations (e.g. the Order Book list); null otherwise.
     partyName: (o as { party?: { name?: string } }).party?.name ?? null,
     itemName: (o as { item?: { name?: string } }).item?.name ?? null,

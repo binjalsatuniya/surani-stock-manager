@@ -92,7 +92,23 @@ orderbookRouter.get(
         handlingAgent: { select: { name: true } },
       },
     });
-    res.json(rows.map(toOutwardDTO));
+    // Strip the (potentially large) invoice blob from the list — the name stays so the UI knows an
+    // invoice exists; the file itself is fetched on demand via GET /orderbook/:id/invoice.
+    res.json(rows.map((r) => toOutwardDTO({ ...r, invoiceFile: null })));
+  })
+);
+
+// Fetch the attached invoice file for one order — gated by view_invoice.
+orderbookRouter.get(
+  '/:id/invoice',
+  requirePermission('view_invoice'),
+  asyncHandler(async (req, res) => {
+    const row = await prisma.outward.findUnique({
+      where: { id: req.params.id },
+      select: { invoiceFile: true, invoiceFileName: true },
+    });
+    if (!row) throw new NotFoundError('Order not found');
+    res.json({ invoiceFile: row.invoiceFile, invoiceFileName: row.invoiceFileName });
   })
 );
 
@@ -104,6 +120,8 @@ const dispatchSchema = z.object({
   handlingAgentId: z.string().uuid().nullable().optional(),
   handlingRate: z.coerce.number().default(0),
   vehicle: z.string().nullable().optional(),
+  invoiceFile: z.string().nullable().optional(),
+  invoiceFileName: z.string().nullable().optional(),
 });
 
 orderbookRouter.post(
@@ -144,6 +162,9 @@ orderbookRouter.post(
           dispatchedAt: new Date(),
           transporterId: input.transporterId || null,
           vehicle: input.vehicle || null,
+          // Only replace the invoice when a new file is sent; omitting it keeps the existing one.
+          invoiceFile: input.invoiceFile === undefined ? existing.invoiceFile : input.invoiceFile || null,
+          invoiceFileName: input.invoiceFileName === undefined ? existing.invoiceFileName : input.invoiceFileName || null,
           freightRate: input.freightRate,
           freight,
           handlingAgentId: input.handlingAgentId || null,
