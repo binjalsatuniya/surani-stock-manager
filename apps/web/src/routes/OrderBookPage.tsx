@@ -100,7 +100,11 @@ export function OrderBookPage() {
   }
 
   async function confirmDispatch() {
-    if (!dispatchingId || !dInvNo || !dInvDate) return;
+    if (!dispatchingId) return;
+    // Previously this returned silently, so the button looked broken when a field was blank.
+    if (!dInvNo.trim()) return setError('Enter the invoice number.');
+    if (!dInvDate) return setError('Enter the invoice date.');
+    setError('');
     try {
       await api.orderbook.dispatch(dispatchingId, {
         invNo: dInvNo,
@@ -328,7 +332,7 @@ export function OrderBookPage() {
         {dispatchingId === m.id && (
           <tr>
             <td colSpan={colCount} style={{ background: '#f8fafc' }}>
-              {dispatchPanel()}
+              {dispatchPanel(m)}
             </td>
           </tr>
         )}
@@ -362,9 +366,20 @@ export function OrderBookPage() {
         </td>
         <td>
           <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-            {m.fulfil === 'pending' && can('dispatch_order') && (
-              <button className="btn btn-sm btn-primary" onClick={() => openDispatch(m)}>
-                Dispatch
+            {/* Re-opening the panel on a dispatched order is how its invoice, transporter,
+                vehicle and freight/handling get corrected — the API deletes and re-posts the
+                freight/handling entries, which a plain field edit would not do. */}
+            {(m.fulfil === 'pending' || m.fulfil === 'dispatched') && can('dispatch_order') && (
+              <button
+                className={m.fulfil === 'pending' ? 'btn btn-sm btn-primary' : 'btn btn-sm'}
+                onClick={() => (dispatchingId === m.id ? setDispatchingId(null) : openDispatch(m))}
+                title={
+                  m.fulfil === 'pending'
+                    ? 'Enter invoice & transport details, then dispatch'
+                    : 'Correct the invoice, transporter, vehicle or freight/handling on this dispatch'
+                }
+              >
+                {m.fulfil === 'pending' ? 'Dispatch' : 'Edit Dispatch'}
               </button>
             )}
             {m.fulfil === 'dispatched' && can('dispatch_order') && (
@@ -431,10 +446,18 @@ export function OrderBookPage() {
     );
   }
 
-  function dispatchPanel() {
+  function dispatchPanel(m: Outward) {
+    const redispatch = m.fulfil === 'dispatched';
     return (
       <>
-        <div style={{ fontWeight: 600, margin: '4px 0 8px' }}>Dispatch Order</div>
+        <div style={{ fontWeight: 600, margin: '4px 0 8px' }}>
+          {redispatch ? 'Edit Dispatch' : 'Dispatch Order'} — {partyName(m.partyId)} · {itemName(m.itemId)}
+        </div>
+        {redispatch && (
+          <div className="muted" style={{ fontSize: 11, marginBottom: 8 }}>
+            Saving re-posts this order's freight and handling entries with the values below.
+          </div>
+        )}
         <div className="toolbar">
           <div className="field" style={{ margin: 0 }}>
             <label>Invoice No.</label>
@@ -527,9 +550,10 @@ export function OrderBookPage() {
             <div style={{ marginTop: 4 }}>You can still dispatch — this is only a warning.</div>
           </div>
         )}
+        {error && <div className="login-err show" style={{ marginTop: 6 }}>{error}</div>}
         <div className="toolbar" style={{ marginTop: 6 }}>
           <button className="btn btn-primary" onClick={confirmDispatch}>
-            Confirm Dispatch
+            {redispatch ? 'Save Dispatch Details' : 'Confirm Dispatch'}
           </button>
           <button className="btn btn-sm" onClick={() => setDispatchingId(null)}>
             Cancel
@@ -587,6 +611,7 @@ export function OrderBookPage() {
             <input value={ed.note} onChange={(e) => setEd({ ...ed, note: e.target.value })} />
           </div>
         </div>
+        {error && <div className="login-err show" style={{ marginTop: 6 }}>{error}</div>}
         <div className="toolbar" style={{ marginTop: 6 }}>
           <button className="btn btn-primary" onClick={confirmEdit}>Save Changes</button>
           <button className="btn btn-sm" onClick={() => setEditing(null)}>Cancel</button>
@@ -640,7 +665,8 @@ export function OrderBookPage() {
         )}
       </div>
 
-      {error && <div className="login-err show">{error}</div>}
+      {/* While an inline panel is open its own copy of the error is shown beside its buttons. */}
+      {error && !dispatchingId && !editing && <div className="login-err show">{error}</div>}
 
       {/* Date-range filter — view orders for a specific period. */}
       <div className="card" style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
