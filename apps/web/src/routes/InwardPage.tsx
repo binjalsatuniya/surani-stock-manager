@@ -10,6 +10,10 @@ import { useFieldSettings } from '../hooks/useFieldSettings';
 import { FieldLabel } from '../components/FieldLabel';
 import { SearchSelect } from '../components/SearchSelect';
 
+// The Indian GST slabs, same list the New Order form offers. Imports are picked from this rather
+// than typed — an import is usually 0, but customs can land it on any slab.
+const GST_SLABS = ['0', '5', '12', '18', '28'];
+
 const EMPTY = {
   date: new Date().toISOString().slice(0, 10),
   partyId: '',
@@ -360,7 +364,17 @@ export function InwardPage() {
           </div>
           <div className="field" style={{ margin: 0 }}>
             <label>GST %</label>
-            <input value={ed.gstPct} onChange={(e) => setEd({ ...ed, gstPct: e.target.value })} style={{ width: 70 }} />
+            {isImporterParty(ed.partyId) ? (
+              <select value={ed.gstPct} onChange={(e) => setEd({ ...ed, gstPct: e.target.value })} style={{ width: 90 }}>
+                {/* Keep an off-slab saved value selectable, so opening the form can't silently
+                    round it to the nearest slab. */}
+                {(GST_SLABS.includes(ed.gstPct) ? GST_SLABS : [...GST_SLABS, ed.gstPct]).map((g) => (
+                  <option key={g} value={g}>{g}%</option>
+                ))}
+              </select>
+            ) : (
+              <input value={ed.gstPct} onChange={(e) => setEd({ ...ed, gstPct: e.target.value })} style={{ width: 70 }} />
+            )}
           </div>
           <div className="field" style={{ margin: 0 }}>
             <label>Invoice No.</label>
@@ -512,19 +526,27 @@ export function InwardPage() {
                 const it = items.find((i) => i.id === form.itemId);
                 // Imports are never locked to the slab — the supplier charges no Indian GST.
                 const locked = !!it && !importing;
+                if (importing) {
+                  return (
+                    <select
+                      value={form.gstPct}
+                      onChange={(e) => set('gstPct', e.target.value)}
+                      style={{ width: 90 }}
+                      title="Import purchase — pick the GST that applies, or leave 0"
+                    >
+                      {(GST_SLABS.includes(form.gstPct) ? GST_SLABS : [...GST_SLABS, form.gstPct]).map((g) => (
+                        <option key={g} value={g}>{g}%</option>
+                      ))}
+                    </select>
+                  );
+                }
                 return (
                   <input
                     value={form.gstPct}
                     onChange={(e) => set('gstPct', e.target.value)}
                     style={{ width: 70 }}
                     readOnly={locked}
-                    title={
-                      locked
-                        ? "Set automatically from the item's GST slab"
-                        : importing
-                          ? 'Import purchase — enter the GST that applies, or leave 0'
-                          : ''
-                    }
+                    title={locked ? "Set automatically from the item's GST slab" : ''}
                   />
                 );
               })()}
