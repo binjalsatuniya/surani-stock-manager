@@ -6,6 +6,7 @@ import { usePermission } from '../hooks/usePermission';
 import { useDialogs } from '../components/Dialogs';
 import { exportExpenseLedgerPdf } from '../lib/pdfExport';
 import { getPdfLayout } from '../lib/pdfLayout';
+import { openDataUrlInNewTab } from '../lib/dataUrl';
 
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 const inr = (n: number) => `₹${n.toFixed(2)}`;
@@ -187,23 +188,13 @@ export function ExpensesPage() {
     if (ledgerSpId) openLedger(ledgerSpId);
   }
 
+  // Opens the bill in a new tab. A data: URL is converted to a blob first — Chromium will not
+  // render a PDF from a data: URL, so the old viewer showed an empty frame. See lib/dataUrl.ts.
   function openAttachment(exp: SalesPersonExpense) {
     if (!exp.attachment) return;
-    const w = window.open('', '_blank');
-    if (!w) return;
-    const name = exp.attachmentName || 'attachment';
-    // Render the data URL (image or PDF) in a simple viewer with a download link.
-    w.document.write(
-      `<title>${name}</title><body style="margin:0;background:#111;display:flex;flex-direction:column;align-items:center">
-       <div style="padding:8px;background:#222;width:100%;text-align:center">
-         <a href="${exp.attachment}" download="${name}" style="color:#25d366;font-family:sans-serif">⬇ Download ${name}</a>
-       </div>
-       ${exp.attachment.startsWith('data:application/pdf')
-         ? `<iframe src="${exp.attachment}" style="border:0;width:100%;height:95vh"></iframe>`
-         : `<img src="${exp.attachment}" style="max-width:100%;max-height:95vh;object-fit:contain"/>`}
-       </body>`
-    );
-    w.document.close();
+    if (!openDataUrlInNewTab(exp.attachment)) {
+      setError('The attached bill could not be read — it may have been saved incompletely.');
+    }
   }
 
   const spName = (id: string) => salesPersons.find((s) => s.id === id)?.name || id;

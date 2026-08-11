@@ -7,8 +7,10 @@ import { useAuth } from '../context/AuthContext';
 import { useWhatsappTemplates } from '../hooks/useWhatsappTemplates';
 import { useFinancialYear } from '../context/FinancialYearContext';
 import { readInvoiceQr } from '../lib/invoiceQr';
+import { dataUrlToBlob, looksLikePdf } from '../lib/dataUrl';
 
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+
 
 function addDays(dateStr: string, days: number): string {
   const d = new Date(dateStr + 'T12:00:00');
@@ -61,7 +63,8 @@ export function OrderBookPage() {
   // Result of reading the e-Invoice QR off the attached scan.
   const [qrStatus, setQrStatus] = useState<'idle' | 'reading' | 'ok' | 'none'>('idle');
   const [qrWarnings, setQrWarnings] = useState<string[]>([]);
-  const [invoiceView, setInvoiceView] = useState<{ url: string; name: string } | null>(null);
+  // `url` is a blob: URL created on open and revoked on close — see openInvoice/closeInvoice.
+  const [invoiceView, setInvoiceView] = useState<{ url: string; name: string; isPdf: boolean } | null>(null);
   const [dHandlingAgent, setDHandlingAgent] = useState('');
   const [dHandlingRate, setDHandlingRate] = useState('');
 
@@ -221,17 +224,50 @@ export function OrderBookPage() {
   async function openInvoice(m: Outward) {
     try {
       const res = await api.orderbook.getInvoice(m.id);
-      if (res.invoiceFile) setInvoiceView({ url: res.invoiceFile, name: res.invoiceFileName || 'Invoice' });
+      // Previously this returned in silence when the file was missing, so the button looked dead.
+      if (!res.invoiceFile) {
+        setError('No invoice file is attached to this order. Use “Edit Dispatch” to attach one.');
+        return;
+      }
+      const name = res.invoiceFileName || 'Invoice';
+      const blob = dataUrlToBlob(res.invoiceFile);
+      if (!blob) {
+        setError('The attached invoice could not be read — it may have been saved incompletely.');
+        return;
+      }
+      const isPdf = looksLikePdf(blob, name);
+      closeInvoice(); // release any previously opened blob before replacing it
+      setInvoiceView({ url: URL.createObjectURL(blob), name, isPdf });
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not open the invoice'); }
   }
+
+  /** Revoking the object URL frees the file from memory; a big scan is several MB. */
+  function closeInvoice() {
+    setInvoiceView((prev) => {
+      if (prev) URL.revokeObjectURL(prev.url);
+      return null;
+    });
+  }
+
   async function shareInvoice(m: Outward) {
     try {
       const res = await api.orderbook.getInvoice(m.id);
-      if (!res.invoiceFile) return;
+      if (!res.invoiceFile) {
+        setError('No invoice file is attached to this order.');
+        return;
+      }
+      const blob = dataUrlToBlob(res.invoiceFile);
+      if (!blob) {
+        setError('The attached invoice could not be read.');
+        return;
+      }
+      // Download via a blob URL — a multi-MB data: URL can exceed the browser's href limit.
+      const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = res.invoiceFile;
+      a.href = url;
       a.download = res.invoiceFileName || `${partyName(m.partyId)}-invoice`;
       document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000); // let the download start first
       const party = partyById(m.partyId);
       window.open(buildWhatsappLink(party?.phone, `Invoice — ${partyName(m.partyId)}`), '_blank');
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not share the invoice'); }
@@ -738,18 +774,25 @@ export function OrderBookPage() {
 
       {invoiceView && (
         <div
-          onClick={() => setInvoiceView(null)}
+          onClick={closeInvoice}
           style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}
         >
           <div className="card" onClick={(e) => e.stopPropagation()} style={{ width: '90%', maxWidth: 900, height: '85%', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
               <strong style={{ flex: 1 }}>📄 {invoiceView.name}</strong>
-              <button className="btn btn-sm" onClick={() => setInvoiceView(null)}>Close</button>
+              {/* Escape hatch: if the embedded viewer still refuses, the file opens in a real tab. */}
+              <button className="btn btn-sm" onClick={() => window.open(invoiceView.url, '_blank')}>
+                Open in new tab
+              </button>
+              <a className="btn btn-sm" href={invoiceView.url} download={invoiceView.name} style={{ textDecoration: 'none' }}>
+                Download
+              </a>
+              <button className="btn btn-sm" onClick={closeInvoice}>Close</button>
             </div>
-            {invoiceView.url.startsWith('data:image') || /\.(png|jpe?g|gif|webp)$/i.test(invoiceView.name) ? (
-              <img src={invoiceView.url} alt={invoiceView.name} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', margin: 'auto' }} />
-            ) : (
+            {invoiceView.isPdf ? (
               <iframe src={invoiceView.url} title={invoiceView.name} style={{ flex: 1, border: 'none', width: '100%' }} />
+            ) : (
+              <img src={invoiceView.url} alt={invoiceView.name} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', margin: 'auto' }} />
             )}
           </div>
         </div>

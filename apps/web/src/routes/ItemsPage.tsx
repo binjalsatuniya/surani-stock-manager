@@ -6,6 +6,7 @@ import { usePermission } from '../hooks/usePermission';
 import { useDialogs } from '../components/Dialogs';
 import { useFieldSettings } from '../hooks/useFieldSettings';
 import { FieldLabel } from '../components/FieldLabel';
+import { dataUrlToBlob, looksLikePdf } from '../lib/dataUrl';
 
 const UNITS: ItemUnit[] = ['KG', 'MT', 'pcs'];
 
@@ -25,7 +26,8 @@ const EMPTY = {
 export function ItemsPage() {
   const can = usePermission();
   const { confirm } = useDialogs();
-  const [tdsView, setTdsView] = useState<{ url: string; name: string } | null>(null);
+  // `url` is a blob: URL — a data: URL will not render in the PDF frame. See lib/dataUrl.ts.
+  const [tdsView, setTdsView] = useState<{ url: string; name: string; isPdf: boolean } | null>(null);
   const { required } = useFieldSettings();
   const canAdd = can('add_items');
   const canEditRow = can('edit_items');
@@ -115,14 +117,42 @@ export function ItemsPage() {
 
   // Download the TDS, then open WhatsApp so the user can pick the party and attach it (WhatsApp Web
   // does not allow auto-attaching a file — this is the same flow as the Dues PDF share).
+  // A data: URL will not render in the PDF frame, so show the TDS from a blob: URL instead.
+  function openTds(attachment: string | null | undefined, fileName: string) {
+    if (!attachment) return;
+    const name = fileName || 'TDS';
+    const blob = dataUrlToBlob(attachment);
+    if (!blob) {
+      setError('The attached TDS could not be read — it may have been saved incompletely.');
+      return;
+    }
+    closeTds(); // release any previously opened blob
+    setTdsView({ url: URL.createObjectURL(blob), name, isPdf: looksLikePdf(blob, name) });
+  }
+
+  function closeTds() {
+    setTdsView((prev) => {
+      if (prev) URL.revokeObjectURL(prev.url);
+      return null;
+    });
+  }
+
   function shareTds(i: Item) {
     if (!i.tdsAttachment) return;
+    const blob = dataUrlToBlob(i.tdsAttachment);
+    if (!blob) {
+      setError('The attached TDS could not be read.');
+      return;
+    }
+    // Download via a blob URL — a multi-MB data: URL can exceed the browser's href limit.
+    const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = i.tdsAttachment;
+    a.href = url;
     a.download = i.tdsAttachmentName || `${i.name}-TDS`;
     document.body.appendChild(a);
     a.click();
     a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000); // let the download start first
     window.open(buildWhatsappLink(null, `TDS — ${i.name}`), '_blank');
   }
 
@@ -190,7 +220,7 @@ export function ItemsPage() {
                 <span className="muted" style={{ fontSize: 11, marginTop: 3 }}>
                   📄 {form.tdsAttachmentName}{' '}
                   <a
-                    onClick={() => setTdsView({ url: form.tdsAttachment, name: form.tdsAttachmentName })}
+                    onClick={() => openTds(form.tdsAttachment, form.tdsAttachmentName)}
                     style={{ cursor: 'pointer', color: '#147b8b' }}
                   >
                     view
@@ -249,7 +279,7 @@ export function ItemsPage() {
               <td>
                 {i.tdsAttachment ? (
                   <div style={{ display: 'flex', gap: 6 }}>
-                    <button className="btn btn-sm" onClick={() => setTdsView({ url: i.tdsAttachment, name: i.tdsAttachmentName || i.name })} title="Open the TDS">
+                    <button className="btn btn-sm" onClick={() => openTds(i.tdsAttachment, i.tdsAttachmentName || i.name)} title="Open the TDS">
                       📄 View
                     </button>
                     <button className="btn btn-sm" onClick={() => shareTds(i)} title="Download the TDS and open WhatsApp to send it">
@@ -293,18 +323,24 @@ export function ItemsPage() {
 
       {tdsView && (
         <div
-          onClick={() => setTdsView(null)}
+          onClick={closeTds}
           style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}
         >
           <div className="card" onClick={(e) => e.stopPropagation()} style={{ width: '90%', maxWidth: 900, height: '85%', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
               <strong style={{ flex: 1 }}>📄 {tdsView.name}</strong>
-              <button className="btn btn-sm" onClick={() => setTdsView(null)}>Close</button>
+              <button className="btn btn-sm" onClick={() => window.open(tdsView.url, '_blank')}>
+                Open in new tab
+              </button>
+              <a className="btn btn-sm" href={tdsView.url} download={tdsView.name} style={{ textDecoration: 'none' }}>
+                Download
+              </a>
+              <button className="btn btn-sm" onClick={closeTds}>Close</button>
             </div>
-            {tdsView.url.startsWith('data:image') || /\.(png|jpe?g|gif|webp)$/i.test(tdsView.name) ? (
-              <img src={tdsView.url} alt={tdsView.name} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', margin: 'auto' }} />
-            ) : (
+            {tdsView.isPdf ? (
               <iframe src={tdsView.url} title={tdsView.name} style={{ flex: 1, border: 'none', width: '100%' }} />
+            ) : (
+              <img src={tdsView.url} alt={tdsView.name} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', margin: 'auto' }} />
             )}
           </div>
         </div>
