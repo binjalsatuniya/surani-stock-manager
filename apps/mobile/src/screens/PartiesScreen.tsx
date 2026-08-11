@@ -178,12 +178,10 @@ export function PartiesScreen() {
           <TextInput
             style={styles.input}
             value={form.phone}
-            // 15 digits is the international maximum (E.164). The old 12-digit cap fitted India
-            // (91 + 10) but silently truncated longer numbers — a China mobile is 86 + 11 = 13.
-            onChangeText={(v) => set('phone', v.replace(/\D/g, '').slice(0, 15))}
-            placeholder="country code + number, e.g. 919876543210"
+            onChangeText={(v) => set('phone', v.replace(/\D/g, '').slice(0, 12))}
+            placeholder="e.g. 919876543210"
             keyboardType="phone-pad"
-            maxLength={15}
+            maxLength={12}
           />
 
           <Text style={styles.label}>Email</Text>

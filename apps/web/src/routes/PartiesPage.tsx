@@ -210,16 +210,11 @@ export function PartiesPage() {
         <FieldLabel required={required('party.phone')}>WhatsApp / Phone</FieldLabel>
         <input
           value={form.phone}
-          // 15 digits is the international maximum (E.164). The old 12-digit cap fitted India
-          // (91 + 10) but silently truncated longer numbers — a China mobile is 86 + 11 = 13.
-          onChange={(e) => set('phone', e.target.value.replace(/\D/g, '').slice(0, 15))}
-          placeholder="country code + number, e.g. 919876543210"
+          onChange={(e) => set('phone', e.target.value.replace(/\D/g, '').slice(0, 12))}
+          placeholder="e.g. 919876543210"
           inputMode="numeric"
-          maxLength={15}
+          maxLength={12}
         />
-        <span className="muted" style={{ fontSize: 10.5, marginTop: 3 }}>
-          Include the country code — India 91, China 86.
-        </span>
       </div>
       <div className="field" style={{ margin: 0 }}>
         <FieldLabel required={required('party.email')}>Email</FieldLabel>
