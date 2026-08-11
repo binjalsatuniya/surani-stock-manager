@@ -89,11 +89,15 @@ ledgerRouter.get(
     ]);
 
     const entries = [
+      // Sales and purchases carry a tax split: `amount` is the total (goods + GST),
+      // so the value before tax is amount − gst.
       ...outward.map((o) => ({
         date: o.date.toISOString().slice(0, 10),
         description: `Sale — ${o.invNo || 'no invoice'}`,
         dr: Number(o.amount),
         cr: 0,
+        taxable: Math.round((Number(o.amount) - Number(o.gst)) * 100) / 100,
+        tax: Number(o.gst),
         payStatus: o.payStatus,
       })),
       ...inward.map((i) => ({
@@ -101,6 +105,8 @@ ledgerRouter.get(
         description: `Purchase — ${i.invNo || 'no invoice'}`,
         dr: 0,
         cr: Number(i.amount),
+        taxable: Math.round((Number(i.amount) - Number(i.gst)) * 100) / 100,
+        tax: Number(i.gst),
       })),
       ...payments.map((p) => {
         // The ledger value is the full settlement: cash plus any TDS deducted at source.

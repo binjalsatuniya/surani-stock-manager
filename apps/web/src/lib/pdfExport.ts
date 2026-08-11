@@ -105,6 +105,8 @@ export function exportPartyLedgerPdf(partyName: string, entries: PartyLedgerEntr
   const balStr = (b: number) => (b >= 0 ? `${inr(b)} Dr` : `${inr(Math.abs(b))} Cr`);
   const totalDr = entries.reduce((s, e) => s + e.dr, 0);
   const totalCr = entries.reduce((s, e) => s + e.cr, 0);
+  const totalTaxable = entries.reduce((s, e) => s + (e.taxable ?? 0), 0);
+  const totalTax = entries.reduce((s, e) => s + (e.tax ?? 0), 0);
   const closing = opening + totalDr - totalCr;
 
   let running = opening;
@@ -114,6 +116,8 @@ export function exportPartyLedgerPdf(partyName: string, entries: PartyLedgerEntr
       return `<tr>
       <td>${fmtDate(e.date)}</td>
       <td>${e.description}</td>
+      <td style="text-align:right">${e.taxable != null ? inr(e.taxable) : ''}</td>
+      <td style="text-align:right">${e.tax != null ? inr(e.tax) : ''}</td>
       <td style="text-align:right">${e.dr ? inr(e.dr) : ''}</td>
       <td style="text-align:right">${e.cr ? inr(e.cr) : ''}</td>
       <td style="text-align:right">${balStr(running)}</td>
@@ -126,13 +130,13 @@ export function exportPartyLedgerPdf(partyName: string, entries: PartyLedgerEntr
 <body>
   ${header(layout, 'Party Ledger', esc(partyName), `Generated ${fmtDate(new Date().toISOString())}`)}
   <table>
-    <thead><tr><th>Date</th><th>Description</th><th style="text-align:right">Debit</th><th style="text-align:right">Credit</th><th style="text-align:right">Balance</th></tr></thead>
+    <thead><tr><th>Date</th><th>Description</th><th style="text-align:right">Taxable</th><th style="text-align:right">GST</th><th style="text-align:right">Debit</th><th style="text-align:right">Credit</th><th style="text-align:right">Balance</th></tr></thead>
     <tbody>
-      <tr><td>—</td><td style="font-style:italic">Opening balance</td><td></td><td></td><td style="text-align:right">${balStr(opening)}</td></tr>
+      <tr><td>—</td><td style="font-style:italic">Opening balance</td><td></td><td></td><td></td><td></td><td style="text-align:right">${balStr(opening)}</td></tr>
       ${rows}
-      <tr style="background:#f5f7fb;font-weight:700"><td>—</td><td>Closing balance</td><td></td><td></td><td style="text-align:right">${balStr(closing)}</td></tr>
+      <tr style="background:#f5f7fb;font-weight:700"><td>—</td><td>Closing balance</td><td></td><td></td><td></td><td></td><td style="text-align:right">${balStr(closing)}</td></tr>
     </tbody>
-    <tfoot><tr><td colspan="2">Total</td><td style="text-align:right">${inr(totalDr)}</td><td style="text-align:right">${inr(totalCr)}</td><td style="text-align:right">${balStr(closing)}</td></tr></tfoot>
+    <tfoot><tr><td colspan="2">Total</td><td style="text-align:right">${inr(totalTaxable)}</td><td style="text-align:right">${inr(totalTax)}</td><td style="text-align:right">${inr(totalDr)}</td><td style="text-align:right">${inr(totalCr)}</td><td style="text-align:right">${balStr(closing)}</td></tr></tfoot>
   </table>
   ${footer(layout)}
   <script>window.onload = function(){ setTimeout(function(){ window.print(); }, 200); };</script>

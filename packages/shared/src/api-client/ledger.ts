@@ -21,6 +21,10 @@ export interface PartyLedgerEntry {
   description: string;
   dr: number;
   cr: number;
+  /** Value before tax (sales/purchases only; absent on payments, freight and handling). */
+  taxable?: number;
+  /** GST portion of the entry (sales/purchases only). */
+  tax?: number;
   payStatus?: string;
 }
 

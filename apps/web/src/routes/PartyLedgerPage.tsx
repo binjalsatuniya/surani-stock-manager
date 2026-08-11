@@ -27,6 +27,8 @@ export function PartyLedgerPage() {
   const opening = Number(party?.opening ?? 0);
   const totalDr = entries.reduce((s, e) => s + e.dr, 0);
   const totalCr = entries.reduce((s, e) => s + e.cr, 0);
+  const totalTaxable = entries.reduce((s, e) => s + (e.taxable ?? 0), 0);
+  const totalTax = entries.reduce((s, e) => s + (e.tax ?? 0), 0);
   const closing = opening + totalDr - totalCr; // + = they owe you, − = you owe them
 
   // Pre-compute a running balance for each row (starting from the opening balance).
@@ -94,6 +96,8 @@ export function PartyLedgerPage() {
             <tr>
               <th>Date</th>
               <th>Description</th>
+              <th style={{ textAlign: 'right' }}>Taxable</th>
+              <th style={{ textAlign: 'right' }}>GST</th>
               <th style={{ textAlign: 'right' }}>Debit</th>
               <th style={{ textAlign: 'right' }}>Credit</th>
               <th style={{ textAlign: 'right' }}>Balance</th>
@@ -105,12 +109,16 @@ export function PartyLedgerPage() {
               <td style={{ fontStyle: 'italic' }}>Opening balance</td>
               <td></td>
               <td></td>
+              <td></td>
+              <td></td>
               <td style={{ textAlign: 'right', fontWeight: 600 }}>{balStr(opening)}</td>
             </tr>
             {rows.map((e, idx) => (
               <tr key={idx}>
                 <td>{fmtDate(e.date)}</td>
                 <td>{e.description}</td>
+                <td style={{ textAlign: 'right' }}>{e.taxable != null ? e.taxable.toFixed(2) : ''}</td>
+                <td style={{ textAlign: 'right' }}>{e.tax != null ? e.tax.toFixed(2) : ''}</td>
                 <td style={{ textAlign: 'right' }}>{e.dr ? e.dr.toFixed(2) : ''}</td>
                 <td style={{ textAlign: 'right' }}>{e.cr ? e.cr.toFixed(2) : ''}</td>
                 <td style={{ textAlign: 'right', fontWeight: 600 }}>{balStr(e.balance)}</td>
@@ -121,12 +129,16 @@ export function PartyLedgerPage() {
               <td style={{ fontWeight: 700 }}>Closing balance</td>
               <td></td>
               <td></td>
+              <td></td>
+              <td></td>
               <td style={{ textAlign: 'right', fontWeight: 800, color: closing > 0 ? '#15803d' : closing < 0 ? '#dc2626' : 'var(--ink)' }}>{balStr(closing)}</td>
             </tr>
           </tbody>
           <tfoot>
             <tr>
               <td colSpan={2} style={{ fontWeight: 700 }}>Total</td>
+              <td style={{ textAlign: 'right', fontWeight: 700 }}>{totalTaxable.toFixed(2)}</td>
+              <td style={{ textAlign: 'right', fontWeight: 700 }}>{totalTax.toFixed(2)}</td>
               <td style={{ textAlign: 'right', fontWeight: 700 }}>{totalDr.toFixed(2)}</td>
               <td style={{ textAlign: 'right', fontWeight: 700 }}>{totalCr.toFixed(2)}</td>
               <td style={{ textAlign: 'right', fontWeight: 800 }}>{balStr(closing)}</td>
