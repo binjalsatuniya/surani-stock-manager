@@ -7,6 +7,7 @@ import { usePermission } from '../hooks/usePermission';
 import { useFieldSettings } from '../hooks/useFieldSettings';
 import { FieldLabel } from '../components/FieldLabel';
 import { useDialogs } from '../components/Dialogs';
+import { useAuth } from '../context/AuthContext';
 
 const TYPES: { value: PartyType; label: string }[] = [
   { value: 'debtor', label: 'Debtor (owes you)' },
@@ -14,7 +15,11 @@ const TYPES: { value: PartyType; label: string }[] = [
   { value: 'both', label: 'Both' },
   { value: 'transporter', label: 'Transporter' },
   { value: 'handling', label: 'Handling Agent' },
+  { value: 'importer', label: 'Importer (no GST)' },
 ];
+
+// Importer is a JAYNIL-only option, so it is hidden from the Type dropdown for everyone else.
+const SUPER_ONLY_TYPES: PartyType[] = ['importer'];
 
 const EMPTY = {
   name: '',
@@ -34,7 +39,9 @@ const EMPTY = {
 export function PartiesPage() {
   const can = usePermission();
   const { confirm } = useDialogs();
+  const { user } = useAuth();
   const { required } = useFieldSettings();
+  const isSuper = user?.role === 'superadmin';
   const canEditRow = can('edit_parties') || can('edit_transporters');
   const canDelete = can('delete_parties') || can('edit_transporters');
   const canEdit = can('add_parties') || canEditRow || canDelete;
@@ -78,7 +85,9 @@ export function PartiesPage() {
     if (required('party.salesPerson') && !form.salesPersonId) return setError('Sales person is required.');
     if (required('party.phone') && !form.phone.trim()) return setError('Phone / WhatsApp number is required.');
     if (required('party.email') && !form.email.trim()) return setError('Email is required.');
-    if (required('party.gst') && !form.gst.trim()) return setError('GST number is required.');
+    // Importers are typically overseas and have no Indian GST number, so the rule never applies.
+    if (required('party.gst') && form.type !== 'importer' && !form.gst.trim())
+      return setError('GST number is required.');
     if (required('party.address') && !form.address.trim()) return setError('Address is required.');
     if (required('party.locationUrl') && !form.locationUrl.trim()) return setError('Location link is required.');
     if (required('party.vehicle') && !form.vehicle.trim()) return setError('Vehicle is required.');
@@ -175,7 +184,11 @@ export function PartiesPage() {
       <div className="field" style={{ margin: 0 }}>
         <label>Type</label>
         <select value={form.type} onChange={(e) => set('type', e.target.value)}>
-          {TYPES.map((t) => (
+          {TYPES.filter(
+            // Keep a super-only type visible while editing a party that already has it,
+            // otherwise the dropdown would show blank and silently change the type on save.
+            (t) => !SUPER_ONLY_TYPES.includes(t.value) || isSuper || form.type === t.value
+          ).map((t) => (
             <option key={t.value} value={t.value}>
               {t.label}
             </option>
@@ -208,8 +221,13 @@ export function PartiesPage() {
         <input value={form.email} onChange={(e) => set('email', e.target.value)} />
       </div>
       <div className="field" style={{ margin: 0 }}>
-        <FieldLabel required={required('party.gst')}>GST No.</FieldLabel>
+        <FieldLabel required={required('party.gst') && form.type !== 'importer'}>GST No.</FieldLabel>
         <input value={form.gst} onChange={(e) => set('gst', e.target.value)} />
+        {form.type === 'importer' && (
+          <span className="muted" style={{ fontSize: 10.5, marginTop: 3 }}>
+            Optional for importers.
+          </span>
+        )}
       </div>
       <div className="field" style={{ margin: 0 }}>
         <label>Opening Balance (₹)</label>

@@ -12,7 +12,7 @@ import { logActivity } from '../../lib/audit';
 export const partiesRouter = Router();
 partiesRouter.use(authenticate);
 
-const partyTypeEnum = z.enum(['debtor', 'creditor', 'both', 'transporter', 'handling']);
+const partyTypeEnum = z.enum(['debtor', 'creditor', 'both', 'transporter', 'handling', 'importer']);
 
 const partySchema = z.object({
   name: z.string().min(1),
@@ -54,10 +54,12 @@ partiesRouter.get(
       (isDispatchList && hasPermission(req.user!.role, req.user!.permissions, 'dispatch_order'));
     if (!allowed) throw new ForbiddenError('Missing permission: view_parties');
     // A party of type 'both' is a debtor AND a creditor, so it must appear when
-    // either list is requested. Transporter/handling stay exact-match.
+    // either list is requested. An importer is a creditor we buy from, so it belongs in the
+    // creditor list too (otherwise it could never be picked on Inward). Transporter/handling
+    // stay exact-match.
     let where: { type?: string | { in: string[] } } | undefined;
     if (type === 'debtor') where = { type: { in: ['debtor', 'both'] } };
-    else if (type === 'creditor') where = { type: { in: ['creditor', 'both'] } };
+    else if (type === 'creditor') where = { type: { in: ['creditor', 'both', 'importer'] } };
     else if (type) where = { type };
     const parties = await prisma.party.findMany({
       where,

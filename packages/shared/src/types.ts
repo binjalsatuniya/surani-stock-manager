@@ -39,7 +39,9 @@ export interface User {
   updatedAt: string;
 }
 
-export type PartyType = 'debtor' | 'creditor' | 'both' | 'transporter' | 'handling';
+// 'importer' is a creditor you buy from who may have no Indian GST number — it is included
+// wherever creditors are listed, and the GST field is never mandatory for it.
+export type PartyType = 'debtor' | 'creditor' | 'both' | 'transporter' | 'handling' | 'importer';
 
 export interface Party {
   id: string;
