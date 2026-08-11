@@ -128,7 +128,8 @@ export function InwardPage() {
       ...f,
       itemId: id,
       rate: f.rate || (it ? String(it.rate) : ''),
-      gstPct: it && Number(it.gstPct) > 0 ? String(it.gstPct) : f.gstPct,
+      // GST is fixed to the selected item's slab (set in Item Master) — same as New Order.
+      gstPct: it ? String(it.gstPct ?? 0) : f.gstPct,
     }));
   }
 
@@ -312,7 +313,7 @@ export function InwardPage() {
               <label>GST %</label>
               {(() => {
                 const it = items.find((i) => i.id === form.itemId);
-                const locked = !!it && Number(it.gstPct) > 0;
+                const locked = !!it;
                 return (
                   <input
                     value={form.gstPct}
