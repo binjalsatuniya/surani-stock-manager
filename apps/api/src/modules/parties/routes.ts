@@ -41,6 +41,26 @@ function requiredPermFor(type: string, action: 'add' | 'edit' | 'delete' = 'edit
   return (action === 'add' ? 'add_parties' : action === 'delete' ? 'delete_parties' : 'edit_parties') as const;
 }
 
+/**
+ * Importer is a superadmin-only party type. The web form hides the option from everyone else, but
+ * that is only a screen: without this check any holder of add_parties could still post one
+ * directly. Marking a party as an importer exempts it from the mandatory-GST rule and unlocks the
+ * GST % on its purchases, so it must not be self-service.
+ *
+ * Only the *transition into* importer is restricted — an existing importer stays editable by
+ * anyone with edit_parties, otherwise ordinary edits like a phone number would start failing.
+ */
+function guardImporterType(
+  req: { user?: { role?: string } },
+  nextType: string | undefined,
+  previousType?: string
+) {
+  if (nextType !== 'importer') return;
+  if (previousType === 'importer') return;
+  if (req.user?.role === 'superadmin') return;
+  throw new ForbiddenError('Only the Super Admin can mark a party as an Importer');
+}
+
 partiesRouter.get(
   '/',
   asyncHandler(async (req, res) => {
@@ -76,6 +96,7 @@ partiesRouter.post(
     if (!hasPermission(req.user!.role, req.user!.permissions, requiredPermFor(input.type, 'add'))) {
       throw new ForbiddenError(`Missing permission: ${requiredPermFor(input.type, 'add')}`);
     }
+    guardImporterType(req, input.type);
     // No duplicate party names (case-insensitive) — prevents two "Ambica" etc.
     const dup = await prisma.party.findFirst({ where: { name: { equals: input.name, mode: 'insensitive' } } });
     if (dup) throw new HttpError(409, `A party named "${dup.name}" already exists`);
@@ -101,6 +122,7 @@ partiesRouter.patch(
     if (!hasPermission(req.user!.role, req.user!.permissions, requiredPerm)) {
       throw new ForbiddenError(`Missing permission: ${requiredPerm}`);
     }
+    guardImporterType(req, input.type, existing.type);
     const party = await prisma.party.update({ where: { id: req.params.id }, data: input });
     res.json(toPartyDTO(party));
   })
