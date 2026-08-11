@@ -124,6 +124,11 @@ export function InwardPage() {
     setForm((f) => ({ ...f, [key]: value }));
   }
 
+  // Buying from an importer is an import purchase: the overseas supplier charges no Indian GST
+  // (IGST is paid separately at customs), so the item's slab must not be forced on the entry.
+  const isImporterParty = (partyId: string) => parties.find((p) => p.id === partyId)?.type === 'importer';
+  const importing = isImporterParty(form.partyId);
+
   // Auto-fill the item's rate when an item is chosen and no rate typed yet.
   function onItemChange(id: string) {
     const it = items.find((i) => i.id === id);
@@ -131,9 +136,23 @@ export function InwardPage() {
       ...f,
       itemId: id,
       rate: f.rate || (it ? String(it.rate) : ''),
-      // GST is fixed to the selected item's slab (set in Item Master) — same as New Order.
-      gstPct: it ? String(it.gstPct ?? 0) : f.gstPct,
+      // GST is fixed to the selected item's slab (set in Item Master) — same as New Order —
+      // except on imports, where the slab does not apply and the figure stays editable.
+      gstPct: it && !isImporterParty(f.partyId) ? String(it.gstPct ?? 0) : f.gstPct,
     }));
+  }
+
+  // Switching to an importer clears the slab-derived GST; switching away restores it.
+  function onPartyChange(id: string) {
+    setForm((f) => {
+      const toImporter = isImporterParty(id);
+      const it = items.find((i) => i.id === f.itemId);
+      return {
+        ...f,
+        partyId: id,
+        gstPct: toImporter ? '0' : it ? String(it.gstPct ?? 0) : f.gstPct,
+      };
+    });
   }
 
   const qtyN = Number(form.qty) || 0;
@@ -458,10 +477,15 @@ export function InwardPage() {
               <label>Party (creditor)</label>
               <SearchSelect
                 value={form.partyId}
-                onChange={(id) => set('partyId', id)}
+                onChange={onPartyChange}
                 options={parties.map((p) => ({ id: p.id, label: p.name }))}
                 placeholder="Type party name…"
               />
+              {importing && (
+                <span className="muted" style={{ fontSize: 10.5, marginTop: 3 }}>
+                  Importer — GST % is not fixed to the item.
+                </span>
+              )}
             </div>
             <div className="field" style={{ margin: 0 }}>
               <label>Item</label>
@@ -486,14 +510,21 @@ export function InwardPage() {
               <label>GST %</label>
               {(() => {
                 const it = items.find((i) => i.id === form.itemId);
-                const locked = !!it;
+                // Imports are never locked to the slab — the supplier charges no Indian GST.
+                const locked = !!it && !importing;
                 return (
                   <input
                     value={form.gstPct}
                     onChange={(e) => set('gstPct', e.target.value)}
                     style={{ width: 70 }}
                     readOnly={locked}
-                    title={locked ? "Set automatically from the item's GST slab" : ''}
+                    title={
+                      locked
+                        ? "Set automatically from the item's GST slab"
+                        : importing
+                          ? 'Import purchase — enter the GST that applies, or leave 0'
+                          : ''
+                    }
                   />
                 );
               })()}
