@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { buildWhatsappLink, buildTelLink, PAYMENT_MODES, type DueLedgerGroup, type PayableGroup, type Party, type Payment, type PaymentDirection, type PaymentMode, type SalesPerson } from '@surani/shared';
 import type { UnpaidInvoice } from '@surani/shared';
 import { api } from '../lib/apiClient';
+import { shareOnWhatsapp } from '../lib/whatsappShare';
 import { usePermission } from '../hooks/usePermission';
 import { useDialogs } from '../components/Dialogs';
 import { useWhatsappTemplates } from '../hooks/useWhatsappTemplates';
@@ -84,7 +85,7 @@ export function PaymentsPage() {
       invoiceList,
       date: fmtDate(new Date().toISOString()),
     });
-    if (message) window.open(buildWhatsappLink(g.party.phone, message), '_blank');
+    if (message) shareOnWhatsapp(g.party.phone, message);
   }
 
   function openWhatsapp(phone?: string | null) {

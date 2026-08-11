@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useState, type ChangeEvent } from 'react';
 import { buildWhatsappLink, deliveryTermsLabel, type Item, type Outward, type Party } from '@surani/shared';
 import { api } from '../lib/apiClient';
+import { shareOnWhatsapp } from '../lib/whatsappShare';
 import { usePermission } from '../hooks/usePermission';
 import { useDialogs } from '../components/Dialogs';
 import { useAuth } from '../context/AuthContext';
@@ -299,7 +300,7 @@ export function OrderBookPage() {
       vehicle: m.vehicle || 'N/A',
     });
     // With a saved number this opens that chat; without one it opens WhatsApp's contact picker.
-    window.open(buildWhatsappLink(party?.phone, message || ''), '_blank');
+    shareOnWhatsapp(party?.phone, message || '');
   }
 
   function onShareOrderSlip(m: Outward) {
@@ -319,7 +320,7 @@ export function OrderBookPage() {
       payStatus: payStatusLabel(m),
       dueDate: dueDateFor(m),
     });
-    if (message) window.open(buildWhatsappLink(party.phone, message), '_blank');
+    if (message) shareOnWhatsapp(party.phone, message);
   }
 
   function onShareLocation(m: Outward) {
@@ -334,7 +335,7 @@ export function OrderBookPage() {
       locationUrl: party.locationUrl || 'N/A',
       vehicle: m.vehicle || 'N/A',
     });
-    if (message) window.open(buildWhatsappLink(transporter.phone, message), '_blank');
+    if (message) shareOnWhatsapp(transporter.phone, message);
   }
 
   // Date-range filter (by order date) so you can view orders for a specific period.

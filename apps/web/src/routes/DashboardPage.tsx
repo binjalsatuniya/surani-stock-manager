@@ -13,6 +13,7 @@ import {
   type StockLevel,
 } from '@surani/shared';
 import { api } from '../lib/apiClient';
+import { shareOnWhatsapp, prepareWhatsappShare } from '../lib/whatsappShare';
 import { useAuth } from '../context/AuthContext';
 import { usePermission } from '../hooks/usePermission';
 
@@ -224,7 +225,7 @@ export function DashboardPage() {
       // Redirect that tab straight to WhatsApp (with the party's number if saved, otherwise
       // WhatsApp's own contact picker) so you can share the order slip immediately.
       if (message) {
-        const waLink = buildWhatsappLink(party?.phone, message);
+        const waLink = await prepareWhatsappShare(party?.phone, message);
         if (waWin) waWin.location.href = waLink;
         else window.open(waLink, '_blank');
         // Also open an email draft if the party has an email on file.
@@ -260,7 +261,7 @@ export function DashboardPage() {
       lowStockCount: String(kpis.lowStockCount),
       pendingOrders: String(kpis.pendingOrders),
     });
-    if (message) window.open(buildWhatsappLink(null, message), '_blank');
+    if (message) shareOnWhatsapp(null, message);
   }
 
   // ----- drag-to-reorder plumbing (CSS `order` keeps the JSX in place) -----

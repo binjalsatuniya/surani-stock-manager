@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { buildWhatsappLink, PAYMENT_MODES, type SalesPerson, type SalesPersonExpense } from '@surani/shared';
 import { api } from '../lib/apiClient';
+import { shareOnWhatsapp } from '../lib/whatsappShare';
 import { useAuth } from '../context/AuthContext';
 import { usePermission } from '../hooks/usePermission';
 import { useDialogs } from '../components/Dialogs';
@@ -69,7 +70,7 @@ export function ExpensesPage() {
       '',
       'Thank you 🙏',
     ].join('\n');
-    window.open(buildWhatsappLink(sp?.phone, message), '_blank');
+    shareOnWhatsapp(sp?.phone, message);
   }
 
   async function reload() {

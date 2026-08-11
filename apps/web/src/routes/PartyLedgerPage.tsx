@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import type { Party, PartyLedgerEntry } from '@surani/shared';
 import { buildWhatsappLink } from '@surani/shared';
 import { api } from '../lib/apiClient';
+import { shareOnWhatsapp } from '../lib/whatsappShare';
 import { exportPartyLedgerPdf } from '../lib/pdfExport';
 import { getPdfLayout } from '../lib/pdfLayout';
 import { usePermission } from '../hooks/usePermission';
@@ -50,7 +51,7 @@ export function PartyLedgerPage() {
       lines: lines.length ? lines.join('\n\n') : 'No transactions yet.',
       closingBalance: balStr(closing),
     });
-    if (message) window.open(buildWhatsappLink(party.phone, message), '_blank');
+    if (message) shareOnWhatsapp(party.phone, message);
   }
 
   return (
