@@ -6,17 +6,9 @@ import { useDialogs } from '../components/Dialogs';
 import { useAuth } from '../context/AuthContext';
 import { useWhatsappTemplates } from '../hooks/useWhatsappTemplates';
 import { useFinancialYear } from '../context/FinancialYearContext';
+import { readInvoiceQr } from '../lib/invoiceQr';
 
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-
-/** "SAS-461.pdf" -> "SAS-461". Kept deliberately literal: only the extension and a duplicate
- *  marker like "(1)" are removed, so a real invoice number is never silently reformatted. */
-function invNoFromFileName(name: string): string {
-  return name
-    .replace(/\.[^.]+$/, '')
-    .replace(/\s*\(\d+\)\s*$/, '')
-    .trim();
-}
 
 function addDays(dateStr: string, days: number): string {
   const d = new Date(dateStr + 'T12:00:00');
@@ -66,7 +58,9 @@ export function OrderBookPage() {
   const [dVehicle, setDVehicle] = useState('');
   const [dInvoiceFile, setDInvoiceFile] = useState(''); // new invoice PDF as a data URL (empty = keep existing)
   const [dInvoiceName, setDInvoiceName] = useState('');
-  const [invNoAuto, setInvNoAuto] = useState(false); // Invoice No. came from the file name
+  // Result of reading the e-Invoice QR off the attached scan.
+  const [qrStatus, setQrStatus] = useState<'idle' | 'reading' | 'ok' | 'none'>('idle');
+  const [qrWarnings, setQrWarnings] = useState<string[]>([]);
   const [invoiceView, setInvoiceView] = useState<{ url: string; name: string } | null>(null);
   const [dHandlingAgent, setDHandlingAgent] = useState('');
   const [dHandlingRate, setDHandlingRate] = useState('');
@@ -89,7 +83,8 @@ export function OrderBookPage() {
 
   function openDispatch(m: Outward) {
     setEditing(null); // only one inline panel open at a time
-    setInvNoAuto(false);
+    setQrStatus('idle');
+    setQrWarnings([]);
     setDispatchingId(m.id);
     setDInvNo(m.invNo || '');
     setDInvDate(m.invDate || new Date().toISOString().slice(0, 10));
@@ -178,13 +173,46 @@ export function OrderBookPage() {
     const reader = new FileReader();
     reader.onload = () => { setDInvoiceFile(String(reader.result)); setDInvoiceName(file.name); };
     reader.readAsDataURL(file);
-    // Scans are saved under their own invoice number (e.g. "SAS-461.pdf"), so offer that as the
-    // Invoice No. Only when the field is still empty — never overwrite something already typed.
-    const guess = invNoFromFileName(file.name);
-    if (guess && !dInvNo.trim()) {
-      setDInvNo(guess);
-      setInvNoAuto(true);
+    readQrFrom(file);
+  }
+
+  /**
+   * Read the e-Invoice QR off the attached scan and fill in the invoice number and date.
+   * The QR is signed government data, so it is exact — but it is still cross-checked against the
+   * order, because the commonest mistake is attaching the right-looking file for the wrong order.
+   */
+  async function readQrFrom(file: File) {
+    const order = rows.find((r) => r.id === dispatchingId);
+    setQrStatus('reading');
+    setQrWarnings([]);
+    const qr = await readInvoiceQr(file);
+    if (!qr) {
+      setQrStatus('none');
+      return;
     }
+
+    setDInvNo(qr.docNo);
+    if (qr.docDate) setDInvDate(qr.docDate);
+    setQrStatus('ok');
+
+    const warn: string[] = [];
+    if (order) {
+      if (qr.totalValue != null) {
+        const amount = Number(order.amount || 0);
+        // Round both sides — the QR carries whole rupees on a value we hold to two decimals.
+        if (Math.abs(Math.round(qr.totalValue) - Math.round(amount)) > 1) {
+          warn.push(
+            `Invoice total ₹${qr.totalValue.toLocaleString('en-IN')} does not match this order's ₹${amount.toLocaleString('en-IN')}.`
+          );
+        }
+      }
+      const partyGst = (partyById(order.partyId)?.gst || '').replace(/\s/g, '').toUpperCase();
+      const buyerGst = (qr.buyerGstin || '').replace(/\s/g, '').toUpperCase();
+      if (partyGst && buyerGst && partyGst !== buyerGst) {
+        warn.push(`Invoice is billed to GSTIN ${buyerGst}, but this order's party is ${partyGst}.`);
+      }
+    }
+    setQrWarnings(warn);
   }
   async function openInvoice(m: Outward) {
     try {
@@ -412,17 +440,9 @@ export function OrderBookPage() {
             <label>Invoice No.</label>
             <input
               value={dInvNo}
-              onChange={(e) => {
-                setDInvNo(e.target.value);
-                setInvNoAuto(false); // typed over — stop calling it auto-filled
-              }}
-              style={invNoAuto ? { background: '#fffbeb', borderColor: '#fcd34d' } : undefined}
+              onChange={(e) => setDInvNo(e.target.value)}
+              style={qrStatus === 'ok' ? { background: '#f0fdf4', borderColor: '#bbf7d0' } : undefined}
             />
-            {invNoAuto && (
-              <span style={{ fontSize: 10.5, marginTop: 3, color: '#b45309' }}>
-                Filled from the file name — please check.
-              </span>
-            )}
           </div>
           <div className="field" style={{ margin: 0 }}>
             <label>Invoice Date</label>
@@ -456,6 +476,19 @@ export function OrderBookPage() {
                 {dInvoiceFile ? '' : ' (already attached)'}
               </span>
             )}
+            {qrStatus === 'reading' && (
+              <span className="muted" style={{ fontSize: 11, marginTop: 3 }}>Reading invoice QR…</span>
+            )}
+            {qrStatus === 'ok' && (
+              <span style={{ fontSize: 11, marginTop: 3, color: '#15803d' }}>
+                ✓ Invoice no. &amp; date read from the QR code
+              </span>
+            )}
+            {qrStatus === 'none' && (
+              <span className="muted" style={{ fontSize: 11, marginTop: 3 }}>
+                No QR code found — please enter the invoice details manually.
+              </span>
+            )}
           </div>
           <div className="field" style={{ margin: 0 }}>
             <label>Handling Agent</label>
@@ -473,6 +506,27 @@ export function OrderBookPage() {
             <input value={dHandlingRate} onChange={(e) => setDHandlingRate(e.target.value)} style={{ width: 90 }} />
           </div>
         </div>
+        {qrWarnings.length > 0 && (
+          <div
+            style={{
+              marginTop: 8,
+              background: '#fffbeb',
+              border: '1px solid #fcd34d',
+              borderRadius: 8,
+              padding: '8px 12px',
+              fontSize: 12,
+              color: '#92400e',
+            }}
+          >
+            <strong>⚠ Check this invoice is the right one</strong>
+            <ul style={{ margin: '4px 0 0', paddingLeft: 18 }}>
+              {qrWarnings.map((w, i) => (
+                <li key={i}>{w}</li>
+              ))}
+            </ul>
+            <div style={{ marginTop: 4 }}>You can still dispatch — this is only a warning.</div>
+          </div>
+        )}
         <div className="toolbar" style={{ marginTop: 6 }}>
           <button className="btn btn-primary" onClick={confirmDispatch}>
             Confirm Dispatch
