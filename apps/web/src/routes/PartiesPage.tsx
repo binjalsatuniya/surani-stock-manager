@@ -8,6 +8,7 @@ import { useFieldSettings } from '../hooks/useFieldSettings';
 import { FieldLabel } from '../components/FieldLabel';
 import { useDialogs } from '../components/Dialogs';
 import { useAuth } from '../context/AuthContext';
+import { inspectGstin } from '../lib/gstin';
 
 const TYPES: { value: PartyType; label: string }[] = [
   { value: 'debtor', label: 'Debtor (owes you)' },
@@ -222,12 +223,34 @@ export function PartiesPage() {
       </div>
       <div className="field" style={{ margin: 0 }}>
         <FieldLabel required={required('party.gst') && form.type !== 'importer'}>GST No.</FieldLabel>
-        <input value={form.gst} onChange={(e) => set('gst', e.target.value)} />
-        {form.type === 'importer' && (
-          <span className="muted" style={{ fontSize: 10.5, marginTop: 3 }}>
-            Optional for importers.
-          </span>
-        )}
+        <input
+          value={form.gst}
+          onChange={(e) => set('gst', e.target.value.toUpperCase())}
+          placeholder="22AAAAA0000A1Z5"
+          maxLength={15}
+        />
+        {/* Checked offline from the number's own check digit — a typo is caught as it is typed.
+            Advisory only: a wrong number never blocks saving, in case older data needs correcting. */}
+        {(() => {
+          if (!form.gst.trim()) {
+            return form.type === 'importer' ? (
+              <span className="muted" style={{ fontSize: 10.5, marginTop: 3 }}>Optional for importers.</span>
+            ) : null;
+          }
+          const check = inspectGstin(form.gst);
+          if (check.valid) {
+            return (
+              <span style={{ fontSize: 10.5, marginTop: 3, color: '#15803d' }}>
+                ✓ Valid · {check.state}
+              </span>
+            );
+          }
+          return (
+            <span style={{ fontSize: 10.5, marginTop: 3, color: '#b45309' }}>
+              ⚠ {check.reason}
+            </span>
+          );
+        })()}
       </div>
       <div className="field" style={{ margin: 0 }}>
         <label>Opening Balance (₹)</label>
