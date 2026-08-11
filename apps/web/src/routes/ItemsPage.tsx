@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { buildWhatsappLink, type Item, type ItemUnit } from '@surani/shared';
 import { api } from '../lib/apiClient';
 import { usePermission } from '../hooks/usePermission';
@@ -231,6 +232,7 @@ export function ItemsPage() {
             <th>Opening</th>
             <th>Reorder</th>
             <th>TDS</th>
+            <th></th>
             {canEdit && <th></th>}
           </tr>
         </thead>
@@ -258,6 +260,9 @@ export function ItemsPage() {
                   <span className="muted">—</span>
                 )}
               </td>
+              <td>
+                <Link to={`/items/${i.id}/ledger`}>View Ledger</Link>
+              </td>
               {canEdit && (
                 <td>
                   <div style={{ display: 'flex', gap: 6 }}>
@@ -278,7 +283,7 @@ export function ItemsPage() {
           ))}
           {items.length === 0 && (
             <tr>
-              <td colSpan={canEdit ? 9 : 8} className="muted">
+              <td colSpan={canEdit ? 10 : 9} className="muted">
                 No items yet.
               </td>
             </tr>

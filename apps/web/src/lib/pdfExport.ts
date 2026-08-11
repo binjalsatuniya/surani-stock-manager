@@ -1,4 +1,4 @@
-import { defaultPdfLayout, type DueLedgerGroup, type PartyLedgerEntry, type PdfLayout, type SalesPersonExpense } from '@surani/shared';
+import { defaultPdfLayout, type DueLedgerGroup, type ItemLedgerEntry, type PartyLedgerEntry, type PdfLayout, type SalesPersonExpense } from '@surani/shared';
 import { SURANI_LOGO_DATA_URI } from './suraniLogoData';
 
 const inr = (n: number) => `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
@@ -137,6 +137,60 @@ export function exportPartyLedgerPdf(partyName: string, entries: PartyLedgerEntr
       <tr style="background:#f5f7fb;font-weight:700"><td>—</td><td>Closing balance</td><td></td><td></td><td></td><td></td><td style="text-align:right">${balStr(closing)}</td></tr>
     </tbody>
     <tfoot><tr><td colspan="2">Total</td><td style="text-align:right">${inr(totalTaxable)}</td><td style="text-align:right">${inr(totalTax)}</td><td style="text-align:right">${inr(totalDr)}</td><td style="text-align:right">${inr(totalCr)}</td><td style="text-align:right">${balStr(closing)}</td></tr></tfoot>
+  </table>
+  ${footer(layout)}
+  <script>window.onload = function(){ setTimeout(function(){ window.print(); }, 200); };</script>
+</body></html>`;
+
+  openPrintWindow(html);
+}
+
+export function exportItemLedgerPdf(
+  itemName: string,
+  unit: string,
+  entries: ItemLedgerEntry[],
+  opening = 0,
+  layout: PdfLayout = defaultPdfLayout()
+) {
+  const qty = (n: number) => `${n.toLocaleString('en-IN', { maximumFractionDigits: 3 })}`;
+  const totalIn = entries.reduce((s, e) => s + e.qtyIn, 0);
+  const totalOut = entries.reduce((s, e) => s + e.qtyOut, 0);
+  const totalTaxable = entries.reduce((s, e) => s + e.taxable, 0);
+  const totalTax = entries.reduce((s, e) => s + e.tax, 0);
+  const totalValue = entries.reduce((s, e) => s + e.total, 0);
+  const closing = opening + totalIn - totalOut;
+
+  let running = opening;
+  const rows = entries
+    .map((e) => {
+      running += e.qtyIn - e.qtyOut;
+      return `<tr>
+      <td>${fmtDate(e.date)}</td>
+      <td>${esc(e.description)}</td>
+      <td>${esc(e.partyName)}</td>
+      <td style="text-align:right">${e.qtyIn ? qty(e.qtyIn) : ''}</td>
+      <td style="text-align:right">${e.qtyOut ? qty(e.qtyOut) : ''}</td>
+      <td style="text-align:right">${qty(running)}</td>
+      <td style="text-align:right">${inr(e.rate)}</td>
+      <td style="text-align:right">${inr(e.taxable)}</td>
+      <td style="text-align:right">${inr(e.tax)}</td>
+      <td style="text-align:right">${inr(e.total)}</td>
+    </tr>`;
+    })
+    .join('');
+
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Item Ledger — ${esc(itemName)}</title>
+<style>${styles(layout.accent_color)}</style></head>
+<body>
+  ${header(layout, 'Item Ledger', esc(itemName), `Generated ${fmtDate(new Date().toISOString())}`)}
+  <table>
+    <thead><tr><th>Date</th><th>Description</th><th>Party</th><th style="text-align:right">Qty In</th><th style="text-align:right">Qty Out</th><th style="text-align:right">Stock</th><th style="text-align:right">Rate</th><th style="text-align:right">Taxable</th><th style="text-align:right">GST</th><th style="text-align:right">Total</th></tr></thead>
+    <tbody>
+      <tr><td>—</td><td style="font-style:italic">Opening stock</td><td></td><td></td><td></td><td style="text-align:right">${qty(opening)}</td><td></td><td></td><td></td><td></td></tr>
+      ${rows}
+      <tr style="background:#f5f7fb;font-weight:700"><td>—</td><td>Closing stock</td><td></td><td></td><td></td><td style="text-align:right">${qty(closing)} ${esc(unit)}</td><td></td><td></td><td></td><td></td></tr>
+    </tbody>
+    <tfoot><tr><td colspan="3">Total</td><td style="text-align:right">${qty(totalIn)}</td><td style="text-align:right">${qty(totalOut)}</td><td style="text-align:right">${qty(closing)}</td><td></td><td style="text-align:right">${inr(totalTaxable)}</td><td style="text-align:right">${inr(totalTax)}</td><td style="text-align:right">${inr(totalValue)}</td></tr></tfoot>
   </table>
   ${footer(layout)}
   <script>window.onload = function(){ setTimeout(function(){ window.print(); }, 200); };</script>

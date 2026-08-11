@@ -22,6 +22,8 @@ export interface EditOutwardInput {
   date?: string;
   invNo?: string | null;
   invDate?: string | null;
+  partyId?: string;
+  itemId?: string;
   qty?: number;
   rate?: number;
   gstPct?: number;

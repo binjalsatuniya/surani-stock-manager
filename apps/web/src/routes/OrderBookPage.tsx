@@ -1,4 +1,4 @@
-import { useEffect, useState, type ChangeEvent } from 'react';
+import { Fragment, useEffect, useState, type ChangeEvent } from 'react';
 import { buildWhatsappLink, deliveryTermsLabel, type Item, type Outward, type Party } from '@surani/shared';
 import { api } from '../lib/apiClient';
 import { usePermission } from '../hooks/usePermission';
@@ -78,6 +78,7 @@ export function OrderBookPage() {
   }, [selectedFy]);
 
   function openDispatch(m: Outward) {
+    setEditing(null); // only one inline panel open at a time
     setDispatchingId(m.id);
     setDInvNo(m.invNo || '');
     setDInvDate(m.invDate || new Date().toISOString().slice(0, 10));
@@ -114,6 +115,7 @@ export function OrderBookPage() {
   }
 
   function openEdit(m: Outward) {
+    setDispatchingId(null); // only one inline panel open at a time
     setEditing(m);
     setEd({
       date: m.date,
@@ -262,10 +264,36 @@ export function OrderBookPage() {
   const cancelled = dateRows.filter((m) => m.fulfil === 'cancelled');
   const pendingValue = pending.reduce((s, m) => s + Number(m.amount || 0), 0);
 
+  const colCount = canRate ? 14 : 12;
+
+  // The row, plus the Edit or Dispatch panel rendered directly beneath it when this is the
+  // row being acted on — so the form opens where you clicked (same as Party Master).
   function orderRow(m: Outward) {
+    return (
+      <Fragment key={m.id}>
+        {orderCells(m)}
+        {editing?.id === m.id && (
+          <tr>
+            <td colSpan={colCount} style={{ background: '#f8fafc' }}>
+              {editPanel(m)}
+            </td>
+          </tr>
+        )}
+        {dispatchingId === m.id && (
+          <tr>
+            <td colSpan={colCount} style={{ background: '#f8fafc' }}>
+              {dispatchPanel()}
+            </td>
+          </tr>
+        )}
+      </Fragment>
+    );
+  }
+
+  function orderCells(m: Outward) {
     const party = partyById(m.partyId);
     return (
-      <tr key={m.id}>
+      <tr>
         <td>{fmtDate(m.date)}</td>
         <td>{m.invNo || '—'}</td>
         <td>{m.partyName || partyName(m.partyId)}</td>
@@ -314,7 +342,7 @@ export function OrderBookPage() {
               </button>
             )}
             {isSuper && m.fulfil !== 'cancelled' && (
-              <button className="btn btn-sm" onClick={() => openEdit(m)} title="Super Admin can edit this order">
+              <button className="btn btn-sm" onClick={() => (editing?.id === m.id ? setEditing(null) : openEdit(m))} title="Super Admin can edit this order">
                 Edit
               </button>
             )}
@@ -354,6 +382,132 @@ export function OrderBookPage() {
           </div>
         </td>
       </tr>
+    );
+  }
+
+  function dispatchPanel() {
+    return (
+      <>
+        <div style={{ fontWeight: 600, margin: '4px 0 8px' }}>Dispatch Order</div>
+        <div className="toolbar">
+          <div className="field" style={{ margin: 0 }}>
+            <label>Invoice No.</label>
+            <input value={dInvNo} onChange={(e) => setDInvNo(e.target.value)} />
+          </div>
+          <div className="field" style={{ margin: 0 }}>
+            <label>Invoice Date</label>
+            <input type="date" value={dInvDate} onChange={(e) => setDInvDate(e.target.value)} />
+          </div>
+          <div className="field" style={{ margin: 0 }}>
+            <label>Transporter</label>
+            <select value={dTransporter} onChange={(e) => setDTransporter(e.target.value)}>
+              <option value="">None</option>
+              {transporters.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field" style={{ margin: 0 }}>
+            <label>Freight Rate</label>
+            <input value={dFreightRate} onChange={(e) => setDFreightRate(e.target.value)} style={{ width: 90 }} />
+          </div>
+          <div className="field" style={{ margin: 0 }}>
+            <label>Vehicle Number</label>
+            <input value={dVehicle} onChange={(e) => setDVehicle(e.target.value)} placeholder="e.g. GJ-01-AB-1234" style={{ width: 150 }} />
+          </div>
+          <div className="field" style={{ margin: 0, minWidth: 220 }}>
+            <label>Invoice PDF (scan)</label>
+            <input type="file" accept="application/pdf,image/*" onChange={onPickInvoice} />
+            {dInvoiceName && (
+              <span className="muted" style={{ fontSize: 11, marginTop: 3 }}>
+                📄 {dInvoiceName}
+                {dInvoiceFile ? '' : ' (already attached)'}
+              </span>
+            )}
+          </div>
+          <div className="field" style={{ margin: 0 }}>
+            <label>Handling Agent</label>
+            <select value={dHandlingAgent} onChange={(e) => setDHandlingAgent(e.target.value)}>
+              <option value="">None</option>
+              {handlers.map((h) => (
+                <option key={h.id} value={h.id}>
+                  {h.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field" style={{ margin: 0 }}>
+            <label>Handling Rate</label>
+            <input value={dHandlingRate} onChange={(e) => setDHandlingRate(e.target.value)} style={{ width: 90 }} />
+          </div>
+        </div>
+        <div className="toolbar" style={{ marginTop: 6 }}>
+          <button className="btn btn-primary" onClick={confirmDispatch}>
+            Confirm Dispatch
+          </button>
+          <button className="btn btn-sm" onClick={() => setDispatchingId(null)}>
+            Cancel
+          </button>
+        </div>
+      </>
+    );
+  }
+
+  function editPanel(m: Outward) {
+    return (
+      <>
+        <div style={{ fontWeight: 600, margin: '4px 0 8px' }}>
+          Edit Order — {partyName(m.partyId)} · {itemName(m.itemId)}
+        </div>
+        <div className="toolbar">
+          <div className="field" style={{ margin: 0 }}>
+            <label>Date</label>
+            <input type="date" value={ed.date} onChange={(e) => setEd({ ...ed, date: e.target.value })} />
+          </div>
+          <div className="field" style={{ margin: 0 }}>
+            <label>Invoice No.</label>
+            <input value={ed.invNo} onChange={(e) => setEd({ ...ed, invNo: e.target.value })} />
+          </div>
+          <div className="field" style={{ margin: 0 }}>
+            <label>Invoice Date</label>
+            <input type="date" value={ed.invDate} onChange={(e) => setEd({ ...ed, invDate: e.target.value })} />
+          </div>
+          <div className="field" style={{ margin: 0 }}>
+            <label>Qty</label>
+            <input value={ed.qty} onChange={(e) => setEd({ ...ed, qty: e.target.value })} style={{ width: 90 }} />
+          </div>
+          <div className="field" style={{ margin: 0 }}>
+            <label>Rate</label>
+            <input value={ed.rate} onChange={(e) => setEd({ ...ed, rate: e.target.value })} style={{ width: 90 }} />
+          </div>
+          <div className="field" style={{ margin: 0 }}>
+            <label>GST %</label>
+            <input value={ed.gstPct} onChange={(e) => setEd({ ...ed, gstPct: e.target.value })} style={{ width: 70 }} />
+          </div>
+          <div className="field" style={{ margin: 0 }}>
+            <label>Pay Status</label>
+            <select value={ed.payStatus} onChange={(e) => setEd({ ...ed, payStatus: e.target.value })}>
+              <option value="pending">Pending</option>
+              <option value="received">Received</option>
+              <option value="credit">Credit</option>
+            </select>
+          </div>
+          <div className="field" style={{ margin: 0 }}>
+            <label>Credit Days</label>
+            <input value={ed.creditDays} onChange={(e) => setEd({ ...ed, creditDays: e.target.value })} style={{ width: 90 }} />
+          </div>
+          <div className="field" style={{ margin: 0, flex: 1, minWidth: 160 }}>
+            <label>Note</label>
+            <input value={ed.note} onChange={(e) => setEd({ ...ed, note: e.target.value })} />
+          </div>
+        </div>
+        <div className="toolbar" style={{ marginTop: 6 }}>
+          <button className="btn btn-primary" onClick={confirmEdit}>Save Changes</button>
+          <button className="btn btn-sm" onClick={() => setEditing(null)}>Cancel</button>
+        </div>
+      </>
     );
   }
 
@@ -437,72 +591,6 @@ export function OrderBookPage() {
         </table>
       </div>
 
-      {dispatchingId && (
-        <div className="card" style={{ border: '1px solid var(--accent, #0d9488)' }}>
-          <h3 style={{ marginTop: 0 }}>Dispatch Order</h3>
-          <div className="toolbar">
-            <div className="field" style={{ margin: 0 }}>
-              <label>Invoice No.</label>
-              <input value={dInvNo} onChange={(e) => setDInvNo(e.target.value)} />
-            </div>
-            <div className="field" style={{ margin: 0 }}>
-              <label>Invoice Date</label>
-              <input type="date" value={dInvDate} onChange={(e) => setDInvDate(e.target.value)} />
-            </div>
-            <div className="field" style={{ margin: 0 }}>
-              <label>Transporter</label>
-              <select value={dTransporter} onChange={(e) => setDTransporter(e.target.value)}>
-                <option value="">None</option>
-                {transporters.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="field" style={{ margin: 0 }}>
-              <label>Freight Rate</label>
-              <input value={dFreightRate} onChange={(e) => setDFreightRate(e.target.value)} style={{ width: 90 }} />
-            </div>
-            <div className="field" style={{ margin: 0 }}>
-              <label>Vehicle Number</label>
-              <input value={dVehicle} onChange={(e) => setDVehicle(e.target.value)} placeholder="e.g. GJ-01-AB-1234" style={{ width: 150 }} />
-            </div>
-            <div className="field" style={{ margin: 0, minWidth: 220 }}>
-              <label>Invoice PDF (scan)</label>
-              <input type="file" accept="application/pdf,image/*" onChange={onPickInvoice} />
-              {dInvoiceName && (
-                <span className="muted" style={{ fontSize: 11, marginTop: 3 }}>
-                  📄 {dInvoiceName}
-                  {dInvoiceFile ? '' : ' (already attached)'}
-                </span>
-              )}
-            </div>
-            <div className="field" style={{ margin: 0 }}>
-              <label>Handling Agent</label>
-              <select value={dHandlingAgent} onChange={(e) => setDHandlingAgent(e.target.value)}>
-                <option value="">None</option>
-                {handlers.map((h) => (
-                  <option key={h.id} value={h.id}>
-                    {h.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="field" style={{ margin: 0 }}>
-              <label>Handling Rate</label>
-              <input value={dHandlingRate} onChange={(e) => setDHandlingRate(e.target.value)} style={{ width: 90 }} />
-            </div>
-            <button className="btn btn-primary" onClick={confirmDispatch}>
-              Confirm Dispatch
-            </button>
-            <button className="btn btn-sm" onClick={() => setDispatchingId(null)}>
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
       <div className="card">
         <h3 style={{ marginTop: 0 }}>🚚 Dispatched Orders</h3>
         <table>
@@ -535,58 +623,6 @@ export function OrderBookPage() {
             <thead>{headerCells}</thead>
             <tbody>{cancelled.map(orderRow)}</tbody>
           </table>
-        </div>
-      )}
-
-      {editing && (
-        <div className="card" style={{ border: '1px solid var(--accent, #0d9488)' }}>
-          <h3 style={{ marginTop: 0 }}>Edit Order — {partyName(editing.partyId)} · {itemName(editing.itemId)}</h3>
-          <div className="toolbar">
-            <div className="field" style={{ margin: 0 }}>
-              <label>Date</label>
-              <input type="date" value={ed.date} onChange={(e) => setEd({ ...ed, date: e.target.value })} />
-            </div>
-            <div className="field" style={{ margin: 0 }}>
-              <label>Invoice No.</label>
-              <input value={ed.invNo} onChange={(e) => setEd({ ...ed, invNo: e.target.value })} />
-            </div>
-            <div className="field" style={{ margin: 0 }}>
-              <label>Invoice Date</label>
-              <input type="date" value={ed.invDate} onChange={(e) => setEd({ ...ed, invDate: e.target.value })} />
-            </div>
-            <div className="field" style={{ margin: 0 }}>
-              <label>Qty</label>
-              <input value={ed.qty} onChange={(e) => setEd({ ...ed, qty: e.target.value })} style={{ width: 90 }} />
-            </div>
-            <div className="field" style={{ margin: 0 }}>
-              <label>Rate</label>
-              <input value={ed.rate} onChange={(e) => setEd({ ...ed, rate: e.target.value })} style={{ width: 90 }} />
-            </div>
-            <div className="field" style={{ margin: 0 }}>
-              <label>GST %</label>
-              <input value={ed.gstPct} onChange={(e) => setEd({ ...ed, gstPct: e.target.value })} style={{ width: 70 }} />
-            </div>
-            <div className="field" style={{ margin: 0 }}>
-              <label>Pay Status</label>
-              <select value={ed.payStatus} onChange={(e) => setEd({ ...ed, payStatus: e.target.value })}>
-                <option value="pending">Pending</option>
-                <option value="received">Received</option>
-                <option value="credit">Credit</option>
-              </select>
-            </div>
-            <div className="field" style={{ margin: 0 }}>
-              <label>Credit Days</label>
-              <input value={ed.creditDays} onChange={(e) => setEd({ ...ed, creditDays: e.target.value })} style={{ width: 90 }} />
-            </div>
-            <div className="field" style={{ margin: 0, flex: 1, minWidth: 160 }}>
-              <label>Note</label>
-              <input value={ed.note} onChange={(e) => setEd({ ...ed, note: e.target.value })} />
-            </div>
-          </div>
-          <div className="toolbar" style={{ marginTop: 4 }}>
-            <button className="btn btn-primary" onClick={confirmEdit}>Save Changes</button>
-            <button className="btn btn-sm" onClick={() => setEditing(null)}>Cancel</button>
-          </div>
         </div>
       )}
 

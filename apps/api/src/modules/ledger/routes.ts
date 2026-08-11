@@ -72,6 +72,56 @@ ledgerRouter.get(
 );
 
 /**
+ * Full per-item ledger: every purchase (stock in) and sale (stock out) for one item in date
+ * order, with the tax split on each line. The caller adds the item's opening qty and runs the
+ * balance forward — the same rows/filters the Live Stock figure uses (see items/stock), so the
+ * closing balance always agrees with Live Stock.
+ */
+ledgerRouter.get(
+  '/item/:id',
+  requirePermission('view_ledgers'),
+  asyncHandler(async (req, res) => {
+    const itemId = req.params.id;
+    const [inward, outward, parties] = await Promise.all([
+      prisma.inward.findMany({ where: { itemId, status: 'received' } }),
+      prisma.outward.findMany({ where: { itemId, fulfil: { not: 'cancelled' } } }),
+      prisma.party.findMany({ select: { id: true, name: true } }),
+    ]);
+    const nameOf = new Map(parties.map((p) => [p.id, p.name]));
+    const split = (amount: unknown, gst: unknown) => ({
+      taxable: Math.round((Number(amount) - Number(gst)) * 100) / 100,
+      tax: Number(gst),
+      total: Number(amount),
+    });
+
+    const entries = [
+      ...inward.map((i) => ({
+        date: i.date.toISOString().slice(0, 10),
+        kind: 'in' as const,
+        description: `Purchase — ${i.invNo || 'no invoice'}`,
+        partyName: nameOf.get(i.partyId) ?? '—',
+        qtyIn: Number(i.qty),
+        qtyOut: 0,
+        rate: Number(i.rate),
+        ...split(i.amount, i.gst),
+      })),
+      ...outward.map((o) => ({
+        date: o.date.toISOString().slice(0, 10),
+        kind: 'out' as const,
+        description: `Sale — ${o.invNo || 'no invoice'}`,
+        partyName: nameOf.get(o.partyId) ?? '—',
+        qtyIn: 0,
+        qtyOut: Number(o.qty),
+        rate: Number(o.rate),
+        ...split(o.amount, o.gst),
+      })),
+    ].sort((a, b) => a.date.localeCompare(b.date));
+
+    res.json(entries);
+  })
+);
+
+/**
  * Full per-party ledger: sales invoices (DR), purchases (CR), payments, and freight/handling
  * payables where this party is the transporter/handling agent — combined chronologically.
  */

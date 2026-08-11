@@ -28,6 +28,23 @@ export interface PartyLedgerEntry {
   payStatus?: string;
 }
 
+/** One stock movement for a single item — a purchase in, or a sale out. */
+export interface ItemLedgerEntry {
+  date: string;
+  kind: 'in' | 'out';
+  description: string;
+  partyName: string;
+  qtyIn: number;
+  qtyOut: number;
+  rate: number;
+  /** Value before tax. */
+  taxable: number;
+  /** GST portion. */
+  tax: number;
+  /** taxable + tax. */
+  total: number;
+}
+
 export interface PayableGroup {
   party: { id: string; name: string; phone: string | null };
   amount: number;
@@ -39,5 +56,6 @@ export function createLedgerClient(http: HttpClient) {
       http.get<DueLedgerGroup[]>(`/ledger/due${salesPersonId ? `?salesPersonId=${salesPersonId}` : ''}`),
     payable: () => http.get<PayableGroup[]>('/ledger/payable'),
     party: (partyId: string) => http.get<PartyLedgerEntry[]>(`/ledger/party/${partyId}`),
+    item: (itemId: string) => http.get<ItemLedgerEntry[]>(`/ledger/item/${itemId}`),
   };
 }

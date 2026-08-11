@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import type { DeliveryType, Inward, Item, Party } from '@surani/shared';
 import { fyOfDate } from '@surani/shared';
 import { api } from '../lib/apiClient';
@@ -54,6 +54,8 @@ export function InwardPage() {
   });
 
   function openEdit(r: Inward) {
+    setMarking(null); // only one inline panel open at a time
+    setError('');
     setEditing(r);
     setEd({
       date: r.date,
@@ -180,6 +182,8 @@ export function InwardPage() {
   const [mk, setMk] = useState({ invNo: '', invDate: '', handlingAgentId: '', handlingRate: '0' });
 
   function openMark(r: Inward) {
+    setEditing(null); // only one inline panel open at a time
+    setError('');
     setMarking(r);
     setMk({
       invNo: r.invNo || '',
@@ -234,9 +238,35 @@ export function InwardPage() {
     </tr>
   );
 
+  const colCount = canEdit ? 11 : 10;
+
+  // A row, plus — when it is the row being edited or marked — the matching panel rendered
+  // directly beneath it, so the form opens where you clicked (same as Party Master).
   function inwardRow(r: Inward) {
     return (
-      <tr key={r.id}>
+      <Fragment key={r.id}>
+        {inwardCells(r)}
+        {editing?.id === r.id && canEditInvoice && (
+          <tr>
+            <td colSpan={colCount} style={{ background: '#f8fafc' }}>
+              {editPanel(r)}
+            </td>
+          </tr>
+        )}
+        {marking?.id === r.id && (
+          <tr>
+            <td colSpan={colCount} style={{ background: '#f8fafc' }}>
+              {markPanel(r)}
+            </td>
+          </tr>
+        )}
+      </Fragment>
+    );
+  }
+
+  function inwardCells(r: Inward) {
+    return (
+      <tr>
         <td>{r.date}</td>
         <td>{partyName(r.partyId)}</td>
         <td>{itemName(r.itemId)}</td>
@@ -256,7 +286,7 @@ export function InwardPage() {
                 </button>
               )}
               {canEditInvoice && (
-                <button className="btn btn-sm" onClick={() => openEdit(r)} title="Edit entry (admin only)">
+                <button className="btn btn-sm" onClick={() => (editing?.id === r.id ? setEditing(null) : openEdit(r))} title="Edit entry (admin only)">
                   Edit
                 </button>
               )}
@@ -269,6 +299,145 @@ export function InwardPage() {
           </td>
         )}
       </tr>
+    );
+  }
+
+  function editPanel(r: Inward) {
+    return (
+      <>
+        <div style={{ fontWeight: 600, margin: '4px 0 8px' }}>
+          Edit Inward — {partyName(r.partyId)} · {itemName(r.itemId)}
+        </div>
+        <div className="toolbar">
+          <div className="field" style={{ margin: 0 }}>
+            <label>Date</label>
+            <input type="date" value={ed.date} onChange={(e) => setEd({ ...ed, date: e.target.value })} />
+          </div>
+          <div className="field" style={{ margin: 0, flex: 1, minWidth: 240 }}>
+            <label>Party (creditor)</label>
+            <SearchSelect
+              value={ed.partyId}
+              onChange={(id) => setEd({ ...ed, partyId: id })}
+              options={parties.map((p) => ({ id: p.id, label: p.name }))}
+              placeholder="Type party name…"
+              allowClear={false}
+            />
+          </div>
+          <div className="field" style={{ margin: 0 }}>
+            <label>Item</label>
+            <select value={ed.itemId} onChange={(e) => setEd({ ...ed, itemId: e.target.value })}>
+              {items.map((i) => (
+                <option key={i.id} value={i.id}>{i.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="field" style={{ margin: 0 }}>
+            <label>Qty</label>
+            <input value={ed.qty} onChange={(e) => setEd({ ...ed, qty: e.target.value })} style={{ width: 90 }} />
+          </div>
+          <div className="field" style={{ margin: 0 }}>
+            <label>Rate</label>
+            <input value={ed.rate} onChange={(e) => setEd({ ...ed, rate: e.target.value })} style={{ width: 90 }} />
+          </div>
+          <div className="field" style={{ margin: 0 }}>
+            <label>GST %</label>
+            <input value={ed.gstPct} onChange={(e) => setEd({ ...ed, gstPct: e.target.value })} style={{ width: 70 }} />
+          </div>
+          <div className="field" style={{ margin: 0 }}>
+            <label>Invoice No.</label>
+            <input value={ed.invNo} onChange={(e) => setEd({ ...ed, invNo: e.target.value })} style={{ width: 130 }} />
+          </div>
+          <div className="field" style={{ margin: 0 }}>
+            <label>Invoice Date</label>
+            <input type="date" value={ed.invDate} onChange={(e) => setEd({ ...ed, invDate: e.target.value })} />
+          </div>
+          <div className="field" style={{ margin: 0 }}>
+            <label>Delivery</label>
+            <select value={ed.deliveryType} onChange={(e) => setEd({ ...ed, deliveryType: e.target.value as '' | DeliveryType })}>
+              <option value="">—</option>
+              <option value="ExWorks">Ex Works</option>
+              <option value="FOR">FOR</option>
+            </select>
+          </div>
+          <div className="field" style={{ margin: 0 }}>
+            <label>Transporter</label>
+            <select value={ed.transporterId} onChange={(e) => setEd({ ...ed, transporterId: e.target.value })}>
+              <option value="">— none —</option>
+              {transporters.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="field" style={{ margin: 0 }}>
+            <label>Freight (₹/unit)</label>
+            <input value={ed.freightRate} onChange={(e) => setEd({ ...ed, freightRate: e.target.value })} style={{ width: 100 }} />
+          </div>
+          <div className="field" style={{ margin: 0 }}>
+            <label>Handling Agent</label>
+            <select value={ed.handlingAgentId} onChange={(e) => setEd({ ...ed, handlingAgentId: e.target.value })}>
+              <option value="">— none —</option>
+              {handlers.map((h) => (
+                <option key={h.id} value={h.id}>{h.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="field" style={{ margin: 0 }}>
+            <label>Handling (₹/MT)</label>
+            <input value={ed.handlingRate} onChange={(e) => setEd({ ...ed, handlingRate: e.target.value })} style={{ width: 100 }} />
+          </div>
+          <div className="field" style={{ margin: 0 }}>
+            <label>Vehicle</label>
+            <input value={ed.vehicle} onChange={(e) => setEd({ ...ed, vehicle: e.target.value })} style={{ width: 120 }} />
+          </div>
+          <div className="field" style={{ margin: 0, flex: 1, minWidth: 160 }}>
+            <label>Note</label>
+            <input value={ed.note} onChange={(e) => setEd({ ...ed, note: e.target.value })} />
+          </div>
+        </div>
+        {error && <div className="login-err show" style={{ marginTop: 6 }}>{error}</div>}
+        <div className="toolbar" style={{ marginTop: 6 }}>
+          <button className="btn btn-primary" onClick={confirmEdit}>Save Changes</button>
+          <button className="btn btn-sm" onClick={() => setEditing(null)}>Cancel</button>
+        </div>
+      </>
+    );
+  }
+
+  function markPanel(r: Inward) {
+    return (
+      <>
+        <div style={{ fontWeight: 600, margin: '4px 0 8px' }}>
+          Mark as Inward — {partyName(r.partyId)} · {itemName(r.itemId)}
+        </div>
+        <div className="toolbar">
+          <div className="field" style={{ margin: 0 }}>
+            <FieldLabel required={required('inward.invNo')}>Invoice No.</FieldLabel>
+            <input value={mk.invNo} onChange={(e) => setMk({ ...mk, invNo: e.target.value })} style={{ width: 140 }} />
+          </div>
+          <div className="field" style={{ margin: 0 }}>
+            <FieldLabel required={required('inward.invDate')}>Invoice Date</FieldLabel>
+            <input type="date" value={mk.invDate} onChange={(e) => setMk({ ...mk, invDate: e.target.value })} />
+          </div>
+          <div className="field" style={{ margin: 0 }}>
+            <FieldLabel required={required('inward.handlingAgent')}>Handling Agent</FieldLabel>
+            <select value={mk.handlingAgentId} onChange={(e) => setMk({ ...mk, handlingAgentId: e.target.value })}>
+              <option value="">— none —</option>
+              {handlers.map((h) => (
+                <option key={h.id} value={h.id}>{h.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="field" style={{ margin: 0 }}>
+            <label>Handling (₹/MT)</label>
+            <input value={mk.handlingRate} onChange={(e) => setMk({ ...mk, handlingRate: e.target.value })} style={{ width: 100 }} />
+          </div>
+        </div>
+        {error && <div className="login-err show" style={{ marginTop: 6 }}>{error}</div>}
+        <div className="toolbar" style={{ marginTop: 6 }}>
+          <button className="btn btn-primary" onClick={confirmMark}>Confirm — Mark as Inward</button>
+          <button className="btn btn-sm" onClick={() => setMarking(null)}>Cancel</button>
+        </div>
+      </>
     );
   }
 
@@ -412,136 +581,8 @@ export function InwardPage() {
           </div>
         </>
       )}
-      {error && <div className="login-err show">{error}</div>}
-
-      {editing && canEditInvoice && (
-        <div className="card" style={{ border: '1px solid var(--accent, #0d9488)', marginBottom: 14 }}>
-          <h3 style={{ marginTop: 0 }}>Edit Inward — {partyName(editing.partyId)} · {itemName(editing.itemId)}</h3>
-          <div className="toolbar">
-            <div className="field" style={{ margin: 0 }}>
-              <label>Date</label>
-              <input type="date" value={ed.date} onChange={(e) => setEd({ ...ed, date: e.target.value })} />
-            </div>
-            <div className="field" style={{ margin: 0, flex: 1, minWidth: 240 }}>
-              <label>Party (creditor)</label>
-              <SearchSelect
-                value={ed.partyId}
-                onChange={(id) => setEd({ ...ed, partyId: id })}
-                options={parties.map((p) => ({ id: p.id, label: p.name }))}
-                placeholder="Type party name…"
-                allowClear={false}
-              />
-            </div>
-            <div className="field" style={{ margin: 0 }}>
-              <label>Item</label>
-              <select value={ed.itemId} onChange={(e) => setEd({ ...ed, itemId: e.target.value })}>
-                {items.map((i) => (
-                  <option key={i.id} value={i.id}>{i.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="field" style={{ margin: 0 }}>
-              <label>Qty</label>
-              <input value={ed.qty} onChange={(e) => setEd({ ...ed, qty: e.target.value })} style={{ width: 90 }} />
-            </div>
-            <div className="field" style={{ margin: 0 }}>
-              <label>Rate</label>
-              <input value={ed.rate} onChange={(e) => setEd({ ...ed, rate: e.target.value })} style={{ width: 90 }} />
-            </div>
-            <div className="field" style={{ margin: 0 }}>
-              <label>GST %</label>
-              <input value={ed.gstPct} onChange={(e) => setEd({ ...ed, gstPct: e.target.value })} style={{ width: 70 }} />
-            </div>
-            <div className="field" style={{ margin: 0 }}>
-              <label>Invoice No.</label>
-              <input value={ed.invNo} onChange={(e) => setEd({ ...ed, invNo: e.target.value })} style={{ width: 130 }} />
-            </div>
-            <div className="field" style={{ margin: 0 }}>
-              <label>Invoice Date</label>
-              <input type="date" value={ed.invDate} onChange={(e) => setEd({ ...ed, invDate: e.target.value })} />
-            </div>
-            <div className="field" style={{ margin: 0 }}>
-              <label>Delivery</label>
-              <select value={ed.deliveryType} onChange={(e) => setEd({ ...ed, deliveryType: e.target.value as '' | DeliveryType })}>
-                <option value="">—</option>
-                <option value="ExWorks">Ex Works</option>
-                <option value="FOR">FOR</option>
-              </select>
-            </div>
-            <div className="field" style={{ margin: 0 }}>
-              <label>Transporter</label>
-              <select value={ed.transporterId} onChange={(e) => setEd({ ...ed, transporterId: e.target.value })}>
-                <option value="">— none —</option>
-                {transporters.map((t) => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="field" style={{ margin: 0 }}>
-              <label>Freight (₹/unit)</label>
-              <input value={ed.freightRate} onChange={(e) => setEd({ ...ed, freightRate: e.target.value })} style={{ width: 100 }} />
-            </div>
-            <div className="field" style={{ margin: 0 }}>
-              <label>Handling Agent</label>
-              <select value={ed.handlingAgentId} onChange={(e) => setEd({ ...ed, handlingAgentId: e.target.value })}>
-                <option value="">— none —</option>
-                {handlers.map((h) => (
-                  <option key={h.id} value={h.id}>{h.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="field" style={{ margin: 0 }}>
-              <label>Handling (₹/MT)</label>
-              <input value={ed.handlingRate} onChange={(e) => setEd({ ...ed, handlingRate: e.target.value })} style={{ width: 100 }} />
-            </div>
-            <div className="field" style={{ margin: 0 }}>
-              <label>Vehicle</label>
-              <input value={ed.vehicle} onChange={(e) => setEd({ ...ed, vehicle: e.target.value })} style={{ width: 120 }} />
-            </div>
-            <div className="field" style={{ margin: 0, flex: 1, minWidth: 160 }}>
-              <label>Note</label>
-              <input value={ed.note} onChange={(e) => setEd({ ...ed, note: e.target.value })} />
-            </div>
-          </div>
-          <div className="toolbar" style={{ marginTop: 4 }}>
-            <button className="btn btn-primary" onClick={confirmEdit}>Save Changes</button>
-            <button className="btn btn-sm" onClick={() => setEditing(null)}>Cancel</button>
-          </div>
-        </div>
-      )}
-
-      {marking && (
-        <div className="card" style={{ border: '1px solid var(--accent, #0d9488)', marginBottom: 14 }}>
-          <h3 style={{ marginTop: 0 }}>Mark as Inward — {partyName(marking.partyId)} · {itemName(marking.itemId)}</h3>
-          <div className="toolbar">
-            <div className="field" style={{ margin: 0 }}>
-              <FieldLabel required={required('inward.invNo')}>Invoice No.</FieldLabel>
-              <input value={mk.invNo} onChange={(e) => setMk({ ...mk, invNo: e.target.value })} style={{ width: 140 }} />
-            </div>
-            <div className="field" style={{ margin: 0 }}>
-              <FieldLabel required={required('inward.invDate')}>Invoice Date</FieldLabel>
-              <input type="date" value={mk.invDate} onChange={(e) => setMk({ ...mk, invDate: e.target.value })} />
-            </div>
-            <div className="field" style={{ margin: 0 }}>
-              <FieldLabel required={required('inward.handlingAgent')}>Handling Agent</FieldLabel>
-              <select value={mk.handlingAgentId} onChange={(e) => setMk({ ...mk, handlingAgentId: e.target.value })}>
-                <option value="">— none —</option>
-                {handlers.map((h) => (
-                  <option key={h.id} value={h.id}>{h.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="field" style={{ margin: 0 }}>
-              <label>Handling (₹/MT)</label>
-              <input value={mk.handlingRate} onChange={(e) => setMk({ ...mk, handlingRate: e.target.value })} style={{ width: 100 }} />
-            </div>
-          </div>
-          <div className="toolbar" style={{ marginTop: 4 }}>
-            <button className="btn btn-primary" onClick={confirmMark}>Confirm — Mark as Inward</button>
-            <button className="btn btn-sm" onClick={() => setMarking(null)}>Cancel</button>
-          </div>
-        </div>
-      )}
+      {/* Errors raised by the inline panels are shown inside those panels, next to the buttons. */}
+      {error && !editing && !marking && <div className="login-err show">{error}</div>}
 
       {/* Pending — recorded but not yet marked as inward */}
       <div style={{ marginTop: 8 }}>

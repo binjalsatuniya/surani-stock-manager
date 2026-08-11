@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import type { Item, StockLevel } from '@surani/shared';
 import { api } from '../lib/apiClient';
 import { usePermission } from '../hooks/usePermission';
@@ -55,6 +56,7 @@ export function LiveStockPage() {
             <th>Reorder Level</th>
             <th>Current Rate</th>
             <th>Rate Updated</th>
+            <th></th>
             {canEdit && <th>Update Rate</th>}
           </tr>
         </thead>
@@ -73,6 +75,9 @@ export function LiveStockPage() {
                 <td>{i.reorder}</td>
                 <td>{i.rate}</td>
                 <td className="muted">{i.rateDate ? new Date(i.rateDate).toLocaleDateString('en-IN') : '—'}</td>
+                <td>
+                  <Link to={`/items/${i.id}/ledger`}>View Ledger</Link>
+                </td>
                 {canEdit && (
                   <td>
                     <div style={{ display: 'flex', gap: 6 }}>
@@ -93,7 +98,7 @@ export function LiveStockPage() {
           })}
           {items.length === 0 && (
             <tr>
-              <td colSpan={6} className="muted">
+              <td colSpan={canEdit ? 8 : 7} className="muted">
                 No items yet.
               </td>
             </tr>

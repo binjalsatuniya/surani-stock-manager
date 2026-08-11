@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import type { Item, Outward, Party, PayStatus } from '@surani/shared';
 import { fyOfDate } from '@surani/shared';
 import { api } from '../lib/apiClient';
@@ -30,7 +30,8 @@ export function OutwardPage() {
   const can = usePermission();
   const { confirm } = useDialogs();
   const canDelete = can('delete_outward');
-  const canEdit = can('add_outward') || can('edit_outward') || canDelete;
+  const canEditRow = can('edit_outward');
+  const canEdit = can('add_outward') || canEditRow || canDelete;
   const { selectedFy, setSelectedFy } = useFinancialYear();
   const { required } = useFieldSettings();
   const [rows, setRows] = useState<Outward[]>([]);
@@ -132,8 +133,135 @@ export function OutwardPage() {
     reload();
   }
 
+  // Inline edit — opens directly under the row being corrected (same as Party Master).
+  const [editing, setEditing] = useState<Outward | null>(null);
+  const [ed, setEd] = useState({
+    date: '', partyId: '', itemId: '', qty: '', rate: '', gstPct: '',
+    payStatus: 'pending' as PayStatus, creditDays: '', invNo: '', invDate: '', note: '',
+  });
+
+  function openEdit(r: Outward) {
+    setError('');
+    setEditing(r);
+    setEd({
+      date: r.date,
+      partyId: r.partyId,
+      itemId: r.itemId,
+      qty: String(r.qty),
+      rate: String(r.rate),
+      gstPct: String(r.gstPct),
+      payStatus: r.payStatus,
+      creditDays: String(r.creditDays ?? 0),
+      invNo: r.invNo || '',
+      invDate: r.invDate || '',
+      note: r.note || '',
+    });
+  }
+
+  async function confirmEdit() {
+    if (!editing) return;
+    setError('');
+    try {
+      await api.outward.update(editing.id, {
+        date: ed.date,
+        partyId: ed.partyId,
+        itemId: ed.itemId,
+        qty: Number(ed.qty),
+        rate: Number(ed.rate),
+        gstPct: Number(ed.gstPct) || 0,
+        payStatus: ed.payStatus,
+        creditDays: Number(ed.creditDays) || 0,
+        invNo: ed.invNo.trim() || null,
+        invDate: ed.invDate || null,
+        note: ed.note.trim() || null,
+      });
+      setEditing(null);
+      reload();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to edit outward entry');
+    }
+  }
+
   const partyName = (id: string) => parties.find((p) => p.id === id)?.name || id;
   const itemName = (id: string) => items.find((i) => i.id === id)?.name || id;
+
+  function editPanel(r: Outward) {
+    return (
+      <>
+        <div style={{ fontWeight: 600, margin: '4px 0 8px' }}>
+          Edit Outward — {partyName(r.partyId)} · {itemName(r.itemId)}
+        </div>
+        <div className="toolbar">
+          <div className="field" style={{ margin: 0 }}>
+            <label>Date</label>
+            <input type="date" value={ed.date} onChange={(e) => setEd({ ...ed, date: e.target.value })} />
+          </div>
+          <div className="field" style={{ margin: 0, flex: 1, minWidth: 240 }}>
+            <label>Party (debtor)</label>
+            <SearchSelect
+              value={ed.partyId}
+              onChange={(id) => setEd({ ...ed, partyId: id })}
+              options={parties.map((p) => ({ id: p.id, label: p.name }))}
+              placeholder="Type party name…"
+              allowClear={false}
+            />
+          </div>
+          <div className="field" style={{ margin: 0 }}>
+            <label>Item</label>
+            <select value={ed.itemId} onChange={(e) => setEd({ ...ed, itemId: e.target.value })}>
+              {items.map((i) => (
+                <option key={i.id} value={i.id}>{i.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="field" style={{ margin: 0 }}>
+            <label>Qty</label>
+            <input value={ed.qty} onChange={(e) => setEd({ ...ed, qty: e.target.value })} style={{ width: 90 }} />
+          </div>
+          <div className="field" style={{ margin: 0 }}>
+            <label>Rate</label>
+            <input value={ed.rate} onChange={(e) => setEd({ ...ed, rate: e.target.value })} style={{ width: 90 }} />
+          </div>
+          <div className="field" style={{ margin: 0 }}>
+            <label>GST %</label>
+            <input value={ed.gstPct} onChange={(e) => setEd({ ...ed, gstPct: e.target.value })} style={{ width: 70 }} />
+          </div>
+          <div className="field" style={{ margin: 0 }}>
+            <label>Pay Status</label>
+            <select value={ed.payStatus} onChange={(e) => setEd({ ...ed, payStatus: e.target.value as PayStatus })}>
+              <option value="pending">Pending</option>
+              <option value="received">Received</option>
+              <option value="credit">Credit</option>
+            </select>
+          </div>
+          <div className="field" style={{ margin: 0 }}>
+            <label>Credit Days</label>
+            <input value={ed.creditDays} onChange={(e) => setEd({ ...ed, creditDays: e.target.value })} style={{ width: 90 }} />
+          </div>
+          <div className="field" style={{ margin: 0 }}>
+            <label>Invoice No.</label>
+            <input value={ed.invNo} onChange={(e) => setEd({ ...ed, invNo: e.target.value })} style={{ width: 130 }} />
+          </div>
+          <div className="field" style={{ margin: 0 }}>
+            <label>Invoice Date</label>
+            <input type="date" value={ed.invDate} onChange={(e) => setEd({ ...ed, invDate: e.target.value })} />
+          </div>
+          <div className="field" style={{ margin: 0, flex: 1, minWidth: 160 }}>
+            <label>Note</label>
+            <input value={ed.note} onChange={(e) => setEd({ ...ed, note: e.target.value })} />
+          </div>
+        </div>
+        <div className="muted" style={{ fontSize: 11, marginTop: 6 }}>
+          Freight, handling and transporter are set when the entry is created and are not editable here.
+        </div>
+        {error && <div className="login-err show" style={{ marginTop: 6 }}>{error}</div>}
+        <div className="toolbar" style={{ marginTop: 6 }}>
+          <button className="btn btn-primary" onClick={confirmEdit}>Save Changes</button>
+          <button className="btn btn-sm" onClick={() => setEditing(null)}>Cancel</button>
+        </div>
+      </>
+    );
+  }
 
   return (
     <div className="card">
@@ -273,7 +401,8 @@ export function OutwardPage() {
           </div>
         </>
       )}
-      {error && <div className="login-err show">{error}</div>}
+      {/* While an inline panel is open its own error is shown next to its buttons. */}
+      {error && !editing && <div className="login-err show">{error}</div>}
       <table>
         <thead>
           <tr>
@@ -293,28 +422,44 @@ export function OutwardPage() {
         </thead>
         <tbody>
           {rows.map((r) => (
-            <tr key={r.id}>
-              <td>{r.date}</td>
-              <td>{partyName(r.partyId)}</td>
-              <td>{itemName(r.itemId)}</td>
-              <td>{r.qty}</td>
-              <td>{r.rate}</td>
-              <td>{r.gst}</td>
-              <td>{r.freight}</td>
-              <td>{r.handling}</td>
-              <td>{r.invNo || '—'}</td>
-              <td>{r.amount}</td>
-              <td>{r.payStatus}</td>
-              {canEdit && (
-                <td>
-                  {canDelete && (
-                    <button className="btn btn-sm btn-danger" onClick={() => onDelete(r.id)}>
-                      Delete
-                    </button>
-                  )}
-                </td>
+            <Fragment key={r.id}>
+              <tr>
+                <td>{r.date}</td>
+                <td>{partyName(r.partyId)}</td>
+                <td>{itemName(r.itemId)}</td>
+                <td>{r.qty}</td>
+                <td>{r.rate}</td>
+                <td>{r.gst}</td>
+                <td>{r.freight}</td>
+                <td>{r.handling}</td>
+                <td>{r.invNo || '—'}</td>
+                <td>{r.amount}</td>
+                <td>{r.payStatus}</td>
+                {canEdit && (
+                  <td>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      {canEditRow && (
+                        <button className="btn btn-sm" onClick={() => (editing?.id === r.id ? setEditing(null) : openEdit(r))}>
+                          Edit
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button className="btn btn-sm btn-danger" onClick={() => onDelete(r.id)}>
+                          Delete
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                )}
+              </tr>
+              {editing?.id === r.id && (
+                <tr>
+                  <td colSpan={canEdit ? 12 : 11} style={{ background: '#f8fafc' }}>
+                    {editPanel(r)}
+                  </td>
+                </tr>
               )}
-            </tr>
+            </Fragment>
           ))}
           {rows.length === 0 && (
             <tr>
