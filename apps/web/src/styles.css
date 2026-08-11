@@ -169,6 +169,39 @@ h3 { font-size: 15px; }
 .card:hover { box-shadow: var(--shadow-md); }
 .card h2, .card h3 { margin-top: 0; }
 
+/* ---------- Dashboard KPI tiles ----------
+   Receivable / payable / net position are the figures the day is run on, so they get a full
+   row and a large number. Items, low stock and pending orders are reference counts — they sit
+   on one compact strip underneath, label and value on a single line. A 12-column grid keeps
+   both rows flush at every width. */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 16px;
+}
+.kpi-major { grid-column: span 4; }
+.kpi-minor {
+  grid-column: span 4;
+  padding: 11px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.kpi-major .kpi-value { font-size: 32px; font-weight: 800; line-height: 1.15; }
+.kpi-minor .kpi-value { font-size: 19px; font-weight: 700; line-height: 1.15; }
+.kpi-minor .kpi-label { font-size: 12px; }
+.kpi-minor .kpi-sub { display: none; } /* the caption is noise once the tile is this small */
+
+@media (max-width: 820px) {
+  .kpi-major { grid-column: span 12; }
+  .kpi-minor { grid-column: span 6; }
+  .kpi-major .kpi-value { font-size: 28px; }
+}
+@media (max-width: 520px) {
+  .kpi-minor { grid-column: span 12; }
+}
+
 /* ---------- Tables ---------- */
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th {

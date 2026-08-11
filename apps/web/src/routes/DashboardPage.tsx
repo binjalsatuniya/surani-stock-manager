@@ -264,7 +264,8 @@ export function DashboardPage() {
   }
 
   // ----- drag-to-reorder plumbing (CSS `order` keeps the JSX in place) -----
-  const TILE_KEYS = ['items', 'receivable', 'payable', 'net', 'lowStock', 'pendingOrders'];
+  // Money first — the tiles are positioned by CSS `order` from this list, not by JSX position.
+  const TILE_KEYS = ['receivable', 'payable', 'net', 'items', 'lowStock', 'pendingOrders'];
   const SECTION_KEYS = ['kpis', 'newOrder', 'availableStock', 'recentActivity'];
   const orderKeys = (defaults: string[], saved: string[]): string[] => {
     const seen = new Set<string>();
@@ -358,36 +359,40 @@ export function DashboardPage() {
       {/* KPI tiles */}
       <div {...sectionProps('kpis')}>
         <SectionHandle sectionKey="kpis" />
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16 }}>
-          <div className="card" {...tileProps('items')}>
-            <div className="muted">Items</div>
-            <div style={{ fontSize: 26, fontWeight: 700 }}>{kpis.totalItems}</div>
-            <div className="muted" style={{ fontSize: 11 }}>{parties.length} parties</div>
+        <div className="kpi-grid">
+          <div className="card kpi-major" {...tileProps('receivable')}>
+            <div className="muted kpi-label">Total receivable</div>
+            <div className="kpi-value" style={{ color: '#10b981' }}>{inr(kpis.receivable)}</div>
+            <div className="muted kpi-sub" style={{ fontSize: 11 }}>to collect</div>
           </div>
-          <div className="card" {...tileProps('receivable')}>
-            <div className="muted">Total receivable</div>
-            <div style={{ fontSize: 26, fontWeight: 700, color: '#10b981' }}>{inr(kpis.receivable)}</div>
-            <div className="muted" style={{ fontSize: 11 }}>to collect</div>
+          <div className="card kpi-major" {...tileProps('payable')}>
+            <div className="muted kpi-label">Total payable</div>
+            <div className="kpi-value" style={{ color: '#ef4444' }}>{inr(kpis.payable)}</div>
+            <div className="muted kpi-sub" style={{ fontSize: 11 }}>to pay</div>
           </div>
-          <div className="card" {...tileProps('payable')}>
-            <div className="muted">Total payable</div>
-            <div style={{ fontSize: 26, fontWeight: 700, color: '#ef4444' }}>{inr(kpis.payable)}</div>
-            <div className="muted" style={{ fontSize: 11 }}>to pay</div>
-          </div>
-          <div className="card" {...tileProps('net')}>
-            <div className="muted">Net position</div>
-            <div style={{ fontSize: 26, fontWeight: 700, color: kpis.netPosition >= 0 ? '#10b981' : '#ef4444' }}>
+          <div className="card kpi-major" {...tileProps('net')}>
+            <div className="muted kpi-label">Net position</div>
+            <div className="kpi-value" style={{ color: kpis.netPosition >= 0 ? '#10b981' : '#ef4444' }}>
               {inr(kpis.netPosition)}
             </div>
+            <div className="muted kpi-sub" style={{ fontSize: 11 }}>receivable − payable</div>
           </div>
-          <div className="card" {...tileProps('lowStock')}>
-            <div className="muted">Low stock items</div>
-            <div style={{ fontSize: 26, fontWeight: 700, color: kpis.lowStockCount ? '#ef4444' : undefined }}>{kpis.lowStockCount}</div>
-            <div className="muted" style={{ fontSize: 11 }}>at / below reorder</div>
+          <div className="card kpi-minor" {...tileProps('items')}>
+            <div className="muted kpi-label">Items</div>
+            <div className="kpi-value">
+              {kpis.totalItems}
+              <span className="muted" style={{ fontSize: 11, fontWeight: 500 }}> · {parties.length} parties</span>
+            </div>
           </div>
-          <div className="card" {...tileProps('pendingOrders')}>
-            <div className="muted">Pending orders</div>
-            <div style={{ fontSize: 26, fontWeight: 700 }}>{kpis.pendingOrders}</div>
+          <div className="card kpi-minor" {...tileProps('lowStock')}>
+            <div className="muted kpi-label">Low stock</div>
+            <div className="kpi-value" style={{ color: kpis.lowStockCount ? '#ef4444' : undefined }}>
+              {kpis.lowStockCount}
+            </div>
+          </div>
+          <div className="card kpi-minor" {...tileProps('pendingOrders')}>
+            <div className="muted kpi-label">Pending orders</div>
+            <div className="kpi-value">{kpis.pendingOrders}</div>
           </div>
         </div>
       </div>
