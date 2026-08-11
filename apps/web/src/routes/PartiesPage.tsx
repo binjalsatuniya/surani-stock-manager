@@ -54,6 +54,41 @@ export function PartiesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState('');
 
+  // GST lookup — only offered when the server has a provider key configured.
+  const [gstLookupOn, setGstLookupOn] = useState(false);
+  const [gstBusy, setGstBusy] = useState(false);
+  const [gstNote, setGstNote] = useState<{ text: string; bad: boolean } | null>(null);
+
+  async function onFetchGst() {
+    const check = inspectGstin(form.gst);
+    if (!check.valid) {
+      setGstNote({ text: 'Enter a valid GST number first.', bad: true });
+      return;
+    }
+    setGstBusy(true);
+    setGstNote(null);
+    try {
+      const r = await api.gst.lookup(form.gst.trim().toUpperCase());
+      // Fill only what is empty — never overwrite something already typed.
+      setForm((f) => ({
+        ...f,
+        name: f.name.trim() || r.tradeName || r.legalName || '',
+        address: f.address.trim() || r.address || '',
+      }));
+      const cancelled = r.status && !/^active$/i.test(r.status);
+      setGstNote({
+        text: cancelled
+          ? `⚠ Registration status is "${r.status}" — check before claiming input credit.`
+          : `Fetched: ${r.legalName || r.tradeName || 'details'}${r.status ? ` · ${r.status}` : ''}`,
+        bad: !!cancelled,
+      });
+    } catch (e) {
+      setGstNote({ text: e instanceof Error ? e.message : 'Lookup failed.', bad: true });
+    } finally {
+      setGstBusy(false);
+    }
+  }
+
   // Sales-person management
   const [spName, setSpName] = useState('');
   const [spPhone, setSpPhone] = useState('');
@@ -69,6 +104,8 @@ export function PartiesPage() {
   useEffect(() => {
     reload();
     reloadSalesPersons();
+    // Hide the Fetch button entirely when no lookup key is set on the server.
+    api.gst.status().then((s) => setGstLookupOn(s.configured)).catch(() => setGstLookupOn(false));
   }, []);
 
   function set<K extends keyof typeof form>(key: K, value: string) {
@@ -223,12 +260,35 @@ export function PartiesPage() {
       </div>
       <div className="field" style={{ margin: 0 }}>
         <FieldLabel required={required('party.gst') && form.type !== 'importer'}>GST No.</FieldLabel>
-        <input
-          value={form.gst}
-          onChange={(e) => set('gst', e.target.value.toUpperCase())}
-          placeholder="22AAAAA0000A1Z5"
-          maxLength={15}
-        />
+        <div style={{ display: 'flex', gap: 6 }}>
+          <input
+            value={form.gst}
+            onChange={(e) => {
+              set('gst', e.target.value.toUpperCase());
+              setGstNote(null);
+            }}
+            placeholder="22AAAAA0000A1Z5"
+            maxLength={15}
+            style={{ flex: 1, minWidth: 0 }}
+          />
+          {gstLookupOn && (
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={onFetchGst}
+              disabled={gstBusy}
+              title="Fetch the registered name and address for this GST number"
+              style={{ whiteSpace: 'nowrap' }}
+            >
+              {gstBusy ? '…' : 'Fetch'}
+            </button>
+          )}
+        </div>
+        {gstNote && (
+          <span style={{ fontSize: 10.5, marginTop: 3, color: gstNote.bad ? '#b45309' : '#15803d' }}>
+            {gstNote.text}
+          </span>
+        )}
         {/* Checked offline from the number's own check digit — a typo is caught as it is typed.
             Advisory only: a wrong number never blocks saving, in case older data needs correcting. */}
         {(() => {
