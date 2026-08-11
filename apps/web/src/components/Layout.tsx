@@ -35,6 +35,7 @@ const NAV_DEFS: NavDef[] = [
   { key: 'fieldrules', to: '/field-rules', label: 'Field Rules', perm: 'view_field_rules' },
   { key: 'loginlocations', to: '/login-locations', label: 'Login Locations', primaryOnly: true },
   { key: 'pdflayout', to: '/pdf-layout', label: 'PDF Layout', primaryOnly: true },
+  { key: 'fysettings', to: '/financial-years-settings', label: 'Financial Years', primaryOnly: true },
   { key: 'shortcuts', to: '/shortcuts', label: '⌨ Shortcuts', perm: 'view_shortcuts' },
 ];
 

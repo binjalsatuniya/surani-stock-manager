@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { DeliveryType, Inward, Item, Party } from '@surani/shared';
+import { fyOfDate } from '@surani/shared';
 import { api } from '../lib/apiClient';
 import { usePermission } from '../hooks/usePermission';
 import { useDialogs } from '../components/Dialogs';
@@ -34,7 +35,7 @@ export function InwardPage() {
   const canDelete = can('delete_inward');
   const canEdit = can('add_inward') || can('edit_inward') || canDelete;
   const canEditInvoice = user?.role === 'superadmin' || user?.role === 'admin';
-  const { selectedFy } = useFinancialYear();
+  const { selectedFy, setSelectedFy } = useFinancialYear();
   const { required } = useFieldSettings();
   const [rows, setRows] = useState<Inward[]>([]);
   const [parties, setParties] = useState<Party[]>([]);
@@ -165,7 +166,10 @@ export function InwardPage() {
         note: form.note.trim() || null,
       });
       setForm((f) => ({ ...EMPTY, date: f.date }));
-      reload();
+      // If the entry is dated in a different financial year, switch to it so it stays visible.
+      const efy = fyOfDate(form.date);
+      if (efy && efy !== selectedFy) setSelectedFy(efy);
+      else reload();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to add inward entry');
     }

@@ -25,6 +25,7 @@ import { PdfLayoutPage } from './routes/PdfLayoutPage';
 import { ExpensesPage } from './routes/ExpensesPage';
 import { LoginLocationsPage } from './routes/LoginLocationsPage';
 import { ShortcutsPage } from './routes/ShortcutsPage';
+import { FinancialYearsPage } from './routes/FinancialYearsPage';
 import { FinancialYearProvider } from './context/FinancialYearContext';
 import { DialogProvider } from './components/Dialogs';
 
@@ -87,6 +88,7 @@ export function App() {
         <Route path="/login-locations" element={<LoginLocationsPage />} />
         <Route path="/account" element={<AccountPage />} />
         <Route path="/shortcuts" element={<ShortcutsPage />} />
+        <Route path="/financial-years-settings" element={<FinancialYearsPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

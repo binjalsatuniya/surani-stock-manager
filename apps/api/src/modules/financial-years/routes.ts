@@ -49,6 +49,17 @@ financialYearsRouter.post(
   })
 );
 
+// Delete a registered financial year. Note: a year still shows in the picker if any inward/outward/
+// payment is dated in it (the list is derived from data too) — deleting only removes the manual row.
+financialYearsRouter.delete(
+  '/:label',
+  requirePermission('manage_financial_years'),
+  asyncHandler(async (req, res) => {
+    await prisma.financialYear.deleteMany({ where: { label: req.params.label } });
+    res.status(204).end();
+  })
+);
+
 financialYearsRouter.delete(
   '/:label',
   requirePermission('manage_financial_years'),

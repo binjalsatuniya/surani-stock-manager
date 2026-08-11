@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Item, Outward, Party, PayStatus } from '@surani/shared';
+import { fyOfDate } from '@surani/shared';
 import { api } from '../lib/apiClient';
 import { usePermission } from '../hooks/usePermission';
 import { useDialogs } from '../components/Dialogs';
@@ -30,7 +31,7 @@ export function OutwardPage() {
   const { confirm } = useDialogs();
   const canDelete = can('delete_outward');
   const canEdit = can('add_outward') || can('edit_outward') || canDelete;
-  const { selectedFy } = useFinancialYear();
+  const { selectedFy, setSelectedFy } = useFinancialYear();
   const { required } = useFieldSettings();
   const [rows, setRows] = useState<Outward[]>([]);
   const [parties, setParties] = useState<Party[]>([]);
@@ -117,7 +118,9 @@ export function OutwardPage() {
         note: form.note.trim() || null,
       });
       setForm((f) => ({ ...EMPTY, date: f.date }));
-      reload();
+      const efy = fyOfDate(form.date);
+      if (efy && efy !== selectedFy) setSelectedFy(efy);
+      else reload();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to add outward entry');
     }

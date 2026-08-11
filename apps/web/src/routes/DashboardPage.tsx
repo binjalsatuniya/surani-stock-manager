@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import {
   buildWhatsappLink,
   deliveryTermsLabel,
+  fyOfDate,
   type DashboardKpis,
   type DeliveryType,
   type Inward,
@@ -87,7 +88,7 @@ export function DashboardPage() {
   const can = usePermission();
   const { user, updateUser } = useAuth();
   const { fill } = useWhatsappTemplates();
-  const { selectedFy } = useFinancialYear();
+  const { selectedFy, setSelectedFy } = useFinancialYear();
   const { required } = useFieldSettings();
 
   // Drag-to-reorder layout — saved per user (server-side) so it follows them across devices.
@@ -238,6 +239,8 @@ export function DashboardPage() {
         waWin.close();
       }
 
+      const efy = fyOfDate(order.date);
+      if (efy && efy !== selectedFy) setSelectedFy(efy);
       setOrder((o) => ({ ...EMPTY_ORDER, date: o.date }));
       loadRecent();
       loadKpisAndMasters();
