@@ -50,6 +50,16 @@ export function ImportScansPage() {
 
   const normGst = (g: string | null | undefined) => (g || '').replace(/\s/g, '').toUpperCase();
 
+  /**
+   * An item's Code field may list more than one HSN — the same product is sometimes invoiced under
+   * two codes. They are separated by a comma (or slash/semicolon), and a match on any one counts.
+   */
+  const hsnCodesOf = (code: string | null | undefined) =>
+    (code || '')
+      .split(/[,/;|]+/)
+      .map((c) => c.replace(/\s/g, ''))
+      .filter(Boolean);
+
   async function onPick(files: FileList | null) {
     if (!files?.length) return;
     setBusy(true);
@@ -61,9 +71,13 @@ export function ImportScansPage() {
       const scan = await readScannedInvoice(files[i]);
       const buyer = normGst(scan.qr?.buyerGstin);
       const party = buyer ? parties.find((p) => normGst(p.gst) === buyer) ?? null : null;
-      const item = scan.hsn ? items.find((it) => (it.code || '').replace(/\s/g, '') === scan.hsn) ?? null : null;
+      const item = scan.hsn ? items.find((it) => hsnCodesOf(it.code).includes(scan.hsn!)) ?? null : null;
       if (buyer && !party) scan.problems.push(`No party in your list has GSTIN ${buyer}.`);
-      if (scan.hsn && !item) scan.problems.push(`No item has HSN code ${scan.hsn}.`);
+      if (scan.hsn && !item)
+        scan.problems.push(
+          `No item has HSN code ${scan.hsn}. Add it to that item's Code field in Item Master — ` +
+            `several codes can be listed, separated by commas.`
+        );
       const invNo = (scan.qr?.docNo || '').trim().toUpperCase();
       const duplicate = !!invNo && existingInvNos.has(invNo);
       if (duplicate) scan.problems.push('This invoice number is already in the system.');

@@ -179,7 +179,16 @@ export function ItemsPage() {
             </div>
             <div className="field" style={{ margin: 0 }}>
               <FieldLabel required={required('item.code')}>HSN Code</FieldLabel>
-              <input value={form.code} onChange={(e) => set('code', e.target.value)} style={{ width: 100 }} />
+              <input
+                value={form.code}
+                onChange={(e) => set('code', e.target.value)}
+                style={{ width: 190 }}
+                placeholder="39046100, 39041020"
+              />
+              <span className="muted" style={{ fontSize: 10.5, marginTop: 3, maxWidth: 190 }}>
+                List several, separated by commas, if the same product is invoiced under more than
+                one HSN — Import from Scans will match any of them.
+              </span>
             </div>
             <div className="field" style={{ margin: 0 }}>
               <label>GST %</label>
