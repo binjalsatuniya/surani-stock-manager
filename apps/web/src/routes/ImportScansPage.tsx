@@ -16,6 +16,11 @@ import { readScannedInvoice, type ScannedInvoice } from '../lib/invoiceImport';
 interface Row extends ScannedInvoice {
   party: Party | null;
   item: Item | null;
+  /** True once the invoice number is known to already exist. */
+  duplicate: boolean;
+  selected: boolean;
+  outcome: 'imported' | 'skipped' | 'failed' | null;
+  outcomeNote?: string;
 }
 
 const inr = (n: number | null | undefined) => (n == null ? '—' : `₹${n.toLocaleString('en-IN')}`);
@@ -29,9 +34,18 @@ export function ImportScansPage() {
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
 
+  // Existing invoice numbers, so the same sale can never be entered twice.
+  const [existingInvNos, setExistingInvNos] = useState<Set<string>>(new Set());
+
+  async function loadExistingInvoices() {
+    const all = await api.outward.list();
+    setExistingInvNos(new Set(all.map((o) => (o.invNo || '').trim().toUpperCase()).filter(Boolean)));
+  }
+
   useEffect(() => {
     api.parties.list().then(setParties);
     api.items.list().then(setItems);
+    loadExistingInvoices();
   }, []);
 
   const normGst = (g: string | null | undefined) => (g || '').replace(/\s/g, '').toUpperCase();
@@ -50,14 +64,84 @@ export function ImportScansPage() {
       const item = scan.hsn ? items.find((it) => (it.code || '').replace(/\s/g, '') === scan.hsn) ?? null : null;
       if (buyer && !party) scan.problems.push(`No party in your list has GSTIN ${buyer}.`);
       if (scan.hsn && !item) scan.problems.push(`No item has HSN code ${scan.hsn}.`);
-      out.push({ ...scan, party, item });
+      const invNo = (scan.qr?.docNo || '').trim().toUpperCase();
+      const duplicate = !!invNo && existingInvNos.has(invNo);
+      if (duplicate) scan.problems.push('This invoice number is already in the system.');
+      out.push({
+        ...scan,
+        party,
+        item,
+        duplicate,
+        // Only rows that need no judgement are ticked; the rest are a deliberate choice.
+        selected: scan.problems.length === 0,
+        outcome: null,
+      });
       setRows([...out]);
       setProgress({ done: i + 1, total: files.length });
     }
     setBusy(false);
   }
 
+  /** A row can only be imported when every piece it needs is present and reconciled. */
+  function importable(r: Row): boolean {
+    return (
+      !r.duplicate &&
+      r.outcome !== 'imported' &&
+      !!r.party &&
+      !!r.item &&
+      !!r.qr?.docNo &&
+      !!r.qr?.docDate &&
+      r.qty != null &&
+      r.rate != null &&
+      r.impliedGstPct != null &&
+      r.matchesQrTotal
+    );
+  }
+
+  async function onImport() {
+    const chosen = rows.map((r, i) => ({ r, i })).filter(({ r }) => r.selected && importable(r));
+    if (!chosen.length) return;
+    setBusy(true);
+    setProgress({ done: 0, total: chosen.length });
+
+    const next = [...rows];
+    for (let n = 0; n < chosen.length; n++) {
+      const { r, i } = chosen[n];
+      try {
+        // Payment status follows the party's own credit terms, exactly as a normal sale would.
+        const creditDays = r.party!.creditDays ?? 0;
+        await api.outward.create({
+          date: r.qr!.docDate,
+          invDate: r.qr!.docDate,
+          partyId: r.party!.id,
+          itemId: r.item!.id,
+          qty: r.qty!,
+          rate: r.rate!,
+          gstPct: r.impliedGstPct!,
+          invNo: r.qr!.docNo,
+          payStatus: creditDays > 0 ? 'credit' : 'pending',
+          creditDays,
+          fulfil: 'delivered', // these sales already happened
+          note: 'Imported from scanned invoice',
+        });
+        next[i] = { ...next[i], outcome: 'imported', selected: false };
+        existingInvNos.add(r.qr!.docNo.trim().toUpperCase());
+      } catch (e) {
+        next[i] = {
+          ...next[i],
+          outcome: 'failed',
+          outcomeNote: e instanceof Error ? e.message : 'Failed',
+        };
+      }
+      setRows([...next]);
+      setProgress({ done: n + 1, total: chosen.length });
+    }
+    setBusy(false);
+  }
+
   const ready = rows.filter((r) => r.problems.length === 0).length;
+  const selectedCount = rows.filter((r) => r.selected && importable(r)).length;
+  const importedCount = rows.filter((r) => r.outcome === 'imported').length;
 
   if (!can('add_outward')) return <div className="card">You do not have permission to import invoices.</div>;
 
@@ -82,8 +166,10 @@ export function ImportScansPage() {
             marginBottom: 12,
           }}
         >
-          <strong>Nothing is saved yet.</strong> This screen only shows what it read, so you can judge
-          the accuracy before we turn on importing.
+          Imported invoices are recorded as <strong>delivered</strong> sales, with payment status
+          taken from each party's credit terms. An invoice number already in the system is skipped,
+          so running the same folder twice cannot double-count anything. <strong>Check a few rows
+          against the paper before importing a large batch.</strong>
         </div>
         <input type="file" accept="application/pdf,image/*" multiple disabled={busy} onChange={(e) => onPick(e.target.files)} />
         {busy && (
@@ -92,9 +178,23 @@ export function ImportScansPage() {
           </div>
         )}
         {!busy && rows.length > 0 && (
-          <div style={{ marginTop: 10, fontSize: 13 }}>
-            <strong>{ready}</strong> of <strong>{rows.length}</strong> read cleanly.
-            {ready < rows.length && <span className="muted"> The rest need checking — see the notes column.</span>}
+          <div className="toolbar" style={{ marginTop: 10, alignItems: 'center' }}>
+            <span style={{ fontSize: 13 }}>
+              <strong>{ready}</strong> of <strong>{rows.length}</strong> read cleanly
+              {importedCount > 0 && <> · <strong style={{ color: '#15803d' }}>{importedCount} imported</strong></>}
+            </span>
+            <button className="btn btn-primary" onClick={onImport} disabled={selectedCount === 0}>
+              Import {selectedCount} selected
+            </button>
+            <button
+              className="btn btn-sm"
+              onClick={() => setRows((rs) => rs.map((r) => ({ ...r, selected: importable(r) })))}
+            >
+              Select all ready
+            </button>
+            <button className="btn btn-sm" onClick={() => setRows((rs) => rs.map((r) => ({ ...r, selected: false })))}>
+              Clear selection
+            </button>
           </div>
         )}
       </div>
@@ -104,6 +204,7 @@ export function ImportScansPage() {
           <table>
             <thead>
               <tr>
+                <th></th>
                 <th>File</th>
                 <th>Invoice No.</th>
                 <th>Date</th>
@@ -119,8 +220,26 @@ export function ImportScansPage() {
             <tbody>
               {rows.map((r, i) => {
                 const ok = r.problems.length === 0;
+                const canImport = importable(r);
                 return (
-                  <tr key={i} style={{ background: ok ? undefined : '#fffbeb' }}>
+                  <tr
+                    key={i}
+                    style={{
+                      background:
+                        r.outcome === 'imported' ? '#f0fdf4' : r.outcome === 'failed' ? '#fef2f2' : ok ? undefined : '#fffbeb',
+                    }}
+                  >
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={r.selected}
+                        disabled={!canImport}
+                        title={canImport ? 'Import this invoice' : 'This row cannot be imported yet'}
+                        onChange={(e) =>
+                          setRows((rs) => rs.map((x, j) => (j === i ? { ...x, selected: e.target.checked } : x)))
+                        }
+                      />
+                    </td>
                     <td style={{ fontSize: 11 }}>{r.fileName}</td>
                     <td>{r.qr?.docNo || '—'}</td>
                     <td>{fmtDate(r.qr?.docDate || '')}</td>
@@ -138,8 +257,16 @@ export function ImportScansPage() {
                     <td style={{ textAlign: 'right' }}>{r.rate ?? '—'}</td>
                     <td style={{ textAlign: 'right' }}>{r.impliedGstPct != null ? `${r.impliedGstPct}%` : '—'}</td>
                     <td style={{ textAlign: 'right' }}>{inr(r.qr?.totalValue)}</td>
-                    <td style={{ fontSize: 11, color: ok ? '#15803d' : '#b45309', maxWidth: 260 }}>
-                      {ok ? '✓ figures reconcile' : r.problems.join(' ')}
+                    <td style={{ fontSize: 11, maxWidth: 260 }}>
+                      {r.outcome === 'imported' ? (
+                        <span style={{ color: '#15803d', fontWeight: 600 }}>✓ imported</span>
+                      ) : r.outcome === 'failed' ? (
+                        <span style={{ color: '#dc2626' }}>Failed — {r.outcomeNote}</span>
+                      ) : (
+                        <span style={{ color: ok ? '#15803d' : '#b45309' }}>
+                          {ok ? '✓ figures reconcile' : r.problems.join(' ')}
+                        </span>
+                      )}
                     </td>
                   </tr>
                 );

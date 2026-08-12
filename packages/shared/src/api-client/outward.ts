@@ -14,8 +14,11 @@ export interface CreateOutwardInput {
   payStatus?: PayStatus;
   creditDays?: number;
   invNo?: string | null;
+  invDate?: string | null;
   transporterId?: string | null;
   note?: string | null;
+  /** Historical imports come in already completed; a normal sale leaves this unset ('pending'). */
+  fulfil?: 'pending' | 'dispatched' | 'delivered';
 }
 
 export interface EditOutwardInput {

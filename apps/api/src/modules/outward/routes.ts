@@ -27,8 +27,13 @@ const outwardSchema = z.object({
   payStatus: z.enum(['pending', 'received', 'credit']).default('pending'),
   creditDays: z.coerce.number().int().default(0),
   invNo: z.string().nullable().optional(),
+  invDate: z.string().nullable().optional(),
   transporterId: z.string().uuid().nullable().optional(),
   note: z.string().nullable().optional(),
+  // Normally a new sale starts as 'pending'. Importing historical invoices is the exception:
+  // those already happened, and forcing them through the pending list would mean marking several
+  // hundred of them delivered by hand.
+  fulfil: z.enum(['pending', 'dispatched', 'delivered']).optional(),
 });
 
 outwardRouter.get(
@@ -83,9 +88,10 @@ outwardRouter.post(
           payStatus: input.payStatus,
           creditDays: input.creditDays,
           invNo: input.invNo || null,
+          invDate: input.invDate ? new Date(input.invDate) : null,
           deliveryType: null,
           transporterId: input.transporterId || null,
-          fulfil: 'pending',
+          fulfil: input.fulfil ?? 'pending',
           note: input.note || null,
           createdById: req.user!.id,
         },
