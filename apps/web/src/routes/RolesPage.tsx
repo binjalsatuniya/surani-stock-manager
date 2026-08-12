@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { PERMS, type PermissionKey, type PermissionMap, type RoleTemplate } from '@surani/shared';
+import {
+  BUILT_IN_ROLES,
+  PERMS,
+  defaultPermsForRole,
+  roleLabel,
+  type PermissionKey,
+  type PermissionMap,
+  type RoleTemplate,
+} from '@surani/shared';
 import { api } from '../lib/apiClient';
 import { usePermission } from '../hooks/usePermission';
 import { useDialogs } from '../components/Dialogs';
@@ -100,6 +108,11 @@ export function RolesPage() {
         >
           Changing a role here does <strong>not</strong> change users who are already on it — their
           permissions stay as they are. Edit those in User Master.
+          <div style={{ marginTop: 4 }}>
+            Admin, Account and Staff are built into the system and cannot be edited here: Admin
+            changes are queued for your approval, which is behaviour rather than a permission. You
+            can copy one as the starting point for a new role.
+          </div>
         </div>
 
         <div className="toolbar" style={{ alignItems: 'flex-end' }}>
@@ -152,6 +165,33 @@ export function RolesPage() {
             </tr>
           </thead>
           <tbody>
+            {/* The built-ins are part of the system rather than rows in a table — superadmin
+                bypasses every check and an admin's changes are queued for approval, which no
+                amount of ticking boxes can express. Shown so the page reflects reality. */}
+            {BUILT_IN_ROLES.filter((r) => r !== 'superadmin').map((r) => (
+              <tr key={r} style={{ background: 'var(--surface-2, #f8fafc)' }}>
+                <td>
+                  {roleLabel(r)}
+                  <span className="muted" style={{ fontSize: 10.5, marginLeft: 6 }}>built-in</span>
+                </td>
+                <td className="muted">{countOn(defaultPermsForRole(r))} ticked by default</td>
+                <td>
+                  <button
+                    className="btn btn-sm"
+                    title="Start a new custom role from this one's permissions"
+                    onClick={() => {
+                      setEditingId(null);
+                      setName('');
+                      setPerms(defaultPermsForRole(r));
+                      setSaved('');
+                      setError('');
+                    }}
+                  >
+                    Copy to new role
+                  </button>
+                </td>
+              </tr>
+            ))}
             {roles.map((r) => (
               <tr key={r.id}>
                 <td>{r.name}</td>
@@ -167,7 +207,8 @@ export function RolesPage() {
             {roles.length === 0 && (
               <tr>
                 <td colSpan={3} className="muted">
-                  No custom roles yet. The built-in Admin, Account and Staff roles still work as before.
+                  No custom roles yet — the three above are the built-ins. Use “Copy to new role” to
+                  start from one of them, or create one from scratch.
                 </td>
               </tr>
             )}
