@@ -9,6 +9,7 @@ import { DashboardPage } from './routes/DashboardPage';
 import { PartiesPage } from './routes/PartiesPage';
 import { PartyLedgerPage } from './routes/PartyLedgerPage';
 import { ItemLedgerPage } from './routes/ItemLedgerPage';
+import { ImportScansPage } from './routes/ImportScansPage';
 import { ItemsPage } from './routes/ItemsPage';
 import { LiveStockPage } from './routes/LiveStockPage';
 import { UsersPage } from './routes/UsersPage';
@@ -77,6 +78,7 @@ export function App() {
         <Route path="/parties" element={<PartiesPage />} />
         <Route path="/parties/:id/ledger" element={<PartyLedgerPage />} />
         <Route path="/items" element={<ItemsPage />} />
+        <Route path="/import-scans" element={<ImportScansPage />} />
         <Route path="/items/:id/ledger" element={<ItemLedgerPage />} />
         <Route path="/live-stock" element={<LiveStockPage />} />
         <Route path="/users" element={<UsersPage />} />
