@@ -47,13 +47,7 @@ export async function copyText(text: string): Promise<boolean> {
 }
 
 export async function shareOnWhatsapp(phone: string | null | undefined, message: string): Promise<void> {
-  if (message && !(await copyText(message))) {
-    // The browser refused the clipboard. Rather than send the text through the link and let the
-    // emoji be destroyed, show it ready-selected so it can be copied by hand — this always works.
-    manualCopyPanel(phone, message);
-    return;
-  }
-  window.open(await prepareWhatsappShare(phone, message), '_blank');
+  return shareViaWindow(null, phone, message);
 }
 
 /**
@@ -130,18 +124,31 @@ function manualCopyPanel(phone: string | null | undefined, message: string): voi
 }
 
 /**
- * Copies the message and returns the chat link, for callers that already hold a window open
- * (opening one later would be treated as a pop-up and blocked).
+ * Share through a window the caller already opened (opening one later would be treated as a
+ * pop-up and blocked). Behaves like shareOnWhatsapp: automatic copy when the browser allows it,
+ * otherwise the manual panel — the pre-opened window is closed so it isn't left blank on screen.
  */
-export async function prepareWhatsappShare(phone: string | null | undefined, message: string): Promise<string> {
+export async function shareViaWindow(
+  win: Window | null,
+  phone: string | null | undefined,
+  message: string
+): Promise<void> {
   if (!message) {
-    notice(false, 'There was no message to copy — the template may be empty.');
-    return buildWhatsappLink(phone, '');
+    win?.close();
+    notice(false, 'There was no message to share — the template may be empty.');
+    return;
   }
   const copied = await copyText(message);
-  notice(copied);
-  // Chat opened empty when the text is safely on the clipboard, ready to paste.
-  return buildWhatsappLink(phone, copied ? '' : message);
+  if (!copied) {
+    // The panel carries its own "Open WhatsApp" button, so this blank tab is no longer wanted.
+    win?.close();
+    manualCopyPanel(phone, message);
+    return;
+  }
+  notice(true);
+  const link = buildWhatsappLink(phone, ''); // chat opens empty, ready to paste
+  if (win) win.location.href = link;
+  else window.open(link, '_blank');
 }
 
 /**
