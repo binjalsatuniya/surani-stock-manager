@@ -105,7 +105,10 @@ export function PartiesPage() {
     reload();
     reloadSalesPersons();
     // Hide the Fetch button entirely when no lookup key is set on the server.
-    api.gst.status().then((s) => setGstLookupOn(s.configured)).catch(() => setGstLookupOn(false));
+    // Needs both a key on the server and the permission to spend its credits.
+    if (can('use_gst_lookup')) {
+      api.gst.status().then((s) => setGstLookupOn(s.configured)).catch(() => setGstLookupOn(false));
+    }
   }, []);
 
   function set<K extends keyof typeof form>(key: K, value: string) {

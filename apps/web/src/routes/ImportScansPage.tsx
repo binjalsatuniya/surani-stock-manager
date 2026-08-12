@@ -143,7 +143,10 @@ export function ImportScansPage() {
   const selectedCount = rows.filter((r) => r.selected && importable(r)).length;
   const importedCount = rows.filter((r) => r.outcome === 'imported').length;
 
-  if (!can('add_outward')) return <div className="card">You do not have permission to import invoices.</div>;
+  // Seeing the page and actually writing entries are separate rights: someone may be allowed to
+  // check what a batch of scans reads as without being allowed to commit it to the books.
+  if (!can('view_import_scans')) return <div className="card">You do not have permission to see this page.</div>;
+  const canImport = can('import_invoices');
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -183,9 +186,15 @@ export function ImportScansPage() {
               <strong>{ready}</strong> of <strong>{rows.length}</strong> read cleanly
               {importedCount > 0 && <> · <strong style={{ color: '#15803d' }}>{importedCount} imported</strong></>}
             </span>
-            <button className="btn btn-primary" onClick={onImport} disabled={selectedCount === 0}>
-              Import {selectedCount} selected
-            </button>
+            {canImport ? (
+              <button className="btn btn-primary" onClick={onImport} disabled={selectedCount === 0}>
+                Import {selectedCount} selected
+              </button>
+            ) : (
+              <span className="muted" style={{ fontSize: 12 }}>
+                You can review these, but not import them.
+              </span>
+            )}
             <button
               className="btn btn-sm"
               onClick={() => setRows((rs) => rs.map((r) => ({ ...r, selected: importable(r) })))}

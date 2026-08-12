@@ -46,11 +46,11 @@ gstRouter.get(
 gstRouter.get(
   '/lookup/:gstin',
   asyncHandler(async (req, res) => {
-    // Anyone who may create or amend a party may look one up.
-    const allowed =
-      hasPermission(req.user!.role, req.user!.permissions, 'add_parties') ||
-      hasPermission(req.user!.role, req.user!.permissions, 'edit_parties');
-    if (!allowed) throw new ForbiddenError('Missing permission: add_parties');
+    // Its own permission: each lookup spends a paid credit, so it is granted deliberately rather
+    // than arriving with the ability to edit a party.
+    if (!hasPermission(req.user!.role, req.user!.permissions, 'use_gst_lookup')) {
+      throw new ForbiddenError('Missing permission: use_gst_lookup');
+    }
 
     const key = apiKey();
     if (!key) {

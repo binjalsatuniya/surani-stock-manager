@@ -30,6 +30,7 @@ export const PERMS = [
   { id: 'delete_items', label: 'Delete Items', group: 'Item Master' },
 
   { id: 'view_parties', label: 'View Party Master', group: 'Party Master' },
+  { id: 'use_gst_lookup', label: 'Fetch party details from GST number', group: 'Party Master' },
   { id: 'add_parties', label: 'Add Parties', group: 'Party Master' },
   { id: 'edit_parties', label: 'Edit Parties', group: 'Party Master' },
   { id: 'delete_parties', label: 'Delete Parties', group: 'Party Master' },
@@ -49,6 +50,9 @@ export const PERMS = [
   { id: 'view_whatsapp', label: 'See WhatsApp Messages tab', group: 'WhatsApp' },
   { id: 'send_whatsapp', label: 'Send WhatsApp Messages', group: 'WhatsApp' },
 
+  { id: 'view_import_scans', label: 'See Import from Scans page', group: 'Admin' },
+  { id: 'import_invoices', label: 'Import scanned invoices (creates sales entries)', group: 'Admin' },
+
   { id: 'manage_users', label: 'Manage Users', group: 'Admin' },
   { id: 'view_field_rules', label: 'See Field Rules tab', group: 'Admin' },
   { id: 'manage_financial_years', label: 'Create Financial Years', group: 'Admin' },
@@ -61,6 +65,11 @@ export type PermissionKey = (typeof PERMS)[number]['id'];
 
 // New granular keys fall back to the old combined key when not explicitly set, so existing users
 // keep exactly the access they had before the split (no data migration needed).
+//
+// NOTE: keys for genuinely NEW features are deliberately left out of this map. Without a fallback
+// they resolve to false for everyone whose stored permissions predate them, so a new feature is
+// invisible until an admin grants it — only superadmin sees it straight away. That is intentional:
+// a new capability should be reviewed before staff can reach it, not arrive switched on.
 const LEGACY_FALLBACK: Partial<Record<PermissionKey, PermissionKey>> = {
   add_inward: 'edit_inward',
   delete_inward: 'edit_inward',
