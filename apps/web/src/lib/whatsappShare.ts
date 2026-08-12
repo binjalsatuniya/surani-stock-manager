@@ -47,7 +47,86 @@ export async function copyText(text: string): Promise<boolean> {
 }
 
 export async function shareOnWhatsapp(phone: string | null | undefined, message: string): Promise<void> {
+  if (message && !(await copyText(message))) {
+    // The browser refused the clipboard. Rather than send the text through the link and let the
+    // emoji be destroyed, show it ready-selected so it can be copied by hand — this always works.
+    manualCopyPanel(phone, message);
+    return;
+  }
   window.open(await prepareWhatsappShare(phone, message), '_blank');
+}
+
+/**
+ * Last-resort share: the message on screen, already selected, with the chat one click away.
+ * Nothing here depends on clipboard permission — worst case the user presses Ctrl+C themselves.
+ */
+function manualCopyPanel(phone: string | null | undefined, message: string): void {
+  document.getElementById('wa-manual')?.remove();
+
+  const back = document.createElement('div');
+  back.id = 'wa-manual';
+  Object.assign(back.style, {
+    position: 'fixed', inset: '0', background: 'rgba(15,23,42,.6)', display: 'flex',
+    alignItems: 'center', justifyContent: 'center', zIndex: '3000', padding: '20px',
+  } as CSSStyleDeclaration);
+
+  const card = document.createElement('div');
+  Object.assign(card.style, {
+    background: '#fff', borderRadius: '12px', padding: '18px 20px', width: '560px',
+    maxWidth: '92vw', boxShadow: '0 12px 40px rgba(15,23,42,.3)', fontFamily: 'inherit',
+  } as CSSStyleDeclaration);
+
+  const title = document.createElement('div');
+  title.textContent = 'Copy the message, then send it in WhatsApp';
+  Object.assign(title.style, { fontWeight: '700', fontSize: '15px', marginBottom: '4px' } as CSSStyleDeclaration);
+
+  const hint = document.createElement('div');
+  hint.textContent =
+    'Your browser blocked automatic copying. The text below is selected — press Ctrl + C, then open WhatsApp and press Ctrl + V.';
+  Object.assign(hint.style, { fontSize: '12.5px', color: '#475569', marginBottom: '10px' } as CSSStyleDeclaration);
+
+  const ta = document.createElement('textarea');
+  ta.value = message;
+  ta.readOnly = true;
+  Object.assign(ta.style, {
+    width: '100%', height: '220px', fontSize: '13px', fontFamily: 'inherit',
+    border: '1px solid #cbd5e1', borderRadius: '8px', padding: '10px', resize: 'vertical',
+  } as CSSStyleDeclaration);
+
+  const row = document.createElement('div');
+  Object.assign(row.style, { display: 'flex', gap: '8px', marginTop: '12px', justifyContent: 'flex-end' } as CSSStyleDeclaration);
+
+  const btn = (label: string, primary: boolean) => {
+    const b = document.createElement('button');
+    b.textContent = label;
+    Object.assign(b.style, {
+      padding: '8px 14px', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer',
+      border: primary ? 'none' : '1px solid #cbd5e1',
+      background: primary ? '#0f766e' : '#fff', color: primary ? '#fff' : '#0b1220',
+    } as CSSStyleDeclaration);
+    return b;
+  };
+
+  const selectBtn = btn('Select all again', false);
+  selectBtn.onclick = () => { ta.focus(); ta.select(); };
+
+  const openBtn = btn('Open WhatsApp', true);
+  openBtn.onclick = () => {
+    back.remove();
+    window.open(buildWhatsappLink(phone, ''), '_blank');
+  };
+
+  const closeBtn = btn('Cancel', false);
+  closeBtn.onclick = () => back.remove();
+
+  row.append(selectBtn, closeBtn, openBtn);
+  card.append(title, hint, ta, row);
+  back.appendChild(card);
+  document.body.appendChild(back);
+
+  // Pre-select so Ctrl+C works straight away.
+  ta.focus();
+  ta.select();
 }
 
 /**
