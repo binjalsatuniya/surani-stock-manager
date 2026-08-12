@@ -24,6 +24,8 @@ allowBuilds:
   esbuild: true
   prisma: true
   protobufjs: true
+  # Only install script is a donation notice; nothing is compiled.
+  tesseract.js: false
 minimumReleaseAgeExclude:
   - '@expo/cli@57.0.6'
   - '@expo/config-plugins@57.0.3'

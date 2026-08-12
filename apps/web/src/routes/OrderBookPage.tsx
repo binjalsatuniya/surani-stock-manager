@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import { useWhatsappTemplates } from '../hooks/useWhatsappTemplates';
 import { useFinancialYear } from '../context/FinancialYearContext';
 import { readInvoiceQr } from '../lib/invoiceQr';
+import { readVehicleNumber } from '../lib/vehicleOcr';
 import { dataUrlToBlob, looksLikePdf } from '../lib/dataUrl';
 
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -63,6 +64,8 @@ export function OrderBookPage() {
   const [dInvoiceName, setDInvoiceName] = useState('');
   // Result of reading the e-Invoice QR off the attached scan.
   const [qrStatus, setQrStatus] = useState<'idle' | 'reading' | 'ok' | 'none'>('idle');
+  // The vehicle number is read by OCR, so it is a suggestion — never presented as certain.
+  const [vehicleStatus, setVehicleStatus] = useState<'idle' | 'reading' | 'guessed' | 'none'>('idle');
   const [qrWarnings, setQrWarnings] = useState<string[]>([]);
   // `url` is a blob: URL created on open and revoked on close — see openInvoice/closeInvoice.
   const [invoiceView, setInvoiceView] = useState<{ url: string; name: string; isPdf: boolean } | null>(null);
@@ -89,6 +92,7 @@ export function OrderBookPage() {
     setEditing(null); // only one inline panel open at a time
     setQrStatus('idle');
     setQrWarnings([]);
+    setVehicleStatus('idle');
     setDispatchingId(m.id);
     setDInvNo(m.invNo || '');
     setDInvDate(m.invDate || new Date().toISOString().slice(0, 10));
@@ -182,6 +186,7 @@ export function OrderBookPage() {
     reader.onload = () => { setDInvoiceFile(String(reader.result)); setDInvoiceName(file.name); };
     reader.readAsDataURL(file);
     readQrFrom(file);
+    readVehicleFrom(file);
   }
 
   /**
@@ -189,6 +194,23 @@ export function OrderBookPage() {
    * The QR is signed government data, so it is exact — but it is still cross-checked against the
    * order, because the commonest mistake is attaching the right-looking file for the wrong order.
    */
+  /**
+   * Read the vehicle number off the e-Way Bill page. This is OCR, not the QR — the government's
+   * e-Way Bill QR does not carry it — so the result is offered for checking, never trusted.
+   */
+  async function readVehicleFrom(file: File) {
+    if (dVehicle.trim()) return; // never overwrite something already entered
+    setVehicleStatus('reading');
+    const found = await readVehicleNumber(file);
+    if (!found) {
+      setVehicleStatus('none');
+      return;
+    }
+    // Only fill if it is still empty — the read takes seconds and the user may have typed by now.
+    setDVehicle((cur) => (cur.trim() ? cur : found));
+    setVehicleStatus('guessed');
+  }
+
   async function readQrFrom(file: File) {
     const order = rows.find((r) => r.id === dispatchingId);
     setQrStatus('reading');
@@ -525,7 +547,26 @@ export function OrderBookPage() {
           </div>
           <div className="field" style={{ margin: 0 }}>
             <label>Vehicle Number</label>
-            <input value={dVehicle} onChange={(e) => setDVehicle(e.target.value)} placeholder="e.g. GJ-01-AB-1234" style={{ width: 150 }} />
+            <input
+              value={dVehicle}
+              onChange={(e) => {
+                setDVehicle(e.target.value);
+                setVehicleStatus('idle'); // typed over — no longer a guess
+              }}
+              placeholder="e.g. GJ-01-AB-1234"
+              style={{
+                width: 150,
+                ...(vehicleStatus === 'guessed' ? { background: '#fffbeb', borderColor: '#fcd34d' } : {}),
+              }}
+            />
+            {vehicleStatus === 'reading' && (
+              <span className="muted" style={{ fontSize: 10.5, marginTop: 3 }}>Reading from e-Way Bill…</span>
+            )}
+            {vehicleStatus === 'guessed' && (
+              <span style={{ fontSize: 10.5, marginTop: 3, color: '#b45309' }}>
+                Read from the e-Way Bill — please check
+              </span>
+            )}
           </div>
           <div className="field" style={{ margin: 0, minWidth: 220 }}>
             <label>Invoice PDF (scan)</label>

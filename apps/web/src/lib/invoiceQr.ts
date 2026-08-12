@@ -57,7 +57,8 @@ export function carveJpegs(bytes: Uint8Array, limit = 2): Blob[] {
   return out;
 }
 
-function loadImage(src: Blob): Promise<HTMLImageElement> {
+/** Shared with the vehicle-number reader, which works on the same carved pages. */
+export function loadImage(src: Blob): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(src);
     const img = new Image();
