@@ -54,6 +54,7 @@ export const PERMS = [
   { id: 'import_invoices', label: 'Import scanned invoices (creates sales entries)', group: 'Admin' },
 
   { id: 'manage_users', label: 'Manage Users', group: 'Admin' },
+  { id: 'manage_roles', label: 'Create Roles & set their permissions', group: 'Admin' },
   { id: 'view_field_rules', label: 'See Field Rules tab', group: 'Admin' },
   { id: 'manage_financial_years', label: 'Create Financial Years', group: 'Admin' },
   { id: 'view_audit_log', label: 'View Audit Log', group: 'Admin' },
@@ -100,7 +101,15 @@ const LEGACY_FALLBACK: Partial<Record<PermissionKey, PermissionKey>> = {
 
 export type PermissionMap = Record<PermissionKey, boolean>;
 
-export type Role = 'superadmin' | 'admin' | 'account' | 'staff';
+/**
+ * The four built-in roles carry behaviour: superadmin bypasses every permission check, and an
+ * admin's changes are queued for approval. Custom roles created in Role Master are ordinary users
+ * — they are permission templates with a name, so any string is a valid role.
+ */
+export const BUILT_IN_ROLES = ['superadmin', 'admin', 'account', 'staff'] as const;
+export type BuiltInRole = (typeof BUILT_IN_ROLES)[number];
+// `string & {}` keeps editor suggestions for the built-ins while still accepting a custom name.
+export type Role = BuiltInRole | (string & {});
 
 /**
  * Display label for a user's role: Account / Staff show as-is; both superadmin and admin
@@ -161,21 +170,26 @@ export function defaultPermsForRole(role: Role): PermissionMap {
     ).forEach((k) => (o[k] = true));
     return o;
   }
-  // staff: view stock + place/dispatch orders
-  const o = allFalse();
-  (
-    [
-      'view_dashboard',
-      'view_inward',
-      'view_outward',
-      'view_orderbook',
-      'view_items',
-      'view_parties',
-      'place_order',
-      'dispatch_order',
-    ] as PermissionKey[]
-  ).forEach((k) => (o[k] = true));
-  return o;
+  if (role === 'staff') {
+    // staff: view stock + place/dispatch orders
+    const o = allFalse();
+    (
+      [
+        'view_dashboard',
+        'view_inward',
+        'view_outward',
+        'view_orderbook',
+        'view_items',
+        'view_parties',
+        'place_order',
+        'dispatch_order',
+      ] as PermissionKey[]
+    ).forEach((k) => (o[k] = true));
+    return o;
+  }
+  // A custom role starts with nothing — its own template is applied by the caller, which reads it
+  // from Role Master. Falling through to the staff set would hand out access nobody chose.
+  return allFalse();
 }
 
 /**

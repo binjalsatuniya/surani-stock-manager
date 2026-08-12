@@ -32,6 +32,7 @@ const NAV_DEFS: NavDef[] = [
   { key: 'audit', to: '/audit-log', label: 'Audit Log', perm: 'view_audit_log' },
   { key: 'backup', to: '/backup', label: 'Backup', perm: 'view_backup' },
   { key: 'whatsapp', to: '/whatsapp-messages', label: 'WhatsApp Messages', perm: 'view_whatsapp' },
+  { key: 'roles', to: '/roles', label: 'Role Master', perm: 'manage_roles' },
   { key: 'importscans', to: '/import-scans', label: 'Import from Scans', perm: 'view_import_scans' },
   { key: 'fieldrules', to: '/field-rules', label: 'Field Rules', perm: 'view_field_rules' },
   { key: 'loginlocations', to: '/login-locations', label: 'Login Locations', primaryOnly: true },

@@ -10,6 +10,7 @@ import { PartiesPage } from './routes/PartiesPage';
 import { PartyLedgerPage } from './routes/PartyLedgerPage';
 import { ItemLedgerPage } from './routes/ItemLedgerPage';
 import { ImportScansPage } from './routes/ImportScansPage';
+import { RolesPage } from './routes/RolesPage';
 import { ItemsPage } from './routes/ItemsPage';
 import { LiveStockPage } from './routes/LiveStockPage';
 import { UsersPage } from './routes/UsersPage';
@@ -82,6 +83,7 @@ export function App() {
         <Route path="/items/:id/ledger" element={<ItemLedgerPage />} />
         <Route path="/live-stock" element={<LiveStockPage />} />
         <Route path="/users" element={<UsersPage />} />
+        <Route path="/roles" element={<RolesPage />} />
         <Route path="/approvals" element={<ApprovalsPage />} />
         <Route path="/audit-log" element={<AuditLogPage />} />
         <Route path="/backup" element={<BackupPage />} />

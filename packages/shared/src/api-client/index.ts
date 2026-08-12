@@ -23,6 +23,7 @@ import { createRecoveryClient } from './recovery';
 import { createPdfSettingsClient } from './pdf-settings';
 import { createPushClient } from './push';
 import { createGstClient } from './gst';
+import { createRolesClient } from './roles';
 
 export * from './http';
 export * from './reset';
@@ -36,6 +37,7 @@ export * from './whatsapp';
 export * from './expenses';
 export * from './login-locations';
 export * from './gst';
+export * from './roles';
 
 export function createApiClient(opts: HttpClientOptions) {
   const http = createHttpClient(opts);
@@ -96,6 +98,7 @@ export function createApiClient(opts: HttpClientOptions) {
     pdfSettings: createPdfSettingsClient(http),
     push: createPushClient(http),
     gst: createGstClient(http),
+    roles: createRolesClient(http),
   };
 }
 

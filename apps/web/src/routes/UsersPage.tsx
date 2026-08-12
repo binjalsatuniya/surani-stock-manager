@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { PERMS, defaultPermsForRole, hasPermission, roleLabel, NOTIFY_ACTIVITIES, readNotifyPrefs, type PermissionMap, type Role, type User } from '@surani/shared';
+import { PERMS, defaultPermsForRole, hasPermission, roleLabel, NOTIFY_ACTIVITIES, readNotifyPrefs, type PermissionMap, type Role, type RoleTemplate, type User } from '@surani/shared';
 import { api } from '../lib/apiClient';
 import { useAuth } from '../context/AuthContext';
 
@@ -12,6 +12,8 @@ export function UsersPage() {
   const isSuper = me?.role === 'superadmin';
   const isPrimary = !!me?.isPrimary; // the main Super Admin
   const [users, setUsers] = useState<User[]>([]);
+  // Custom roles from Role Master, offered alongside the built-in ones.
+  const [customRoles, setCustomRoles] = useState<RoleTemplate[]>([]);
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -25,6 +27,12 @@ export function UsersPage() {
   const [editNotify, setEditNotify] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);
 
+  // Built-in roles first, then anything defined in Role Master.
+  const roleOptions: Role[] = useMemo(
+    () => [...CREATABLE_ROLES, ...customRoles.map((r) => r.name)],
+    [customRoles]
+  );
+
   const groups = useMemo(() => Array.from(new Set(PERMS.map((p) => p.group))), []);
 
   async function reload() {
@@ -33,6 +41,7 @@ export function UsersPage() {
 
   useEffect(() => {
     reload();
+    api.roles.list().then(setCustomRoles).catch(() => setCustomRoles([]));
   }, []);
 
   async function onAdd() {
@@ -119,7 +128,9 @@ export function UsersPage() {
   // Changing the role pre-fills that role's default permissions (the admin can then fine-tune).
   function onEditRoleChange(r: Role) {
     setEditRole(r);
-    setEditPerms(defaultPermsForRole(r));
+    // A custom role carries its own template; the built-ins use their coded defaults.
+    const custom = customRoles.find((c) => c.name === r);
+    setEditPerms(custom ? ({ ...defaultPermsForRole(''), ...custom.permissions } as PermissionMap) : defaultPermsForRole(r));
   }
 
   function togglePerm(key: string, value: boolean) {
@@ -170,7 +181,7 @@ export function UsersPage() {
               <div className="field" style={{ margin: 0 }}>
                 <label>Role</label>
                 <select value={role} onChange={(e) => setRole(e.target.value as Role)}>
-                  {CREATABLE_ROLES.map((r) => (
+                  {roleOptions.map((r) => (
                     <option key={r} value={r}>
                       {r}
                     </option>
@@ -240,7 +251,7 @@ export function UsersPage() {
             <div className="field" style={{ margin: 0 }}>
               <label>Role</label>
               <select value={editRole} onChange={(e) => onEditRoleChange(e.target.value as Role)}>
-                {CREATABLE_ROLES.map((r) => (
+                {roleOptions.map((r) => (
                   <option key={r} value={r}>
                     {r}
                   </option>

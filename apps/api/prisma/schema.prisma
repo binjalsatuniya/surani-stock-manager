@@ -446,6 +446,19 @@ model WhatsappTemplate {
   @@map("whatsapp_templates")
 }
 
+// ============ ROLES (named permission templates, e.g. "Warehouse") ============
+// Templates only: assigning a role pre-fills a user's permissions, after which the user carries
+// their own set. Permission CHECKING is unchanged — it still reads users.permissions.
+model Role {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String
+  permissions Json     @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("roles")
+}
+
 // ============ PDF LAYOUT (superadmin: header/footer/colour of generated PDFs) ============
 model PdfSetting {
   key       String   @id
