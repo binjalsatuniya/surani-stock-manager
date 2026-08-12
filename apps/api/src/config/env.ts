@@ -9,8 +9,11 @@ const envSchema = z.object({
   PORT: z.coerce.number().default(4000),
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-  // Appyflow GST lookup key. Optional on purpose: without it the server still starts and the
-  // "Fetch details" button simply stays hidden, so a missing key can never take the app down.
+  // GST lookup key (GSTINCheck). Optional on purpose: without it the server still starts and the
+  // "Fetch" button simply stays hidden, so a missing key can never take the app down.
+  // APPYFLOW_KEY is still read as a fallback — it is what the live server's .env already calls it,
+  // and renaming a working line by hand has proved error-prone.
+  GST_API_KEY: z.string().optional(),
   APPYFLOW_KEY: z.string().optional(),
 });
 
