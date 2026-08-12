@@ -138,7 +138,10 @@ export function OutwardPage() {
   const [ed, setEd] = useState({
     date: '', partyId: '', itemId: '', qty: '', rate: '', gstPct: '',
     payStatus: 'pending' as PayStatus, creditDays: '', invNo: '', invDate: '', note: '',
+    freightRate: '', transporterId: '', handlingRate: '', handlingAgentId: '',
   });
+  // Freight and handling feed the transporter's and agent's ledgers, so they are separately granted.
+  const canEditFreight = can('edit_outward_freight');
 
   function openEdit(r: Outward) {
     setError('');
@@ -155,6 +158,10 @@ export function OutwardPage() {
       invNo: r.invNo || '',
       invDate: r.invDate || '',
       note: r.note || '',
+      freightRate: String(r.freightRate ?? 0),
+      transporterId: r.transporterId || '',
+      handlingRate: String(r.handlingRate ?? 0),
+      handlingAgentId: r.handlingAgentId || '',
     });
   }
 
@@ -174,6 +181,15 @@ export function OutwardPage() {
         invNo: ed.invNo.trim() || null,
         invDate: ed.invDate || null,
         note: ed.note.trim() || null,
+        // Only sent when allowed — the server refuses these fields without the permission.
+        ...(canEditFreight
+          ? {
+              freightRate: Number(ed.freightRate) || 0,
+              transporterId: ed.transporterId || null,
+              handlingRate: Number(ed.handlingRate) || 0,
+              handlingAgentId: ed.handlingAgentId || null,
+            }
+          : {}),
       });
       setEditing(null);
       reload();
@@ -251,9 +267,46 @@ export function OutwardPage() {
             <input value={ed.note} onChange={(e) => setEd({ ...ed, note: e.target.value })} />
           </div>
         </div>
-        <div className="muted" style={{ fontSize: 11, marginTop: 6 }}>
-          Freight, handling and transporter are set when the entry is created and are not editable here.
-        </div>
+        {canEditFreight ? (
+          <>
+            <div className="toolbar" style={{ marginTop: 4 }}>
+              <div className="field" style={{ margin: 0 }}>
+                <label>Transporter</label>
+                <select value={ed.transporterId} onChange={(e) => setEd({ ...ed, transporterId: e.target.value })}>
+                  <option value="">— none —</option>
+                  {transporters.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="field" style={{ margin: 0 }}>
+                <label>Freight (₹/unit)</label>
+                <input value={ed.freightRate} onChange={(e) => setEd({ ...ed, freightRate: e.target.value })} style={{ width: 100 }} />
+              </div>
+              <div className="field" style={{ margin: 0 }}>
+                <label>Handling Agent</label>
+                <select value={ed.handlingAgentId} onChange={(e) => setEd({ ...ed, handlingAgentId: e.target.value })}>
+                  <option value="">— none —</option>
+                  {handlers.map((h) => (
+                    <option key={h.id} value={h.id}>{h.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="field" style={{ margin: 0 }}>
+                <label>Handling (₹/MT)</label>
+                <input value={ed.handlingRate} onChange={(e) => setEd({ ...ed, handlingRate: e.target.value })} style={{ width: 100 }} />
+              </div>
+            </div>
+            <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
+              Saving re-posts this entry's freight and handling into the transporter's and agent's
+              ledgers. Both are recalculated from the quantity above.
+            </div>
+          </>
+        ) : (
+          <div className="muted" style={{ fontSize: 11, marginTop: 6 }}>
+            Freight, handling and transporter are not editable with your permissions.
+          </div>
+        )}
         {error && <div className="login-err show" style={{ marginTop: 6 }}>{error}</div>}
         <div className="toolbar" style={{ marginTop: 6 }}>
           <button className="btn btn-primary" onClick={confirmEdit}>Save Changes</button>

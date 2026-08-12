@@ -33,6 +33,11 @@ export interface EditOutwardInput {
   payStatus?: PayStatus;
   creditDays?: number;
   note?: string | null;
+  /** Needs edit_outward_freight — changing these re-posts the transporter's and agent's entries. */
+  freightRate?: number;
+  transporterId?: string | null;
+  handlingRate?: number;
+  handlingAgentId?: string | null;
 }
 
 export function createOutwardClient(http: HttpClient) {

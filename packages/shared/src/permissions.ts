@@ -15,6 +15,7 @@ export const PERMS = [
   { id: 'add_outward', label: 'Add Outward', group: 'Outward' },
   { id: 'edit_outward', label: 'Edit Outward', group: 'Outward' },
   { id: 'delete_outward', label: 'Delete Outward', group: 'Outward' },
+  { id: 'edit_outward_freight', label: 'Edit Freight / Handling on Outward', group: 'Outward' },
 
   { id: 'place_order', label: 'Place New Order', group: 'Sales' },
   { id: 'view_orderbook', label: 'View Order Book', group: 'Sales' },

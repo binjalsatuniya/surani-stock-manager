@@ -1,11 +1,12 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { hasPermission } from '@surani/shared';
 import { prisma } from '../../db/prisma';
 import { toOutwardDTO } from '../../lib/serializeTransactions';
 import { asyncHandler } from '../../lib/asyncHandler';
 import { authenticate } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/requirePermission';
-import { NotFoundError } from '../../middleware/errorHandler';
+import { ForbiddenError, NotFoundError } from '../../middleware/errorHandler';
 import { mutateOrQueue } from '../../lib/approvalGate';
 import { logActivity } from '../../lib/audit';
 import { notifyActivity } from '../../lib/notify';
@@ -156,6 +157,12 @@ const editOutwardSchema = z.object({
   payStatus: z.enum(['pending', 'received', 'credit']).optional(),
   creditDays: z.coerce.number().int().optional(),
   note: z.string().nullable().optional(),
+  // Freight and handling post entries into the transporter's and agent's ledgers, so changing
+  // them means re-posting those entries — see below. Guarded by edit_outward_freight.
+  freightRate: z.coerce.number().optional(),
+  transporterId: z.string().uuid().nullable().optional(),
+  handlingRate: z.coerce.number().optional(),
+  handlingAgentId: z.string().uuid().nullable().optional(),
 });
 
 outwardRouter.patch(
@@ -166,11 +173,29 @@ outwardRouter.patch(
     const existing = await prisma.outward.findUnique({ where: { id: req.params.id } });
     if (!existing) throw new NotFoundError('Outward entry not found');
 
+    const touchesFreight =
+      input.freightRate !== undefined ||
+      input.transporterId !== undefined ||
+      input.handlingRate !== undefined ||
+      input.handlingAgentId !== undefined;
+    if (touchesFreight && !hasPermission(req.user!.role, req.user!.permissions, 'edit_outward_freight')) {
+      throw new ForbiddenError('Missing permission: edit_outward_freight');
+    }
+
     const qty = input.qty ?? Number(existing.qty);
     const rate = input.rate ?? Number(existing.rate);
     const gstPct = input.gstPct ?? Number(existing.gstPct);
     const gst = Math.round(qty * rate * (gstPct / 100) * 100) / 100;
     const amount = Math.round((qty * rate + gst) * 100) / 100;
+
+    // Freight is per unit and handling per tonne, so BOTH depend on qty — they have to be
+    // recomputed whenever qty changes, not only when the rates are edited.
+    const freightRate = input.freightRate ?? Number(existing.freightRate);
+    const handlingRate = input.handlingRate ?? Number(existing.handlingRate);
+    const transporterId = input.transporterId !== undefined ? input.transporterId : existing.transporterId;
+    const handlingAgentId = input.handlingAgentId !== undefined ? input.handlingAgentId : existing.handlingAgentId;
+    const freight = transporterId ? Math.round(freightRate * qty * 100) / 100 : 0;
+    const handling = handlingAgentId ? Math.round(handlingRate * (qty / 1000) * 100) / 100 : 0;
 
     const changes = {
       ...input,
@@ -181,7 +206,18 @@ outwardRouter.patch(
       gstPct,
       gst,
       amount,
+      freightRate,
+      freight,
+      transporterId,
+      handlingRate,
+      handling,
+      handlingAgentId,
     };
+
+    const partyId = input.partyId ?? existing.partyId;
+    const itemId = input.itemId ?? existing.itemId;
+    const date = changes.date ?? existing.date;
+    const invNo = input.invNo !== undefined ? input.invNo : existing.invNo;
 
     const result = await mutateOrQueue({
       user: req.user!,
@@ -190,7 +226,37 @@ outwardRouter.patch(
       targetId: existing.id,
       payload: { id: existing.id, changes },
       label: `Edit Outward: qty ${qty}, amount ${amount}`,
-      execute: () => prisma.outward.update({ where: { id: existing.id }, data: changes }),
+      // The freight and handling entries are what the transporter and agent are actually paid
+      // from. Updating the order without re-posting them would leave their ledgers stating the
+      // old figures, so both are cleared and rebuilt inside one transaction.
+      execute: () =>
+        prisma.$transaction(async (tx) => {
+          const updated = await tx.outward.update({ where: { id: existing.id }, data: changes });
+          await tx.freightEntry.deleteMany({ where: { outwardId: existing.id } });
+          await tx.handlingEntry.deleteMany({ where: { sourceKind: 'outward', sourceId: existing.id } });
+          if (transporterId && freight > 0) {
+            await tx.freightEntry.create({
+              data: { date, transporterId, partyId, itemId, qty, freight, freightRate, outwardId: existing.id, invNo },
+            });
+          }
+          if (handlingAgentId && handling > 0) {
+            await tx.handlingEntry.create({
+              data: {
+                date,
+                handlingAgentId,
+                partyId,
+                itemId,
+                qty,
+                amount: handling,
+                handlingRate,
+                sourceId: existing.id,
+                sourceKind: 'outward',
+                invNo,
+              },
+            });
+          }
+          return updated;
+        }),
     });
 
     if (result.executed) res.json(toOutwardDTO(result.result!));
