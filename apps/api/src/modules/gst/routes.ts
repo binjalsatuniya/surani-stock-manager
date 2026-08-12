@@ -79,6 +79,19 @@ gstRouter.get(
     }
 
     const data = (payload.taxpayerInfo ?? payload) as Record<string, unknown>;
+
+    // The provider has been seen returning its own sample record — asking for a Gujarat GSTIN came
+    // back as "AppyFlow Technologies" in Ludhiana, under a different GSTIN entirely. Writing that
+    // into a party would be far worse than not fetching at all, so refuse anything that is not the
+    // number we asked for.
+    const returned = typeof data.gstin === 'string' ? data.gstin.trim().toUpperCase() : '';
+    if (returned && returned !== gstin) {
+      throw new HttpError(
+        422,
+        'The lookup service returned details for a different GST number, so they were not used. ' +
+          'This usually means the account is on a sample/demo plan — contact the provider.'
+      );
+    }
     const pradr = (data.pradr ?? {}) as Record<string, unknown>;
     const addr = (pradr.addr ?? {}) as Record<string, string>;
 
