@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { PERMS, defaultPermsForRole, hasPermission, roleLabel, NOTIFY_ACTIVITIES, readNotifyPrefs, type PermissionMap, type Role, type RoleTemplate, type User } from '@surani/shared';
 import { api } from '../lib/apiClient';
 import { useAuth } from '../context/AuthContext';
+import { usePermission } from '../hooks/usePermission';
 
 // Superadmin is the protected default and can't be assigned to others — nobody can be made as
 // powerful as the Super Admin.
@@ -11,6 +12,11 @@ export function UsersPage() {
   const { user: me } = useAuth();
   const isSuper = me?.role === 'superadmin';
   const isPrimary = !!me?.isPrimary; // the main Super Admin
+  // Mirrors the server: you may only create/assign/manage roles ranked below your own.
+  const ROLE_RANK: Record<string, number> = { superadmin: 100, admin: 50 };
+  const rankOf = (r?: string | null) => ROLE_RANK[(r || '').toLowerCase()] ?? 10;
+  const myRank = rankOf(me?.role);
+  const canManageUsers = usePermission()('manage_users');
   const [users, setUsers] = useState<User[]>([]);
   // Custom roles from Role Master, offered alongside the built-in ones.
   const [customRoles, setCustomRoles] = useState<RoleTemplate[]>([]);
@@ -29,8 +35,8 @@ export function UsersPage() {
 
   // Built-in roles first, then anything defined in Role Master.
   const roleOptions: Role[] = useMemo(
-    () => [...CREATABLE_ROLES, ...customRoles.map((r) => r.name)],
-    [customRoles]
+    () => [...CREATABLE_ROLES, ...customRoles.map((r) => r.name)].filter((r) => rankOf(r) < myRank),
+    [customRoles, myRank]
   );
 
   const groups = useMemo(() => Array.from(new Set(PERMS.map((p) => p.group))), []);
@@ -163,7 +169,7 @@ export function UsersPage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div className="card">
         <h2 style={{ marginTop: 0 }}>User Master <span className="muted" style={{ fontSize: 13, fontWeight: 500 }}>— login accounts &amp; permissions</span></h2>
-        {isPrimary ? (
+        {canManageUsers ? (
           <>
             <div className="toolbar">
               <div className="field" style={{ margin: 0 }}>
@@ -193,8 +199,19 @@ export function UsersPage() {
               </button>
             </div>
             <p className="muted" style={{ marginTop: 4 }}>
-              New users start with their role's default permissions. Fine-tune each user's permissions with
-              the <strong>Permissions</strong> button. Super Admin can't be assigned to anyone else.
+              New users start with the permissions of the role you give them.{' '}
+              {isSuper ? (
+                <>
+                  Fine-tune an individual with the <strong>Permissions</strong> button. Super Admin
+                  can't be assigned to anyone else.
+                </>
+              ) : (
+                <>
+                  You can only assign roles below your own, and only the Super Admin can change a
+                  person's individual permissions — set up what each role may do in{' '}
+                  <strong>Role Master</strong>.
+                </>
+              )}
             </p>
           </>
         ) : (

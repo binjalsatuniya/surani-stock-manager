@@ -14,13 +14,44 @@ import { HttpError, NotFoundError } from '../../middleware/errorHandler';
 export const usersRouter = Router();
 usersRouter.use(authenticate);
 
-const roleEnum = z.enum(['superadmin', 'admin', 'account', 'staff']);
+// Roles are no longer a fixed list — Role Master can define more — so this is a plain string,
+// checked below against the built-ins and the roles table.
+const roleName = z.string().min(1);
+
+/**
+ * How much authority a role carries. You may only create or assign a role ranked BELOW your own,
+ * which is what stops two admins from managing each other. Custom roles are ordinary users.
+ */
+const ROLE_RANK: Record<string, number> = { superadmin: 100, admin: 50 };
+const rankOf = (role: string | null | undefined) => ROLE_RANK[(role || '').toLowerCase()] ?? 10;
+
+/** Permissions are JAYNIL's alone: nobody else may hand out access, only assign an existing role. */
+function assertMayGrantPermissions(actor: { role?: string }) {
+  if (actor.role !== 'superadmin') {
+    throw new HttpError(403, 'Only the Super Admin can change permissions. Assign a role instead.');
+  }
+}
+
+/** The role must exist, must not be superadmin, and must rank below the person assigning it. */
+async function assertMayAssignRole(actor: { role?: string }, role: string) {
+  if (role === 'superadmin') {
+    throw new HttpError(403, 'The Super Admin role cannot be assigned to other users');
+  }
+  const builtIn = ['admin', 'account', 'staff'].includes(role);
+  if (!builtIn) {
+    const custom = await prisma.role.findFirst({ where: { name: { equals: role, mode: 'insensitive' } } });
+    if (!custom) throw new HttpError(400, `There is no role named "${role}".`);
+  }
+  if (rankOf(role) >= rankOf(actor.role)) {
+    throw new HttpError(403, `You can only assign roles below your own (${role} is not below ${actor.role}).`);
+  }
+}
 
 const createSchema = z.object({
   name: z.string().min(1),
   username: z.string().min(1),
   password: z.string().min(4),
-  role: roleEnum,
+  role: roleName,
   permissions: z.record(z.boolean()).optional(),
 });
 
@@ -37,17 +68,22 @@ usersRouter.post(
   '/',
   requirePermission('manage_users'),
   asyncHandler(async (req, res) => {
-    // Only the main Super Admin (JAYNIL) may create new users.
-    if (!req.user!.isPrimary) throw new HttpError(403, 'Only the main Super Admin can create new users');
     const input = createSchema.parse(req.body);
-    // The Super Admin is the protected default — no one else can be created with, or promoted to,
-    // that role (so nobody can be made as powerful as the Super Admin).
-    if (input.role === 'superadmin') throw new HttpError(403, 'The Super Admin role cannot be assigned to other users');
+    // Anyone with manage_users may add people, but only below their own level.
+    await assertMayAssignRole(req.user!, input.role);
+    // Handing out individual permissions is the Super Admin's alone; everyone else assigns a role
+    // and the new user starts on that role's set.
+    if (input.permissions !== undefined) assertMayGrantPermissions(req.user!);
+
     const existing = await prisma.user.findUnique({ where: { username: input.username } });
     if (existing) throw new HttpError(409, 'Username already exists');
 
     const passwordHash = await bcrypt.hash(input.password, 12);
-    const permissions = input.permissions ?? defaultPermsForRole(input.role as Role);
+    // A custom role brings its own template; the built-ins use their coded defaults.
+    const template = await prisma.role.findFirst({ where: { name: { equals: input.role, mode: 'insensitive' } } });
+    const permissions =
+      input.permissions ??
+      (template ? (template.permissions as Record<string, boolean>) : defaultPermsForRole(input.role as Role));
     const user = await prisma.user.create({
       data: {
         name: input.name,
@@ -99,7 +135,7 @@ const updateSchema = z.object({
   name: z.string().min(1).optional(),
   username: z.string().min(1).optional(),
   password: z.string().min(4).optional(),
-  role: roleEnum.optional(),
+  role: roleName.optional(),
   permissions: z.record(z.boolean()).optional(),
   // Which activities notify this user (merged into preferences.notify).
   notifyPrefs: z.record(z.boolean()).optional(),
@@ -115,6 +151,19 @@ usersRouter.patch(
     // Never allow promoting anyone to Super Admin, and never allow changing the existing
     // Super Admin's role/permissions away (it keeps full access).
     if (input.role === 'superadmin') throw new HttpError(403, 'The Super Admin role cannot be assigned to other users');
+
+    const isSelf = existing.id === req.user!.id;
+    // You may only act on someone ranked below you. Without this an admin could edit a fellow
+    // admin — reset their password, or restrict them — which is exactly what we are preventing.
+    if (!isSelf && rankOf(existing.role) >= rankOf(req.user!.role)) {
+      throw new HttpError(403, 'You can only manage users below your own level.');
+    }
+    // Permissions are the Super Admin's to grant. Everyone else changes a person's role instead.
+    if (input.permissions !== undefined) assertMayGrantPermissions(req.user!);
+    // A role change is still bound by the same "below your own level" rule.
+    if (input.role !== undefined && input.role !== existing.role) {
+      await assertMayAssignRole(req.user!, input.role);
+    }
     // The main Super Admin can only be edited by itself.
     if (existing.isPrimary && req.user!.id !== existing.id)
       throw new HttpError(403, 'Only the main Super Admin can edit the main Super Admin account');
