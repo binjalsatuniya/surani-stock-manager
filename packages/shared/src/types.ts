@@ -17,6 +17,9 @@ export interface UserPreferences {
     sections?: string[]; // ordered section keys (web)
   };
   menuOrder?: string[]; // ordered sidebar nav keys (web)
+  // Sidebar entries this user has chosen to hide (web). Tidying only — it does not restrict
+  // access, and is mainly for the Super Admin, who sees every page whether they use it or not.
+  menuHidden?: string[];
   mobileMenuOrder?: string[]; // ordered "More" menu keys (mobile)
   mobileDashboard?: {
     tiles?: string[]; // ordered tile keys (mobile)

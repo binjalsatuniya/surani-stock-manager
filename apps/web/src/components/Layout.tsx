@@ -8,7 +8,7 @@ import { useFinancialYear } from '../context/FinancialYearContext';
 import { SuraniFlame } from './Logo';
 import { api } from '../lib/apiClient';
 
-interface NavDef {
+export interface NavDef {
   key: string;
   to: string;
   label: string;
@@ -17,7 +17,8 @@ interface NavDef {
 }
 
 // The default order. Users can reorder these; their order is saved per-device.
-const NAV_DEFS: NavDef[] = [
+// Exported so My Account can offer the same list for hiding entries.
+export const NAV_DEFS: NavDef[] = [
   { key: 'dashboard', to: '/', label: 'Dashboard', perm: 'view_dashboard' },
   { key: 'inward', to: '/inward', label: 'Inward', perm: 'view_inward' },
   { key: 'outward', to: '/outward', label: 'Outward', perm: 'view_outward' },
@@ -100,11 +101,15 @@ export function Layout() {
 
   // Only the items this user is allowed to see. Login Locations stays hidden until it's unlocked
   // with its access password in My Account.
+  // Entries the user has tidied away in My Account. Cosmetic only — the pages still work if
+  // reached directly, since this is about a shorter menu, not about restricting access.
+  const hidden = new Set(user?.preferences?.menuHidden ?? []);
   const visible = orderedDefs.filter(
     (d) =>
       (!d.perm || can(d.perm)) &&
       (!d.primaryOnly || user?.isPrimary) &&
-      (d.key !== 'loginlocations' || llUnlocked)
+      (d.key !== 'loginlocations' || llUnlocked) &&
+      !hidden.has(d.key)
   );
 
   function persist(next: string[]) {

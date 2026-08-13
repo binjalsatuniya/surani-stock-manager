@@ -1,11 +1,30 @@
 import { useEffect, useState } from 'react';
 import { roleLabel } from '@surani/shared';
 import { useAuth } from '../context/AuthContext';
+import { usePermission } from '../hooks/usePermission';
+import { NAV_DEFS } from '../components/Layout';
 import { api } from '../lib/apiClient';
 import { rememberQuickUnlockUser, forgetQuickUnlockUser } from '../lib/quickUnlock';
 
 export function AccountPage() {
   const { user, updateUser, llUnlocked, unlockLoginLocations } = useAuth();
+  const can = usePermission();
+
+  // Sidebar entries this user has tidied away. Saved to the account, so it follows them to any
+  // device rather than living in one browser.
+  const menuHidden = user?.preferences?.menuHidden ?? [];
+
+  async function saveMenuHidden(next: string[]) {
+    if (!user) return;
+    try {
+      updateUser(await api.users.setPreferences(user.id, { menuHidden: next }));
+    } catch {
+      /* leave the menu as it is if the save fails */
+    }
+  }
+  function toggleMenuItem(key: string) {
+    saveMenuHidden(menuHidden.includes(key) ? menuHidden.filter((k) => k !== key) : [...menuHidden, key]);
+  }
   // Change my own login (username + password)
   const [myCur, setMyCur] = useState('');
   const [myUser, setMyUser] = useState('');
@@ -173,6 +192,40 @@ export function AccountPage() {
       <p>
         <strong>{user.name}</strong> · {user.username} · {roleLabel(user.role)}
       </p>
+
+      {/* Tidy the sidebar. Useful mainly for the Super Admin, who is shown every page whether or
+          not it is part of daily work — Role Master, PDF Layout, Backup and so on. */}
+      <div style={{ marginTop: 8, padding: 14, border: '1px solid var(--line)', borderRadius: 9 }}>
+        <div style={{ fontWeight: 600 }}>Menu items</div>
+        <div className="muted" style={{ fontSize: 11.5, marginTop: 2 }}>
+          Untick anything you don’t use day to day and it disappears from your sidebar. This only
+          affects your own menu — it changes nobody else, and it doesn’t remove your access: an
+          unticked page still opens if you go to it directly.
+        </div>
+        <div
+          style={{
+            marginTop: 10,
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
+            gap: '2px 14px',
+          }}
+        >
+          {NAV_DEFS.filter((d) => (!d.perm || can(d.perm)) && (!d.primaryOnly || user.isPrimary)).map((d) => (
+            <label key={d.key} style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, padding: '3px 0' }}>
+              <input type="checkbox" checked={!menuHidden.includes(d.key)} onChange={() => toggleMenuItem(d.key)} />
+              {d.label}
+            </label>
+          ))}
+        </div>
+        <div className="toolbar" style={{ marginTop: 8 }}>
+          <button className="btn btn-sm" onClick={() => saveMenuHidden([])} disabled={menuHidden.length === 0}>
+            Show all again
+          </button>
+          <span className="muted" style={{ fontSize: 11.5 }}>
+            {menuHidden.length === 0 ? 'Nothing hidden.' : `${menuHidden.length} hidden.`}
+          </span>
+        </div>
+      </div>
 
       {/* Everyone can change their OWN username & password. */}
       <div style={{ marginTop: 8, padding: 14, border: '1px solid var(--line)', borderRadius: 9 }}>
