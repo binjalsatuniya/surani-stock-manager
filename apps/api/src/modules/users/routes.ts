@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import bcrypt from 'bcrypt';
 import { z } from 'zod';
-import { defaultPermsForRole, type Role } from '@surani/shared';
+import { defaultPermsForRole, hasPermission, type Role } from '@surani/shared';
 import { prisma } from '../../db/prisma';
 import { toUserDTO } from '../../lib/serialize';
 import { asyncHandler } from '../../lib/asyncHandler';
@@ -70,7 +70,11 @@ usersRouter.post(
   requirePermission('manage_users'),
   asyncHandler(async (req, res) => {
     const input = createSchema.parse(req.body);
-    // Anyone with manage_users may add people, but only below their own level.
+    // Adding people is its own right: seeing User Master does not imply being able to create
+    // accounts. Still bounded by level — you may only create someone below you.
+    if (!hasPermission(req.user!.role, req.user!.permissions, 'create_users')) {
+      throw new HttpError(403, 'Missing permission: create_users');
+    }
     await assertMayAssignRole(req.user!, input.role);
     // Handing out individual permissions is the Super Admin's alone; everyone else assigns a role
     // and the new user starts on that role's set.

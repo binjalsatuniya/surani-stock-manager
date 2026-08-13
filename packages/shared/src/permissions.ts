@@ -54,7 +54,8 @@ export const PERMS = [
   { id: 'view_import_scans', label: 'See Import from Scans page', group: 'Admin' },
   { id: 'import_invoices', label: 'Import scanned invoices (creates sales entries)', group: 'Admin' },
 
-  { id: 'manage_users', label: 'Manage Users', group: 'Admin' },
+  { id: 'manage_users', label: 'See User Master', group: 'Admin' },
+  { id: 'create_users', label: 'Create New Users', group: 'Admin' },
   { id: 'manage_roles', label: 'Create Roles & set their permissions', group: 'Admin' },
   { id: 'view_field_rules', label: 'See Field Rules tab', group: 'Admin' },
   { id: 'manage_financial_years', label: 'Create Financial Years', group: 'Admin' },

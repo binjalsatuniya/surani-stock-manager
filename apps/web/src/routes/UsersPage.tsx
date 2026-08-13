@@ -16,7 +16,9 @@ export function UsersPage() {
   const ROLE_RANK: Record<string, number> = { superadmin: 100, admin: 50 };
   const rankOf = (r?: string | null) => ROLE_RANK[(r || '').toLowerCase()] ?? 10;
   const myRank = rankOf(me?.role);
-  const canManageUsers = usePermission()('manage_users');
+  const can = usePermission();
+  // Seeing User Master and being allowed to add people are separate rights.
+  const canCreateUsers = can('create_users');
   const [users, setUsers] = useState<User[]>([]);
   // Custom roles from Role Master, offered alongside the built-in ones.
   const [customRoles, setCustomRoles] = useState<RoleTemplate[]>([]);
@@ -182,7 +184,7 @@ export function UsersPage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div className="card">
         <h2 style={{ marginTop: 0 }}>User Master <span className="muted" style={{ fontSize: 13, fontWeight: 500 }}>— login accounts &amp; permissions</span></h2>
-        {canManageUsers ? (
+        {canCreateUsers ? (
           <>
             <div className="toolbar">
               <div className="field" style={{ margin: 0 }}>
