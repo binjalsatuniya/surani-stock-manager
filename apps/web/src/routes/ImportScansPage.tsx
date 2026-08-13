@@ -1,31 +1,94 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import type { Item, Party } from '@surani/shared';
 import { api } from '../lib/apiClient';
 import { usePermission } from '../hooks/usePermission';
-import { readScannedInvoice, type ScannedInvoice } from '../lib/invoiceImport';
+import { readScannedInvoice, type ScannedInvoice, type ScannedLine } from '../lib/invoiceImport';
+import { SearchSelect } from '../components/SearchSelect';
 
 /**
  * Reads a pile of scanned sales invoices and shows what it found, so old records can be entered
  * without typing every field.
  *
- * This screen deliberately saves nothing. Reading a scan is part exact (the signed e-Invoice QR)
- * and part guesswork (OCR of the goods table), and the point of the review table is to see which
- * is which before anything reaches the database.
+ * The invoice number, date, party and total come from the signed e-Invoice QR and are exact.
+ * The goods lines (item, quantity, rate) are read by OCR, which guesses — and on a busy invoice
+ * often misses lines or misreads a figure. So the review table is EDITABLE: the read is a draft,
+ * and a person fixes what OCR got wrong (pick the item, correct qty/rate, add a missing line, or
+ * choose the party) until the lines reconcile with the QR total. Only then can a row be imported.
  */
 
 interface Row extends ScannedInvoice {
   party: Party | null;
-  /** One matched item per goods line, in the same order; null where the HSN is unknown. */
+  /** One matched item per goods line, in the same order; null where none is chosen yet. */
   items: (Item | null)[];
-  /** True once the invoice number is known to already exist. */
+  /** True once the invoice number is known to already exist (or repeats within this batch). */
   duplicate: boolean;
+  duplicateNote?: string;
   selected: boolean;
   outcome: 'imported' | 'skipped' | 'failed' | null;
   outcomeNote?: string;
 }
 
+const GST_SLABS = [0, 5, 12, 18, 28];
 const inr = (n: number | null | undefined) => (n == null ? '—' : `₹${n.toLocaleString('en-IN')}`);
 const fmtDate = (d: string) => (d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
+
+/** The taxable value of a line — quantity × rate — or 0 until both are entered. */
+const lineValue = (l: ScannedLine) => (l.qty != null && l.rate != null ? l.qty * l.rate : 0);
+
+/**
+ * Reconcile the goods lines against the QR total, which is exact. The gap between the goods total
+ * and the QR total, expressed as a percentage, should land on a standard GST slab; if it does, the
+ * figures agree and that slab is the invoice's GST rate.
+ */
+function reconcile(qrTotal: number | null | undefined, lines: ScannedLine[]) {
+  const goodsTotal = lines.reduce((s, l) => s + lineValue(l), 0);
+  if (qrTotal == null || goodsTotal <= 0) return { impliedGstPct: null as number | null, matchesQrTotal: false, goodsTotal };
+  const pct = ((qrTotal - goodsTotal) / goodsTotal) * 100;
+  const slab = GST_SLABS.find((s) => Math.abs(pct - s) < 0.6);
+  return { impliedGstPct: slab ?? Math.round(pct * 100) / 100, matchesQrTotal: slab != null, goodsTotal };
+}
+
+/** Rebuild the plain-English list of what still stops this row from importing. */
+function buildProblems(r: Row, goodsTotal: number): string[] {
+  const p: string[] = [];
+  if (!r.qr) p.push('No e-Invoice QR found — the invoice number, date and total cannot be trusted, so this cannot be imported.');
+  if (r.duplicateNote) p.push(r.duplicateNote);
+  if (!r.party) {
+    p.push(
+      r.qr?.buyerGstin
+        ? `No party in your list has GSTIN ${r.qr.buyerGstin} — pick the party below, or add it in Party Master.`
+        : 'Pick the party for this invoice below.'
+    );
+  }
+  if (r.lines.length === 0) {
+    p.push('No goods line read — add each item below, with its quantity and rate.');
+  } else {
+    if (r.lines.some((l, i) => !r.items[i])) p.push('Pick the item for every goods line below.');
+    if (r.lines.some((l) => l.qty == null || l.rate == null)) p.push('Enter a quantity and rate on every goods line below.');
+    else if (r.qr?.totalValue != null && !r.matchesQrTotal) {
+      p.push(
+        `The goods lines total ₹${goodsTotal.toLocaleString('en-IN')}, which plus GST does not reach the ` +
+          `invoice total ₹${r.qr.totalValue.toLocaleString('en-IN')} at any standard rate — check the quantities, ` +
+          `rates, and whether a line is missing.`
+      );
+    }
+  }
+  return p;
+}
+
+/** Refresh a row's derived fields (implied GST, reconciliation, problems) after any edit. */
+function recompute(r: Row): Row {
+  const { impliedGstPct, matchesQrTotal, goodsTotal } = reconcile(r.qr?.totalValue, r.lines);
+  const withDerived = { ...r, impliedGstPct, matchesQrTotal };
+  return { ...withDerived, problems: buildProblems(withDerived, goodsTotal) };
+}
+
+const toNum = (s: string): number | null => {
+  const t = s.trim();
+  if (t === '') return null;
+  const n = Number(t.replace(/,/g, ''));
+  return Number.isFinite(n) ? n : null;
+};
 
 export function ImportScansPage() {
   const can = usePermission();
@@ -34,6 +97,7 @@ export function ImportScansPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
   // Existing invoice numbers, so the same sale can never be entered twice.
   const [existingInvNos, setExistingInvNos] = useState<Set<string>>(new Set());
@@ -65,6 +129,7 @@ export function ImportScansPage() {
     if (!files?.length) return;
     setBusy(true);
     setRows([]);
+    setEditingIndex(null);
     setProgress({ done: 0, total: files.length });
     const out: Row[] = [];
     // One at a time: each file spins up an OCR worker, and running many at once starves the tab.
@@ -73,30 +138,30 @@ export function ImportScansPage() {
       const buyer = normGst(scan.qr?.buyerGstin);
       const party = buyer ? parties.find((p) => normGst(p.gst) === buyer) ?? null : null;
       const matched = scan.lines.map((l) => (l.hsn ? items.find((it) => hsnCodesOf(it.code).includes(l.hsn!)) ?? null : null));
-      if (buyer && !party) scan.problems.push(`No party in your list has GSTIN ${buyer}.`);
-      const missing = scan.lines.filter((l, i) => l.hsn && !matched[i]).map((l) => l.hsn);
-      if (missing.length)
-        scan.problems.push(
-          `No item has HSN code ${missing.join(', ')}. Add it to that item's Code field in Item Master — ` +
-            `several codes can be listed, separated by commas.`
-        );
       const invNo = (scan.qr?.docNo || '').trim().toUpperCase();
       // Duplicate against what is already saved, AND against earlier files in this same batch —
       // selecting the same invoice twice in one go would otherwise import it twice.
       const alreadySaved = !!invNo && existingInvNos.has(invNo);
       const earlierInBatch = !!invNo && out.some((p) => (p.qr?.docNo || '').trim().toUpperCase() === invNo);
       const duplicate = alreadySaved || earlierInBatch;
-      if (alreadySaved) scan.problems.push('This invoice number is already in the system.');
-      else if (earlierInBatch) scan.problems.push('This invoice appears more than once in the files you selected.');
-      out.push({
+      const duplicateNote = alreadySaved
+        ? 'This invoice number is already in the system.'
+        : earlierInBatch
+          ? 'This invoice appears more than once in the files you selected.'
+          : undefined;
+      // Build the row, then recompute so its problems reflect the editable review model (the raw
+      // OCR problems from the reader are superseded — a person can now fix each of them here).
+      const row = recompute({
         ...scan,
         party,
         items: matched,
         duplicate,
-        // Only rows that need no judgement are ticked; the rest are a deliberate choice.
-        selected: scan.problems.length === 0,
+        duplicateNote,
+        selected: false,
         outcome: null,
       });
+      row.selected = row.problems.length === 0;
+      out.push(row);
       setRows([...out]);
       setProgress({ done: i + 1, total: files.length });
     }
@@ -119,6 +184,32 @@ export function ImportScansPage() {
       r.lines.every((l, i) => !!r.items[i] && l.qty != null && l.rate != null)
     );
   }
+
+  // --- Editing the draft --------------------------------------------------------------------
+  // Every edit clones the row, applies the change, and recomputes the derived fields and problems,
+  // so the reconciliation and the Import checkbox update the moment the figures add up.
+  function updateRow(i: number, fn: (r: Row) => void) {
+    setRows((rs) =>
+      rs.map((r, j) => {
+        if (j !== i) return r;
+        const draft: Row = { ...r, lines: r.lines.map((l) => ({ ...l })), items: [...r.items] };
+        fn(draft);
+        return recompute(draft);
+      })
+    );
+  }
+  const setParty = (i: number, id: string) => updateRow(i, (r) => { r.party = parties.find((p) => p.id === id) ?? null; });
+  const setLineItem = (i: number, li: number, id: string) =>
+    updateRow(i, (r) => { r.items[li] = items.find((x) => x.id === id) ?? null; });
+  const setLineQty = (i: number, li: number, v: string) => updateRow(i, (r) => { r.lines[li].qty = toNum(v); });
+  const setLineRate = (i: number, li: number, v: string) => updateRow(i, (r) => { r.lines[li].rate = toNum(v); });
+  const addLine = (i: number) =>
+    updateRow(i, (r) => {
+      r.lines.push({ hsn: null, qty: null, rate: null, amount: null, addsUp: false });
+      r.items.push(null);
+    });
+  const removeLine = (i: number, li: number) =>
+    updateRow(i, (r) => { r.lines.splice(li, 1); r.items.splice(li, 1); });
 
   async function onImport() {
     const chosen = rows.map((r, i) => ({ r, i })).filter(({ r }) => r.selected && importable(r));
@@ -174,9 +265,11 @@ export function ImportScansPage() {
 
   /** Tidy the list down to what still needs attention — nothing is deleted from the database. */
   function clearDuplicates() {
+    setEditingIndex(null);
     setRows((rs) => rs.filter((r) => !r.duplicate));
   }
   function clearFinished() {
+    setEditingIndex(null);
     setRows((rs) => rs.filter((r) => !r.duplicate && r.outcome !== 'imported'));
   }
 
@@ -192,8 +285,9 @@ export function ImportScansPage() {
         <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
           Select scanned sales invoices to see what can be read from them. The invoice number, date,
           party and total come from the e-Invoice QR and are exact. Quantity and rate are read off
-          the page and are checked against that total — a row only shows as ready when the figures
-          reconcile.
+          the page — and where the reading is wrong or incomplete, you can <strong>fix it by hand</strong>{' '}
+          with the Edit button: correct a figure, add a missing item line, or choose the party. A row
+          only becomes ready to import once its lines reconcile with the invoice total.
         </p>
         <div
           style={{
@@ -276,73 +370,91 @@ export function ImportScansPage() {
                 <th style={{ textAlign: 'right' }}>GST</th>
                 <th style={{ textAlign: 'right' }}>Total</th>
                 <th>Notes</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
               {rows.map((r, i) => {
                 const ok = r.problems.length === 0;
-                const canImport = importable(r);
+                const rowImportable = importable(r);
+                const editing = editingIndex === i;
+                const done = r.outcome === 'imported' || r.duplicate;
                 return (
-                  <tr
-                    key={i}
-                    style={{
-                      background:
-                        r.outcome === 'imported' ? '#f0fdf4' : r.outcome === 'failed' ? '#fef2f2' : ok ? undefined : '#fffbeb',
-                    }}
-                  >
-                    <td>
-                      <input
-                        type="checkbox"
-                        checked={r.selected}
-                        disabled={!canImport}
-                        title={canImport ? 'Import this invoice' : 'This row cannot be imported yet'}
-                        onChange={(e) =>
-                          setRows((rs) => rs.map((x, j) => (j === i ? { ...x, selected: e.target.checked } : x)))
-                        }
-                      />
-                    </td>
-                    <td style={{ fontSize: 11 }}>{r.fileName}</td>
-                    <td>{r.qr?.docNo || '—'}</td>
-                    <td>{fmtDate(r.qr?.docDate || '')}</td>
-                    <td>
-                      {r.party ? r.party.name : <span style={{ color: '#b45309' }}>not matched</span>}
-                      {r.qr?.buyerGstin && (
-                        <div className="muted" style={{ fontSize: 10.5 }}>{r.qr.buyerGstin}</div>
-                      )}
-                    </td>
-                    <td>
-                      {r.lines.length === 0 && <span style={{ color: '#b45309' }}>no goods line read</span>}
-                      {r.lines.map((l, li) => (
-                        <div key={li} style={{ marginBottom: r.lines.length > 1 ? 3 : 0 }}>
-                          {r.items[li] ? r.items[li]!.name : <span style={{ color: '#b45309' }}>not matched</span>}
-                          {l.hsn && <span className="muted" style={{ fontSize: 10.5 }}> · HSN {l.hsn}</span>}
-                        </div>
-                      ))}
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      {r.lines.map((l, li) => (
-                        <div key={li} style={{ marginBottom: r.lines.length > 1 ? 3 : 0 }}>{l.qty ?? '—'}</div>
-                      ))}
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      {r.lines.map((l, li) => (
-                        <div key={li} style={{ marginBottom: r.lines.length > 1 ? 3 : 0 }}>{l.rate ?? '—'}</div>
-                      ))}
-                    </td>
-                    <td style={{ textAlign: 'right' }}>{r.impliedGstPct != null ? `${r.impliedGstPct}%` : '—'}</td>
-                    <td style={{ textAlign: 'right' }}>{inr(r.qr?.totalValue)}</td>
-                    <td style={{ fontSize: 11, maxWidth: 260 }}>
-                      {r.outcome === 'imported' ? (
-                        <span style={{ color: '#15803d', fontWeight: 600 }}>✓ imported</span>
-                      ) : r.outcome === 'failed' ? (
-                        <span style={{ color: '#dc2626' }}>Failed — {r.outcomeNote}</span>
-                      ) : (
-                        <span style={{ color: ok ? '#15803d' : '#b45309' }}>
-                          {ok ? '✓ figures reconcile' : r.problems.join(' ')}
-                        </span>
-                      )}
-                    </td>
-                  </tr>
+                  <Fragment key={i}>
+                    <tr
+                      style={{
+                        background:
+                          r.outcome === 'imported' ? '#f0fdf4' : r.outcome === 'failed' ? '#fef2f2' : ok ? undefined : '#fffbeb',
+                      }}
+                    >
+                      <td>
+                        <input
+                          type="checkbox"
+                          checked={r.selected}
+                          disabled={!rowImportable}
+                          title={rowImportable ? 'Import this invoice' : 'This row cannot be imported yet'}
+                          onChange={(e) =>
+                            setRows((rs) => rs.map((x, j) => (j === i ? { ...x, selected: e.target.checked } : x)))
+                          }
+                        />
+                      </td>
+                      <td style={{ fontSize: 11 }}>{r.fileName}</td>
+                      <td>{r.qr?.docNo || '—'}</td>
+                      <td>{fmtDate(r.qr?.docDate || '')}</td>
+                      <td>
+                        {r.party ? r.party.name : <span style={{ color: '#b45309' }}>not matched</span>}
+                        {r.qr?.buyerGstin && (
+                          <div className="muted" style={{ fontSize: 10.5 }}>{r.qr.buyerGstin}</div>
+                        )}
+                      </td>
+                      <td>
+                        {r.lines.length === 0 && <span style={{ color: '#b45309' }}>no goods line read</span>}
+                        {r.lines.map((l, li) => (
+                          <div key={li} style={{ marginBottom: r.lines.length > 1 ? 3 : 0 }}>
+                            {r.items[li] ? r.items[li]!.name : <span style={{ color: '#b45309' }}>not matched</span>}
+                            {l.hsn && <span className="muted" style={{ fontSize: 10.5 }}> · HSN {l.hsn}</span>}
+                          </div>
+                        ))}
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        {r.lines.map((l, li) => (
+                          <div key={li} style={{ marginBottom: r.lines.length > 1 ? 3 : 0 }}>{l.qty ?? '—'}</div>
+                        ))}
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        {r.lines.map((l, li) => (
+                          <div key={li} style={{ marginBottom: r.lines.length > 1 ? 3 : 0 }}>{l.rate ?? '—'}</div>
+                        ))}
+                      </td>
+                      <td style={{ textAlign: 'right' }}>{r.impliedGstPct != null ? `${r.impliedGstPct}%` : '—'}</td>
+                      <td style={{ textAlign: 'right' }}>{inr(r.qr?.totalValue)}</td>
+                      <td style={{ fontSize: 11, maxWidth: 260 }}>
+                        {r.outcome === 'imported' ? (
+                          <span style={{ color: '#15803d', fontWeight: 600 }}>✓ imported</span>
+                        ) : r.outcome === 'failed' ? (
+                          <span style={{ color: '#dc2626' }}>Failed — {r.outcomeNote}</span>
+                        ) : (
+                          <span style={{ color: ok ? '#15803d' : '#b45309' }}>
+                            {ok ? '✓ figures reconcile' : r.problems.join(' ')}
+                          </span>
+                        )}
+                      </td>
+                      <td>
+                        {!done && (
+                          <button className="btn btn-sm" onClick={() => setEditingIndex(editing ? null : i)}>
+                            {editing ? 'Close' : 'Edit'}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                    {editing && !done && (
+                      <tr>
+                        <td colSpan={12} style={{ background: '#f8fafc' }}>
+                          {editPanel(r, i)}
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 );
               })}
             </tbody>
@@ -351,4 +463,86 @@ export function ImportScansPage() {
       )}
     </div>
   );
+
+  function editPanel(r: Row, i: number) {
+    const { goodsTotal } = reconcile(r.qr?.totalValue, r.lines);
+    const qrTotal = r.qr?.totalValue ?? null;
+    return (
+      <div style={{ padding: '4px 2px' }}>
+        <div style={{ fontWeight: 600, marginBottom: 8 }}>
+          Correct this invoice — {r.qr?.docNo || r.fileName}
+        </div>
+
+        <div className="toolbar" style={{ margin: 0, marginBottom: 10 }}>
+          <div className="field" style={{ margin: 0, flex: 1, minWidth: 260 }}>
+            <label>Party</label>
+            <SearchSelect
+              value={r.party?.id || ''}
+              onChange={(id) => setParty(i, id)}
+              options={parties.map((p) => ({ id: p.id, label: p.name }))}
+              placeholder="Type party name…"
+            />
+            {r.qr?.buyerGstin && (
+              <div className="muted" style={{ fontSize: 10.5, marginTop: 4 }}>Invoice GSTIN: {r.qr.buyerGstin}</div>
+            )}
+          </div>
+        </div>
+
+        <div style={{ border: '1px solid var(--line)', borderRadius: 9, padding: '10px 12px' }}>
+          <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>Goods lines</div>
+          {r.lines.map((l, li) => (
+            <div key={li} className="toolbar" style={{ alignItems: 'flex-end', marginBottom: 6, margin: 0, marginTop: li ? 6 : 0 }}>
+              <div className="field" style={{ margin: 0, minWidth: 30 }}>
+                <label>#</label>
+                <div style={{ fontSize: 13, paddingTop: 6 }}>{li + 1}</div>
+              </div>
+              <div className="field" style={{ margin: 0, flex: 1, minWidth: 220 }}>
+                <label>Item{l.hsn ? ` · HSN ${l.hsn}` : ''}</label>
+                <SearchSelect
+                  value={r.items[li]?.id || ''}
+                  onChange={(id) => setLineItem(i, li, id)}
+                  options={items.map((x) => ({ id: x.id, label: x.name }))}
+                  placeholder="Type item name…"
+                />
+              </div>
+              <div className="field" style={{ margin: 0 }}>
+                <label>Qty</label>
+                <input value={l.qty ?? ''} onChange={(e) => setLineQty(i, li, e.target.value)} style={{ width: 90 }} inputMode="decimal" />
+              </div>
+              <div className="field" style={{ margin: 0 }}>
+                <label>Rate</label>
+                <input value={l.rate ?? ''} onChange={(e) => setLineRate(i, li, e.target.value)} style={{ width: 100 }} inputMode="decimal" />
+              </div>
+              <div className="field" style={{ margin: 0 }}>
+                <label>Value</label>
+                <div style={{ fontSize: 13, paddingTop: 6, whiteSpace: 'nowrap' }}>{inr(lineValue(l) || null)}</div>
+              </div>
+              {r.lines.length > 1 && (
+                <button className="btn btn-sm btn-danger" onClick={() => removeLine(i, li)} title="Remove this line">
+                  ✕
+                </button>
+              )}
+            </div>
+          ))}
+          <button className="btn btn-sm" style={{ marginTop: 4 }} onClick={() => addLine(i)}>
+            + Add item line
+          </button>
+        </div>
+
+        <div className="toolbar" style={{ margin: 0, marginTop: 8, alignItems: 'center' }}>
+          <span style={{ fontSize: 12.5 }}>
+            Goods total <strong>{inr(goodsTotal || null)}</strong>
+            {' · '}invoice total <strong>{inr(qrTotal)}</strong>
+            {' · '}
+            {r.matchesQrTotal ? (
+              <strong style={{ color: '#15803d' }}>reconciles at {r.impliedGstPct}% GST ✓</strong>
+            ) : (
+              <strong style={{ color: '#b45309' }}>does not reconcile yet</strong>
+            )}
+          </span>
+          <button className="btn btn-sm" onClick={() => setEditingIndex(null)}>Done</button>
+        </div>
+      </div>
+    );
+  }
 }
