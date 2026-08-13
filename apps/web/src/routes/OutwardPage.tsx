@@ -9,13 +9,11 @@ import { useFieldSettings } from '../hooks/useFieldSettings';
 import { FieldLabel } from '../components/FieldLabel';
 import { SearchSelect } from '../components/SearchSelect';
 
+// The item, quantity, rate and GST now live on the item lines below, not here — one invoice can
+// carry several of them, while everything in this object is entered once and shared.
 const EMPTY = {
   date: new Date().toISOString().slice(0, 10),
   partyId: '',
-  itemId: '',
-  qty: '',
-  rate: '',
-  gstPct: '0',
   freightRate: '0',
   handlingRate: '0',
   handlingAgentId: '',
@@ -64,15 +62,38 @@ export function OutwardPage() {
     setForm((f) => ({ ...f, [key]: value }));
   }
 
-  // Pick up the item's rate, and default credit days from the selected party.
-  function onItemChange(id: string) {
-    const it = items.find((i) => i.id === id);
-    setForm((f) => ({
-      ...f,
-      itemId: id,
-      rate: f.rate || (it ? String(it.rate) : ''),
-      gstPct: it && Number(it.gstPct) > 0 ? String(it.gstPct) : f.gstPct,
-    }));
+  // One invoice can carry several items. Party, date, invoice number, transport and payment are
+  // entered once; each line below becomes its own entry sharing them, which is the shape stock and
+  // the ledgers already read.
+  type Line = { itemId: string; qty: string; rate: string; gstPct: string };
+  const BLANK_LINE: Line = { itemId: '', qty: '', rate: '', gstPct: '0' };
+  const [lines, setLines] = useState<Line[]>([{ ...BLANK_LINE }]);
+
+  function setLine(i: number, patch: Partial<Line>) {
+    setLines((ls) => ls.map((l, j) => (j === i ? { ...l, ...patch } : l)));
+  }
+  function addLine() {
+    setLines((ls) => [...ls, { ...BLANK_LINE }]);
+  }
+  function removeLine(i: number) {
+    setLines((ls) => (ls.length === 1 ? ls : ls.filter((_, j) => j !== i)));
+  }
+
+  // Pick up the item's rate and GST slab when an item is chosen on a line.
+  function onItemChange(i: number, id: string) {
+    const it = items.find((x) => x.id === id);
+    setLines((ls) =>
+      ls.map((l, j) =>
+        j === i
+          ? {
+              ...l,
+              itemId: id,
+              rate: l.rate || (it ? String(it.rate) : ''),
+              gstPct: it && Number(it.gstPct) > 0 ? String(it.gstPct) : l.gstPct,
+            }
+          : l
+      )
+    );
   }
   function onPartyChange(id: string) {
     const p = parties.find((x) => x.id === id);
@@ -88,37 +109,49 @@ export function OutwardPage() {
     }));
   }
 
-  const qtyN = Number(form.qty) || 0;
-  const rateN = Number(form.rate) || 0;
-  const gstN = Number(form.gstPct) || 0;
-  const goods = qtyN * rateN;
-  const amountPreview = goods + (goods * gstN) / 100;
+  const lineTotals = lines.map((l) => {
+    const goods = (Number(l.qty) || 0) * (Number(l.rate) || 0);
+    return { goods, withGst: goods + (goods * (Number(l.gstPct) || 0)) / 100 };
+  });
+  const goods = lineTotals.reduce((s, t) => s + t.goods, 0);
+  const amountPreview = lineTotals.reduce((s, t) => s + t.withGst, 0);
+  const filledLines = lines.filter((l) => l.itemId && l.qty && l.rate);
 
   async function onAdd() {
     setError('');
-    if (!form.partyId || !form.itemId || !form.qty || !form.rate) return;
+    if (!form.partyId) return setError('Select a party.');
+    if (filledLines.length === 0) return setError('Add at least one item, with a quantity and rate.');
+    // A half-filled line is more likely a mistake than an intention, so say so rather than skip it.
+    const partial = lines.findIndex((l) => (l.itemId || l.qty || l.rate) && !(l.itemId && l.qty && l.rate));
+    if (partial >= 0) return setError(`Item ${partial + 1} is incomplete — it needs an item, quantity and rate.`);
     if (required('outward.invNo') && !form.invNo.trim()) return setError('Invoice number is required.');
     if (required('outward.transporter') && !form.transporterId) return setError('Transporter is required.');
     if (required('outward.handlingAgent') && !form.handlingAgentId) return setError('Handling agent is required.');
     if (required('outward.note') && !form.note.trim()) return setError('Note is required.');
     try {
-      await api.outward.create({
-        date: form.date,
-        partyId: form.partyId,
-        itemId: form.itemId,
-        qty: Number(form.qty),
-        rate: Number(form.rate),
-        gstPct: Number(form.gstPct) || 0,
-        freightRate: Number(form.freightRate) || 0,
-        handlingRate: Number(form.handlingRate) || 0,
-        handlingAgentId: form.handlingAgentId || null,
-        payStatus: form.payStatus,
-        creditDays: Number(form.creditDays) || 0,
-        invNo: form.invNo.trim() || null,
-        transporterId: form.transporterId || null,
-        note: form.note.trim() || null,
-      });
+      // One entry per item line, all sharing this invoice's party, date, invoice number and terms.
+      // Freight and handling are per unit and per tonne, so each line carries its own rates and is
+      // costed on its own quantity — putting the whole freight on one line would misstate both.
+      for (const l of filledLines) {
+        await api.outward.create({
+          date: form.date,
+          partyId: form.partyId,
+          itemId: l.itemId,
+          qty: Number(l.qty),
+          rate: Number(l.rate),
+          gstPct: Number(l.gstPct) || 0,
+          freightRate: Number(form.freightRate) || 0,
+          handlingRate: Number(form.handlingRate) || 0,
+          handlingAgentId: form.handlingAgentId || null,
+          payStatus: form.payStatus,
+          creditDays: Number(form.creditDays) || 0,
+          invNo: form.invNo.trim() || null,
+          transporterId: form.transporterId || null,
+          note: form.note.trim() || null,
+        });
+      }
       setForm((f) => ({ ...EMPTY, date: f.date }));
+      setLines([{ ...BLANK_LINE }]);
       const efy = fyOfDate(form.date);
       if (efy && efy !== selectedFy) setSelectedFy(efy);
       else reload();
@@ -336,64 +369,6 @@ export function OutwardPage() {
               />
             </div>
             <div className="field" style={{ margin: 0 }}>
-              <label>Item</label>
-              <select value={form.itemId} onChange={(e) => onItemChange(e.target.value)}>
-                <option value="">Select…</option>
-                {items.map((i) => (
-                  <option key={i.id} value={i.id}>
-                    {i.name}
-                  </option>
-                ))}
-              </select>
-              {form.itemId && (() => {
-                const it = items.find((i) => i.id === form.itemId);
-                const avail = stock[form.itemId] ?? 0;
-                const short = qtyN > 0 && qtyN > avail;
-                return (
-                  <div
-                    style={{
-                      marginTop: 6,
-                      fontSize: 11.5,
-                      fontWeight: 700,
-                      display: 'inline-block',
-                      padding: '3px 9px',
-                      borderRadius: 999,
-                      background: short ? '#fef2f2' : '#f0fdf4',
-                      color: short ? '#dc2626' : '#15803d',
-                      border: `1px solid ${short ? '#fecaca' : '#bbf7d0'}`,
-                    }}
-                  >
-                    Live stock: {avail} {it?.unit || ''}
-                    {short ? ' · not enough!' : ''}
-                  </div>
-                );
-              })()}
-            </div>
-            <div className="field" style={{ margin: 0 }}>
-              <label>Qty</label>
-              <input value={form.qty} onChange={(e) => set('qty', e.target.value)} style={{ width: 90 }} />
-            </div>
-            <div className="field" style={{ margin: 0 }}>
-              <label>Rate</label>
-              <input value={form.rate} onChange={(e) => set('rate', e.target.value)} style={{ width: 90 }} />
-            </div>
-            <div className="field" style={{ margin: 0 }}>
-              <label>GST %</label>
-              {(() => {
-                const it = items.find((i) => i.id === form.itemId);
-                const locked = !!it && Number(it.gstPct) > 0;
-                return (
-                  <input
-                    value={form.gstPct}
-                    onChange={(e) => set('gstPct', e.target.value)}
-                    style={{ width: 70 }}
-                    readOnly={locked}
-                    title={locked ? "Set automatically from the item's GST slab" : ''}
-                  />
-                );
-              })()}
-            </div>
-            <div className="field" style={{ margin: 0 }}>
               <label>Pay Status</label>
               <select value={form.payStatus} onChange={(e) => set('payStatus', e.target.value)}>
                 <option value="pending">Pending</option>
@@ -444,12 +419,95 @@ export function OutwardPage() {
               <input value={form.note} onChange={(e) => set('note', e.target.value)} placeholder="Remarks…" style={{ width: '100%' }} />
             </div>
           </div>
+          {/* One invoice, several items. Each line below is saved as its own entry sharing the
+              party, date and invoice number above — which is what stock and the ledgers read. */}
+          <div style={{ marginTop: 10, border: '1px solid var(--line)', borderRadius: 9, padding: '10px 12px' }}>
+            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>Items</div>
+            {lines.map((l, i) => {
+              const it = items.find((x) => x.id === l.itemId);
+              const avail = l.itemId ? stock[l.itemId] ?? 0 : 0;
+              const q = Number(l.qty) || 0;
+              const short = q > 0 && q > avail;
+              const locked = !!it && Number(it.gstPct) > 0;
+              return (
+                <div key={i} className="toolbar" style={{ alignItems: 'flex-end', marginBottom: 6 }}>
+                  <div className="field" style={{ margin: 0, minWidth: 30 }}>
+                    <label>#</label>
+                    <div style={{ fontSize: 13, paddingTop: 6 }}>{i + 1}</div>
+                  </div>
+                  <div className="field" style={{ margin: 0 }}>
+                    <label>Item</label>
+                    <select value={l.itemId} onChange={(e) => onItemChange(i, e.target.value)}>
+                      <option value="">Select…</option>
+                      {items.map((x) => (
+                        <option key={x.id} value={x.id}>
+                          {x.name}
+                        </option>
+                      ))}
+                    </select>
+                    {l.itemId && (
+                      <div
+                        style={{
+                          marginTop: 6,
+                          fontSize: 11.5,
+                          fontWeight: 700,
+                          display: 'inline-block',
+                          padding: '3px 9px',
+                          borderRadius: 999,
+                          background: short ? '#fef2f2' : '#f0fdf4',
+                          color: short ? '#dc2626' : '#15803d',
+                          border: `1px solid ${short ? '#fecaca' : '#bbf7d0'}`,
+                        }}
+                      >
+                        Live stock: {avail} {it?.unit || ''}
+                        {short ? ' · not enough!' : ''}
+                      </div>
+                    )}
+                  </div>
+                  <div className="field" style={{ margin: 0 }}>
+                    <label>Qty</label>
+                    <input value={l.qty} onChange={(e) => setLine(i, { qty: e.target.value })} style={{ width: 90 }} />
+                  </div>
+                  <div className="field" style={{ margin: 0 }}>
+                    <label>Rate</label>
+                    <input value={l.rate} onChange={(e) => setLine(i, { rate: e.target.value })} style={{ width: 90 }} />
+                  </div>
+                  <div className="field" style={{ margin: 0 }}>
+                    <label>GST %</label>
+                    <input
+                      value={l.gstPct}
+                      onChange={(e) => setLine(i, { gstPct: e.target.value })}
+                      style={{ width: 70 }}
+                      readOnly={locked}
+                      title={locked ? "Set automatically from the item's GST slab" : ''}
+                    />
+                  </div>
+                  <div className="field" style={{ margin: 0 }}>
+                    <label>Amount</label>
+                    <div style={{ fontSize: 13, paddingTop: 6, whiteSpace: 'nowrap' }}>
+                      ₹{lineTotals[i].withGst.toFixed(2)}
+                    </div>
+                  </div>
+                  {lines.length > 1 && (
+                    <button className="btn btn-sm btn-danger" onClick={() => removeLine(i)} title="Remove this item">
+                      ✕
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+            <button className="btn btn-sm" onClick={addLine}>
+              + Add item
+            </button>
+          </div>
           <div className="toolbar" style={{ marginTop: 4, alignItems: 'center' }}>
             <button className="btn btn-primary" onClick={onAdd}>
               Add Outward
             </button>
             <span className="muted">
-              Goods value ₹{goods.toFixed(2)} · with GST ₹{amountPreview.toFixed(2)}
+              {filledLines.length} item{filledLines.length === 1 ? '' : 's'} · goods ₹{goods.toFixed(2)} · with
+              GST ₹{amountPreview.toFixed(2)}
+              {filledLines.length > 1 && ' — saved as one entry per item, sharing this invoice number'}
             </span>
           </div>
         </>
