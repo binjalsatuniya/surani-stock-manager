@@ -3,6 +3,7 @@ import type { Item, Party } from '@surani/shared';
 import { api } from '../lib/apiClient';
 import { usePermission } from '../hooks/usePermission';
 import { readScannedInvoice, type ScannedInvoice, type ScannedLine } from '../lib/invoiceImport';
+import { matchLineItem } from '../lib/matchItem';
 import { SearchSelect } from '../components/SearchSelect';
 
 /**
@@ -121,16 +122,6 @@ export function ImportScansPage() {
 
   const normGst = (g: string | null | undefined) => (g || '').replace(/\s/g, '').toUpperCase();
 
-  /**
-   * An item's Code field may list more than one HSN — the same product is sometimes invoiced under
-   * two codes. They are separated by a comma (or slash/semicolon), and a match on any one counts.
-   */
-  const hsnCodesOf = (code: string | null | undefined) =>
-    (code || '')
-      .split(/[,/;|]+/)
-      .map((c) => c.replace(/\s/g, ''))
-      .filter(Boolean);
-
   async function onPick(files: FileList | null) {
     if (!files?.length) return;
     setBusy(true);
@@ -143,7 +134,12 @@ export function ImportScansPage() {
       const scan = await readScannedInvoice(files[i]);
       const buyer = normGst(scan.qr?.buyerGstin);
       const party = buyer ? parties.find((p) => normGst(p.gst) === buyer) ?? null : null;
-      const matched = scan.lines.map((l) => (l.hsn ? items.find((it) => hsnCodesOf(it.code).includes(l.hsn!)) ?? null : null));
+      // Match each line by its printed grade first, HSN only as a fallback.
+      const results = scan.lines.map((l) => matchLineItem(items, l));
+      const matched = results.map((r) => r.item);
+      // A grade match is trustworthy, so it starts confirmed. An HSN-only fallback is a guess and
+      // stays unconfirmed ("check"), which keeps it out of any import until a person confirms it.
+      const confirmedByGrade = results.map((r) => r.by === 'desc');
       const invNo = (scan.qr?.docNo || '').trim().toUpperCase();
       // Duplicate against what is already saved, AND against earlier files in this same batch —
       // selecting the same invoice twice in one go would otherwise import it twice.
@@ -164,7 +160,7 @@ export function ImportScansPage() {
         ...scan,
         party,
         items: matched,
-        confirmed: matched.map(() => false),
+        confirmed: confirmedByGrade,
         duplicate,
         duplicateNote,
         selected: false,
@@ -218,7 +214,7 @@ export function ImportScansPage() {
   const setLineRate = (i: number, li: number, v: string) => updateRow(i, (r) => { r.lines[li].rate = toNum(v); });
   const addLine = (i: number) =>
     updateRow(i, (r) => {
-      r.lines.push({ hsn: null, qty: null, rate: null, amount: null, addsUp: false });
+      r.lines.push({ hsn: null, qty: null, rate: null, amount: null, addsUp: false, desc: null });
       r.items.push(null);
       r.confirmed.push(false);
     });
@@ -299,11 +295,12 @@ export function ImportScansPage() {
         <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
           Select scanned sales invoices to see what can be read from them. The invoice number, date,
           party and total come from the e-Invoice QR and are exact. Quantity and rate are read off
-          the page, and the <strong>item is only guessed from the HSN code</strong> — the same HSN
-          covers many grades, so it may be the wrong material and is shown as <strong>“check”</strong>{' '}
-          until you confirm it. Use the <strong>Edit</strong> button to confirm the item, correct a
-          figure, add a missing line, or choose the party. Nothing is ticked for you: a row is only
-          imported once you select it, and only after its lines reconcile with the invoice total.
+          the page, and the <strong>item is matched by the grade printed on the invoice</strong>. When
+          the grade can't be matched it falls back to the HSN code — which many grades share — and is
+          shown as <strong>“check”</strong> until you confirm it. Use the <strong>Edit</strong> button
+          to confirm or change the item, correct a figure, add a missing line, or choose the party.
+          Nothing is ticked for you: a row is only imported once you select it, and only after its
+          lines reconcile with the invoice total.
         </p>
         <div
           style={{

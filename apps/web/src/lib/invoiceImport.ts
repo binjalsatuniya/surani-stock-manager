@@ -22,6 +22,12 @@ export interface ScannedLine {
   amount: number | null;
   /** qty x rate agrees with the printed line amount. */
   addsUp: boolean;
+  /**
+   * The item's printed description and grade, e.g. "PVC Resin-39041020 HS-1000R". One HSN covers
+   * many grades, so this text — not the HSN — is what identifies the actual material. Null if the
+   * line was added by hand on the review screen.
+   */
+  desc: string | null;
 }
 
 export interface ScannedInvoice {
@@ -38,6 +44,14 @@ export interface ScannedInvoice {
 }
 
 const num = (s: string) => Number(s.replace(/,/g, ''));
+
+/** Tidy a raw description: drop the leading serial ("1|"), the column pipes, and extra spaces. */
+const cleanDesc = (s: string) =>
+  s
+    .replace(/^[\s|]*\d+[\s|.]*/, '')
+    .replace(/\|/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 
 /** Grey, stretch contrast and enlarge — a 196 DPI colour scan is below what OCR wants. */
 function prep(img: HTMLImageElement, fy: number, fh: number): HTMLCanvasElement | null {
@@ -67,7 +81,9 @@ function prep(img: HTMLImageElement, fy: number, fh: number): HTMLCanvasElement 
  */
 export function parseGoodsLines(text: string): ScannedLine[] {
   const out: ScannedLine[] = [];
-  for (const line of text.split('\n')) {
+  const rows = text.split('\n');
+  for (let idx = 0; idx < rows.length; idx++) {
+    const line = rows[idx];
     const hsnMatch = /\b(\d{8})\b/.exec(line);
     if (!hsnMatch) continue;
     const after = line.slice(hsnMatch.index + 8);
@@ -75,12 +91,21 @@ export function parseGoodsLines(text: string): ScannedLine[] {
     if (nums.length < 3) continue;
     // qty, rate, amount — the first three figures printed after the HSN.
     const [qty, rate, amount] = nums;
+    // The item's description sits BEFORE the HSN on this line ("1| PVC Resin-39041020"); its grade
+    // is usually printed on the very next line ("HS-1000R", "XINFA SG-5"). Capture both, since the
+    // grade is what tells two materials sharing one HSN apart. The next line only counts as a grade
+    // if it has letters and is not itself a goods line (no HSN) or a bare figure (a subtotal).
+    const before = line.slice(0, hsnMatch.index);
+    const next = rows[idx + 1] ?? '';
+    const nextIsGrade = /[A-Za-z]/.test(next) && !/\b\d{8}\b/.test(next) && !/^[\s\d.,₹%|-]+$/.test(next);
+    const desc = cleanDesc(before + (nextIsGrade ? ' ' + next : ''));
     out.push({
       hsn: hsnMatch[1],
       qty,
       rate,
       amount,
       addsUp: near(qty * rate, amount, Math.max(1, amount * 0.002)),
+      desc: desc || null,
     });
   }
   // The tax summary near the foot repeats each HSN, but with its taxable value and GST rate — it
