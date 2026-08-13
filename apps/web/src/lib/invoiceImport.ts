@@ -83,15 +83,15 @@ export function parseGoodsLines(text: string): ScannedLine[] {
       addsUp: near(qty * rate, amount, Math.max(1, amount * 0.002)),
     });
   }
-  // The tax summary near the foot of the invoice repeats each HSN with its taxable value, which
-  // would otherwise be read as a second goods line for the same item. Keep the first of each HSN.
-  const seen = new Set<string>();
-  return out.filter((l) => {
-    const key = l.hsn ?? '';
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+  // The tax summary near the foot repeats each HSN, but with its taxable value and GST rate — it
+  // parses as qty = taxable, rate = 9, amount = tax, figures that do NOT multiply out. A genuine
+  // goods line does (qty x rate = amount). So keep the lines that add up: that drops the summary
+  // while KEEPING a second grade billed under the same HSN. (The earlier rule "same HSN = a
+  // repeat, drop it" wrongly deleted that second line, so a two-item invoice read as one.)
+  // If nothing adds up — a poor scan — keep the raw guesses so they can be corrected by hand on
+  // the review screen rather than vanishing entirely.
+  const addUp = out.filter((l) => l.addsUp);
+  return addUp.length ? addUp : out;
 }
 
 const near = (a: number, b: number, tolerance = 1) => Math.abs(a - b) <= tolerance;
