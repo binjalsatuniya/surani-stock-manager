@@ -5,6 +5,7 @@ import rateLimit from 'express-rate-limit';
 import { prisma } from '../../db/prisma';
 import { generateRefreshToken, hashRefreshToken, signAccessToken } from '../../lib/tokens';
 import { toUserDTO } from '../../lib/serialize';
+import { effectivePermissionsFor } from '../../lib/effectivePermissions';
 import { asyncHandler } from '../../lib/asyncHandler';
 import { logActivity } from '../../lib/audit';
 import { authenticate } from '../../middleware/auth';
@@ -56,7 +57,7 @@ authRouter.post(
     );
     await logActivity(prisma, { id: user.id, name: user.name }, 'login', 'user', user.id, `${user.name} signed in`);
     res.cookie(REFRESH_COOKIE, refreshToken, cookieOptions);
-    res.json({ accessToken, refreshToken, user: toUserDTO(user) });
+    res.json({ accessToken, refreshToken, user: toUserDTO(user, await effectivePermissionsFor(user)) });
   })
 );
 
@@ -89,7 +90,7 @@ authRouter.post(
 
     const { accessToken, refreshToken } = await issueSession(user.id, stored.deviceLabel);
     res.cookie(REFRESH_COOKIE, refreshToken, cookieOptions);
-    res.json({ accessToken, refreshToken, user: toUserDTO(user) });
+    res.json({ accessToken, refreshToken, user: toUserDTO(user, await effectivePermissionsFor(user)) });
   })
 );
 
@@ -118,7 +119,7 @@ authRouter.get(
   asyncHandler(async (req, res) => {
     const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
     if (!user) throw new UnauthorizedError('User no longer exists');
-    res.json(toUserDTO(user));
+    res.json(toUserDTO(user, await effectivePermissionsFor(user)));
   })
 );
 
@@ -142,6 +143,6 @@ authRouter.post(
       req.headers['user-agent']?.slice(0, 200) ?? null
     );
     res.cookie(REFRESH_COOKIE, refreshToken, cookieOptions);
-    res.json({ accessToken, refreshToken, user: toUserDTO(user) });
+    res.json({ accessToken, refreshToken, user: toUserDTO(user, await effectivePermissionsFor(user)) });
   })
 );

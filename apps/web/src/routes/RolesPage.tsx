@@ -6,6 +6,7 @@ import {
   roleLabel,
   type PermissionKey,
   type PermissionMap,
+  type LiveRolePlan,
   type RoleTemplate,
 } from '@surani/shared';
 import { api } from '../lib/apiClient';
@@ -85,6 +86,41 @@ export function RolesPage() {
 
   const countOn = (p: Partial<PermissionMap>) => PERMS.filter((x) => p[x.id]).length;
 
+  // --- one-time switch to live roles ---
+  const [plan, setPlan] = useState<LiveRolePlan | null>(null);
+  const [planBusy, setPlanBusy] = useState(false);
+  const [planMsg, setPlanMsg] = useState('');
+
+  async function onPreview() {
+    setPlanBusy(true);
+    setPlanMsg('');
+    try {
+      setPlan(await api.roles.livePreview());
+    } catch (e) {
+      setPlanMsg(e instanceof Error ? e.message : 'Could not build the preview.');
+    } finally {
+      setPlanBusy(false);
+    }
+  }
+
+  async function onApply() {
+    if (!(await confirm('Switch everyone to live roles? Their access today stays exactly the same.', { okLabel: 'Switch' })))
+      return;
+    setPlanBusy(true);
+    try {
+      const r = await api.roles.liveApply();
+      setPlanMsg(r.message ?? `Done — ${r.applied} user${r.applied === 1 ? '' : 's'} now follow their role.`);
+      await onPreview();
+      reload();
+    } catch (e) {
+      setPlanMsg(e instanceof Error ? e.message : 'Could not apply.');
+    } finally {
+      setPlanBusy(false);
+    }
+  }
+
+  const pending = plan?.plan.filter((p) => !p.alreadyConverted).length ?? 0;
+
   if (!can('manage_roles')) return <div className="card">You do not have permission to manage roles.</div>;
 
   return (
@@ -155,6 +191,75 @@ export function RolesPage() {
       </div>
 
       <div className="card">
+        <h3 style={{ marginTop: 0 }}>Live roles</h3>
+        <p className="muted" style={{ fontSize: 12.5, marginTop: 0 }}>
+          Switch users over so a change here reaches everyone on that role straight away. Anything
+          you have given or withdrawn for one person individually is kept as their own exception and
+          survives future role changes. <strong>Nobody's access changes on the day</strong> — the
+          conversion refuses to run if it would.
+        </p>
+        <div className="toolbar">
+          <button className="btn btn-sm" onClick={onPreview} disabled={planBusy}>
+            {planBusy ? 'Working…' : 'Preview what would change'}
+          </button>
+          {plan && pending > 0 && (
+            <button className="btn btn-primary" onClick={onApply} disabled={planBusy || !plan.safe}>
+              Switch {pending} user{pending === 1 ? '' : 's'} to live roles
+            </button>
+          )}
+          {planMsg && <span style={{ fontSize: 12.5 }}>{planMsg}</span>}
+        </div>
+
+        {plan && (
+          <>
+            {!plan.safe && (
+              <div className="login-err show" style={{ marginTop: 8 }}>
+                At least one user would end up with different access, so the switch is blocked. Send
+                me this list before changing anything.
+              </div>
+            )}
+            <table style={{ marginTop: 10 }}>
+              <thead>
+                <tr>
+                  <th>User</th>
+                  <th>Role</th>
+                  <th>Personal exceptions kept</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {plan.plan.map((p) => (
+                  <tr key={p.id}>
+                    <td>{p.name}</td>
+                    <td style={{ textTransform: 'capitalize' }}>{p.role}</td>
+                    <td style={{ fontSize: 11.5 }}>
+                      {p.extra.length === 0 && p.removed.length === 0 && <span className="muted">none — follows the role exactly</span>}
+                      {p.extra.length > 0 && <div style={{ color: '#15803d' }}>+ {p.extra.join(', ')}</div>}
+                      {p.removed.length > 0 && <div style={{ color: '#b45309' }}>− {p.removed.join(', ')}</div>}
+                    </td>
+                    <td style={{ fontSize: 11.5 }}>
+                      {p.alreadyConverted ? (
+                        <span style={{ color: '#15803d' }}>✓ live</span>
+                      ) : p.accessUnchanged ? (
+                        <span className="muted">ready — access unchanged</span>
+                      ) : (
+                        <span style={{ color: '#dc2626' }}>would change access</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+                {plan.plan.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="muted">No users to convert.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </>
+        )}
+      </div>
+
+      <div className="card">
         <h3 style={{ marginTop: 0 }}>Roles</h3>
         <table>
           <thead>
@@ -168,7 +273,11 @@ export function RolesPage() {
             {/* The built-ins are part of the system rather than rows in a table — superadmin
                 bypasses every check and an admin's changes are queued for approval, which no
                 amount of ticking boxes can express. Shown so the page reflects reality. */}
-            {BUILT_IN_ROLES.filter((r) => r !== 'superadmin').map((r) => (
+            {/* Once live roles are switched on, the built-ins exist as editable rows and are listed
+                below with the rest — so only show the read-only version while that has not happened. */}
+            {BUILT_IN_ROLES.filter(
+              (r) => r !== 'superadmin' && !roles.some((x) => x.name.toLowerCase() === r)
+            ).map((r) => (
               <tr key={r} style={{ background: 'var(--surface-2, #f8fafc)' }}>
                 <td>
                   {roleLabel(r)}

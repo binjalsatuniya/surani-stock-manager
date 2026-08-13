@@ -8,6 +8,7 @@ import { asyncHandler } from '../../lib/asyncHandler';
 import { logActivity } from '../../lib/audit';
 import { authenticate } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/requirePermission';
+import { effectivePermissionsFor } from '../../lib/effectivePermissions';
 import { requireRole } from '../../middleware/requireRole';
 import { HttpError, NotFoundError } from '../../middleware/errorHandler';
 
@@ -60,7 +61,7 @@ usersRouter.get(
   requirePermission('manage_users'),
   asyncHandler(async (_req, res) => {
     const users = await prisma.user.findMany({ orderBy: { createdAt: 'asc' } });
-    res.json(users.map(toUserDTO));
+    res.json(await Promise.all(users.map(async (u) => toUserDTO(u, await effectivePermissionsFor(u)))));
   })
 );
 
@@ -137,6 +138,9 @@ const updateSchema = z.object({
   password: z.string().min(4).optional(),
   role: roleName.optional(),
   permissions: z.record(z.boolean()).optional(),
+  // Under live roles this is what User Master saves: only the permissions set for this person
+  // individually. Everything else follows their role, so a role edit reaches them.
+  permissionOverrides: z.record(z.boolean()).optional(),
   // Which activities notify this user (merged into preferences.notify).
   notifyPrefs: z.record(z.boolean()).optional(),
 });
@@ -159,7 +163,9 @@ usersRouter.patch(
       throw new HttpError(403, 'You can only manage users below your own level.');
     }
     // Permissions are the Super Admin's to grant. Everyone else changes a person's role instead.
-    if (input.permissions !== undefined) assertMayGrantPermissions(req.user!);
+    if (input.permissions !== undefined || input.permissionOverrides !== undefined) {
+      assertMayGrantPermissions(req.user!);
+    }
     // A role change is still bound by the same "below your own level" rule.
     if (input.role !== undefined && input.role !== existing.role) {
       await assertMayAssignRole(req.user!, input.role);
@@ -179,6 +185,7 @@ usersRouter.patch(
     if (input.username !== undefined) data.username = input.username;
     if (input.role !== undefined) data.role = input.role;
     if (input.permissions !== undefined) data.permissions = input.permissions;
+    if (input.permissionOverrides !== undefined) data.permissionOverrides = input.permissionOverrides;
     if (input.password) data.passwordHash = await bcrypt.hash(input.password, 12);
     if (input.notifyPrefs !== undefined) {
       const prev = (existing.preferences as Record<string, unknown>) ?? {};

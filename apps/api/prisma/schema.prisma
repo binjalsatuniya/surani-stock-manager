@@ -15,8 +15,12 @@ model User {
   name         String
   username     String   @unique @db.Citext
   passwordHash String   @map("password_hash")
-  role         String // superadmin | admin | account | staff
+  role         String // superadmin | admin | account | staff | any custom role from Role Master
+  // Pre-conversion snapshot of what this user could do. Kept as the record of access before live
+  // roles were introduced; effective access now comes from the role plus permissionOverrides.
   permissions  Json     @default("{}")
+  // This person's exceptions to their role's permissions. Null/absent = follows the role exactly.
+  permissionOverrides Json? @map("permission_overrides")
   security     Json     @default("{}") // {pinEnabled,pinHash,biometricEnabled,biometricCredentialId}
   preferences  Json     @default("{}") // per-user UI prefs, e.g. { dashboard: { tiles: [], sections: [] } }
   isPrimary    Boolean  @default(false) @map("is_primary") // the root Super Admin — full authority over other admins

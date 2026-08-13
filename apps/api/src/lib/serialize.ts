@@ -1,14 +1,20 @@
 import type { User as PrismaUser } from '@prisma/client';
 import type { PermissionMap, Role, User, UserPreferences, UserSecurity } from '@surani/shared';
 
-export function toUserDTO(u: PrismaUser): User {
+/**
+ * `effective` is what the user can actually do once their role and their own exceptions are
+ * resolved. Callers that have it (login, /me, the user list) should pass it; without it this falls
+ * back to the stored snapshot, which is correct for anyone not yet switched to live roles.
+ */
+export function toUserDTO(u: PrismaUser, effective?: PermissionMap): User {
   const security = (u.security as Partial<UserSecurity>) ?? {};
   return {
     id: u.id,
     name: u.name,
     username: u.username,
     role: u.role as Role,
-    permissions: u.permissions as unknown as PermissionMap,
+    permissions: effective ?? (u.permissions as unknown as PermissionMap),
+    permissionOverrides: (u.permissionOverrides as Partial<PermissionMap> | null) ?? null,
     // Never send pinHash to any client — it's verified server-side only (see auth/quick-unlock routes).
     security: {
       pinEnabled: !!security.pinEnabled,

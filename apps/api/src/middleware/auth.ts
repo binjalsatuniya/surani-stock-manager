@@ -2,6 +2,7 @@ import type { NextFunction, Request, Response } from 'express';
 import type { PermissionMap, Role } from '@surani/shared';
 import { prisma } from '../db/prisma';
 import { verifyAccessToken } from '../lib/tokens';
+import { effectivePermissionsFor } from '../lib/effectivePermissions';
 import { UnauthorizedError } from './errorHandler';
 import { asyncHandler } from '../lib/asyncHandler';
 
@@ -30,7 +31,10 @@ export const authenticate = asyncHandler(async (req: Request, _res: Response, ne
     username: user.username,
     isPrimary: user.isPrimary,
     role: user.role as Role,
-    permissions: user.permissions as unknown as PermissionMap,
+    // Role permissions plus this person's exceptions — or, for anyone not yet converted to live
+    // roles, their existing snapshot unchanged. Everything downstream sees one resolved map, so no
+    // permission check had to change.
+    permissions: await effectivePermissionsFor(user),
   };
   next();
 });

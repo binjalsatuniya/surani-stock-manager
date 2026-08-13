@@ -34,7 +34,13 @@ export interface User {
   name: string;
   username: string;
   role: Role;
+  /** What this user can actually do — role permissions with their own exceptions applied. */
   permissions: PermissionMap;
+  /**
+   * Only the permissions set for this person individually, rather than inherited from their role.
+   * Null means they have not been switched to live roles yet and `permissions` is their own copy.
+   */
+  permissionOverrides?: Partial<PermissionMap> | null;
   security: UserSecurity;
   preferences: UserPreferences;
   isPrimary: boolean;

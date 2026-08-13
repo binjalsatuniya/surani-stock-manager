@@ -95,6 +95,12 @@ rolesRouter.delete(
     const existing = await prisma.role.findUnique({ where: { id: req.params.id } });
     if (!existing) throw new NotFoundError('Role not found');
 
+    // Once live roles are in use, deleting the Admin/Account/Staff row would strip everyone on it
+    // of every permission — the role is where their access now comes from.
+    if ((BUILT_IN_ROLES as readonly string[]).includes(existing.name.toLowerCase())) {
+      throw new HttpError(409, `"${existing.name}" is a built-in role and cannot be deleted.`);
+    }
+
     // Deleting a role that people are on would leave them with a label pointing at nothing.
     const inUse = await prisma.user.count({ where: { role: existing.name } });
     if (inUse > 0) {

@@ -12,6 +12,8 @@ export interface CreateUserInput {
 
 export type UpdateUserInput = Partial<Omit<CreateUserInput, 'password'>> & {
   password?: string;
+  /** Under live roles, only this person's exceptions — everything else follows their role. */
+  permissionOverrides?: Partial<PermissionMap>;
   // Which activities notify this user (admin-managed, merged into preferences.notify server-side).
   notifyPrefs?: Record<string, boolean>;
 };

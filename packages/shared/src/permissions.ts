@@ -103,6 +103,43 @@ const LEGACY_FALLBACK: Partial<Record<PermissionKey, PermissionKey>> = {
 export type PermissionMap = Record<PermissionKey, boolean>;
 
 /**
+ * What a user can actually do: their role's permissions, with their own exceptions applied on top.
+ *
+ * Editing a role therefore reaches everyone on it immediately, while anything granted or withdrawn
+ * for one person individually survives that change — it is recorded against them, not inherited.
+ *
+ * `overrides` holds only the keys that deviate. An absent key means "whatever the role says", which
+ * is what makes role edits propagate at all: a full copy per user would leave nothing to inherit.
+ */
+export function resolvePermissions(
+  rolePerms: Partial<PermissionMap> | null | undefined,
+  overrides: Partial<PermissionMap> | null | undefined
+): PermissionMap {
+  const out = {} as PermissionMap;
+  for (const p of PERMS) {
+    const own = overrides?.[p.id];
+    out[p.id] = typeof own === 'boolean' ? own : !!rolePerms?.[p.id];
+  }
+  return out;
+}
+
+/**
+ * Reduce a full permission map to just the keys that differ from the role — used once, to convert
+ * existing users without changing anyone's access on the day.
+ */
+export function diffFromRole(
+  rolePerms: Partial<PermissionMap> | null | undefined,
+  effective: Partial<PermissionMap> | null | undefined
+): Partial<PermissionMap> {
+  const out: Partial<PermissionMap> = {};
+  for (const p of PERMS) {
+    const want = !!effective?.[p.id];
+    if (want !== !!rolePerms?.[p.id]) out[p.id] = want;
+  }
+  return out;
+}
+
+/**
  * The four built-in roles carry behaviour: superadmin bypasses every permission check, and an
  * admin's changes are queued for approval. Custom roles created in Role Master are ordinary users
  * — they are permission templates with a name, so any string is a valid role.

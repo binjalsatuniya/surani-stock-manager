@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { PERMS, defaultPermsForRole, hasPermission, roleLabel, NOTIFY_ACTIVITIES, readNotifyPrefs, type PermissionMap, type Role, type RoleTemplate, type User } from '@surani/shared';
+import { PERMS, defaultPermsForRole, diffFromRole, hasPermission, roleLabel, NOTIFY_ACTIVITIES, readNotifyPrefs, type PermissionMap, type Role, type RoleTemplate, type User } from '@surani/shared';
 import { api } from '../lib/apiClient';
 import { useAuth } from '../context/AuthContext';
 import { usePermission } from '../hooks/usePermission';
@@ -30,6 +30,9 @@ export function UsersPage() {
   const [editUser, setEditUser] = useState<User | null>(null);
   const [editRole, setEditRole] = useState<Role>('staff');
   const [editPerms, setEditPerms] = useState<PermissionMap>({} as PermissionMap);
+  // Live roles: what the ROLE grants, so the screen can show which ticks are personal exceptions.
+  const [editRolePerms, setEditRolePerms] = useState<Partial<PermissionMap>>({});
+  const [editIsLive, setEditIsLive] = useState(false);
   const [editNotify, setEditNotify] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);
 
@@ -123,6 +126,9 @@ export function UsersPage() {
     const resolved = {} as PermissionMap;
     PERMS.forEach((p) => (resolved[p.id] = hasPermission(u.role, u.permissions, p.id)));
     setEditPerms(resolved);
+    const live = u.permissionOverrides != null;
+    setEditIsLive(live);
+    setEditRolePerms(customRoles.find((c) => c.name.toLowerCase() === (u.role || '').toLowerCase())?.permissions ?? {});
     const notify = readNotifyPrefs(u.preferences);
     setEditNotify(Object.fromEntries(NOTIFY_ACTIVITIES.map((a) => [a.key, notify[a.key] === true])));
   }
@@ -136,6 +142,7 @@ export function UsersPage() {
     setEditRole(r);
     // A custom role carries its own template; the built-ins use their coded defaults.
     const custom = customRoles.find((c) => c.name === r);
+    setEditRolePerms(custom?.permissions ?? {});
     setEditPerms(custom ? ({ ...defaultPermsForRole(''), ...custom.permissions } as PermissionMap) : defaultPermsForRole(r));
   }
 
@@ -154,7 +161,13 @@ export function UsersPage() {
     setSaving(true);
     setError('');
     try {
-      await api.users.update(editUser.id, { role: editRole, permissions: editPerms, notifyPrefs: editNotify });
+      await api.users.update(
+        editUser.id,
+        editIsLive
+          ? // Only what differs from the role, so future role edits still reach this person.
+            { role: editRole, permissionOverrides: diffFromRole(editRolePerms, editPerms), notifyPrefs: editNotify }
+          : { role: editRole, permissions: editPerms, notifyPrefs: editNotify }
+      );
       setEditUser(null);
       reload();
     } catch (e) {
@@ -277,6 +290,15 @@ export function UsersPage() {
             </div>
             <button className="btn btn-sm" onClick={() => setAllPerms(true)}>Select all</button>
             <button className="btn btn-sm" onClick={() => setAllPerms(false)}>Clear all</button>
+            {editIsLive && (
+              <button
+                className="btn btn-sm"
+                title="Drop this person's individual exceptions so they follow their role exactly"
+                onClick={() => setEditPerms({ ...(defaultPermsForRole('') as PermissionMap), ...editRolePerms } as PermissionMap)}
+              >
+                Reset to role
+              </button>
+            )}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16, marginTop: 12 }}>
             {groups.map((group) => (
@@ -292,6 +314,28 @@ export function UsersPage() {
                       onChange={(e) => togglePerm(p.id, e.target.checked)}
                     />
                     {p.label}
+                    {/* Under live roles, show which ticks are this person's own rather than their
+                        role's — otherwise there is no way to tell why they differ from a colleague. */}
+                    {editIsLive && !!editPerms[p.id] !== !!editRolePerms[p.id] && (
+                      <span
+                        title={
+                          editPerms[p.id]
+                            ? 'Given to this person individually — their role does not include it'
+                            : 'Withdrawn from this person individually — their role does include it'
+                        }
+                        style={{
+                          fontSize: 9.5,
+                          fontWeight: 700,
+                          padding: '1px 5px',
+                          borderRadius: 999,
+                          background: editPerms[p.id] ? '#f0fdf4' : '#fffbeb',
+                          color: editPerms[p.id] ? '#15803d' : '#b45309',
+                          border: `1px solid ${editPerms[p.id] ? '#bbf7d0' : '#fcd34d'}`,
+                        }}
+                      >
+                        {editPerms[p.id] ? 'EXTRA' : 'REMOVED'}
+                      </span>
+                    )}
                   </label>
                 ))}
               </div>

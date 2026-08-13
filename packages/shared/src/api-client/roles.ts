@@ -8,9 +8,29 @@ export interface RoleTemplate {
   permissions: Partial<PermissionMap>;
 }
 
+/** What the one-time switch to live roles would do to one user. */
+export interface LiveRolePlanRow {
+  id: string;
+  name: string;
+  role: string;
+  alreadyConverted: boolean;
+  extra: string[];
+  removed: string[];
+  accessUnchanged: boolean;
+}
+
+export interface LiveRolePlan {
+  plan: LiveRolePlanRow[];
+  /** False if any user would end up with different access — the conversion refuses to run. */
+  safe: boolean;
+}
+
 export function createRolesClient(http: HttpClient) {
   return {
     list: () => http.get<RoleTemplate[]>('/roles'),
+    /** Read-only: what switching to live roles would do. */
+    livePreview: () => http.get<LiveRolePlan>('/roles/live/preview'),
+    liveApply: () => http.post<{ applied: number; plan: LiveRolePlanRow[]; message?: string }>('/roles/live/apply', {}),
     create: (input: { name: string; permissions: Partial<PermissionMap> }) =>
       http.post<RoleTemplate>('/roles', input),
     update: (id: string, input: { name?: string; permissions?: Partial<PermissionMap> }) =>
