@@ -79,8 +79,13 @@ export function ImportScansPage() {
             `several codes can be listed, separated by commas.`
         );
       const invNo = (scan.qr?.docNo || '').trim().toUpperCase();
-      const duplicate = !!invNo && existingInvNos.has(invNo);
-      if (duplicate) scan.problems.push('This invoice number is already in the system.');
+      // Duplicate against what is already saved, AND against earlier files in this same batch —
+      // selecting the same invoice twice in one go would otherwise import it twice.
+      const alreadySaved = !!invNo && existingInvNos.has(invNo);
+      const earlierInBatch = !!invNo && out.some((p) => (p.qr?.docNo || '').trim().toUpperCase() === invNo);
+      const duplicate = alreadySaved || earlierInBatch;
+      if (alreadySaved) scan.problems.push('This invoice number is already in the system.');
+      else if (earlierInBatch) scan.problems.push('This invoice appears more than once in the files you selected.');
       out.push({
         ...scan,
         party,
@@ -156,6 +161,16 @@ export function ImportScansPage() {
   const ready = rows.filter((r) => r.problems.length === 0).length;
   const selectedCount = rows.filter((r) => r.selected && importable(r)).length;
   const importedCount = rows.filter((r) => r.outcome === 'imported').length;
+  const duplicateCount = rows.filter((r) => r.duplicate).length;
+  const doneCount = rows.filter((r) => r.duplicate || r.outcome === 'imported').length;
+
+  /** Tidy the list down to what still needs attention — nothing is deleted from the database. */
+  function clearDuplicates() {
+    setRows((rs) => rs.filter((r) => !r.duplicate));
+  }
+  function clearFinished() {
+    setRows((rs) => rs.filter((r) => !r.duplicate && r.outcome !== 'imported'));
+  }
 
   // Seeing the page and actually writing entries are separate rights: someone may be allowed to
   // check what a batch of scans reads as without being allowed to commit it to the books.
@@ -198,6 +213,7 @@ export function ImportScansPage() {
           <div className="toolbar" style={{ marginTop: 10, alignItems: 'center' }}>
             <span style={{ fontSize: 13 }}>
               <strong>{ready}</strong> of <strong>{rows.length}</strong> read cleanly
+              {duplicateCount > 0 && <> · <strong style={{ color: '#b45309' }}>{duplicateCount} already entered</strong></>}
               {importedCount > 0 && <> · <strong style={{ color: '#15803d' }}>{importedCount} imported</strong></>}
             </span>
             {canImport ? (
@@ -218,6 +234,20 @@ export function ImportScansPage() {
             <button className="btn btn-sm" onClick={() => setRows((rs) => rs.map((r) => ({ ...r, selected: false })))}>
               Clear selection
             </button>
+            {duplicateCount > 0 && (
+              <button
+                className="btn btn-sm"
+                onClick={clearDuplicates}
+                title="Hide invoices that are already in the system — nothing is deleted"
+              >
+                Remove {duplicateCount} duplicate{duplicateCount === 1 ? '' : 's'} from list
+              </button>
+            )}
+            {doneCount > 0 && doneCount !== duplicateCount && (
+              <button className="btn btn-sm" onClick={clearFinished} title="Hide duplicates and anything already imported">
+                Remove all finished ({doneCount})
+              </button>
+            )}
           </div>
         )}
       </div>
