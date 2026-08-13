@@ -1,14 +1,14 @@
 import { Router } from 'express';
 import bcrypt from 'bcrypt';
 import { z } from 'zod';
-import { defaultPermsForRole, hasPermission, type Role } from '@surani/shared';
+import { defaultPermsForRole, diffFromRole, hasPermission, type PermissionMap, type Role } from '@surani/shared';
 import { prisma } from '../../db/prisma';
 import { toUserDTO } from '../../lib/serialize';
 import { asyncHandler } from '../../lib/asyncHandler';
 import { logActivity } from '../../lib/audit';
 import { authenticate } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/requirePermission';
-import { effectivePermissionsFor } from '../../lib/effectivePermissions';
+import { effectivePermissionsFor, rolePermissions } from '../../lib/effectivePermissions';
 import { requireRole } from '../../middleware/requireRole';
 import { HttpError, NotFoundError } from '../../middleware/errorHandler';
 
@@ -188,8 +188,20 @@ usersRouter.patch(
     if (input.name !== undefined) data.name = input.name;
     if (input.username !== undefined) data.username = input.username;
     if (input.role !== undefined) data.role = input.role;
-    if (input.permissions !== undefined) data.permissions = input.permissions;
-    if (input.permissionOverrides !== undefined) data.permissionOverrides = input.permissionOverrides;
+    if (input.permissionOverrides !== undefined) {
+      data.permissionOverrides = input.permissionOverrides;
+    } else if (input.permissions !== undefined) {
+      if (existing.permissionOverrides != null) {
+        // This user follows live roles, but the caller sent a full permission map — the phone app
+        // does, and so would any older client. Writing it to `permissions` would save silently and
+        // change nothing, so convert it to exceptions here. The effective result is exactly what
+        // was asked for, and the app needs no rebuild.
+        const rolePerms = await rolePermissions(existing.role);
+        data.permissionOverrides = diffFromRole(rolePerms, input.permissions as Partial<PermissionMap>);
+      } else {
+        data.permissions = input.permissions;
+      }
+    }
     if (input.password) data.passwordHash = await bcrypt.hash(input.password, 12);
     if (input.notifyPrefs !== undefined) {
       const prev = (existing.preferences as Record<string, unknown>) ?? {};
