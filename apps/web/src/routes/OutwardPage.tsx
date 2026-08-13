@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useEffect, useState, type ChangeEvent } from 'react';
 import type { Item, Outward, Party, PayStatus } from '@surani/shared';
 import { fyOfDate } from '@surani/shared';
 import { api } from '../lib/apiClient';
@@ -8,6 +8,7 @@ import { useFinancialYear } from '../context/FinancialYearContext';
 import { useFieldSettings } from '../hooks/useFieldSettings';
 import { FieldLabel } from '../components/FieldLabel';
 import { SearchSelect } from '../components/SearchSelect';
+import { openDataUrlInNewTab } from '../lib/dataUrl';
 
 // The item, quantity, rate and GST now live on the item lines below, not here — one invoice can
 // carry several of them, while everything in this object is entered once and shared.
@@ -30,6 +31,9 @@ export function OutwardPage() {
   const canDelete = can('delete_outward');
   const canEditRow = can('edit_outward');
   const canEdit = can('add_outward') || canEditRow || canDelete;
+  // The last column also carries the "Invoice" view button, so it must appear for a view-only user
+  // who can see invoices even when they cannot edit rows.
+  const showActions = canEdit || can('view_invoice');
   const { selectedFy, setSelectedFy } = useFinancialYear();
   const { required } = useFieldSettings();
   const [rows, setRows] = useState<Outward[]>([]);
@@ -40,6 +44,34 @@ export function OutwardPage() {
   const [stock, setStock] = useState<Record<string, number>>({});
   const [form, setForm] = useState({ ...EMPTY });
   const [error, setError] = useState('');
+  const canViewInvoice = can('view_invoice');
+  // Invoice scan for the entry being added. One file is shared by every item line on the invoice.
+  const [invoiceFile, setInvoiceFile] = useState<string | null>(null);
+  const [invoiceName, setInvoiceName] = useState('');
+
+  function onPickInvoice(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) return setError('Invoice file is too large (max 5 MB).');
+    const reader = new FileReader();
+    reader.onload = () => {
+      setInvoiceFile(String(reader.result));
+      setInvoiceName(file.name);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // Fetch the invoice on demand (the list omits the blob) and open it in a new tab.
+  async function openInvoice(id: string) {
+    try {
+      const res = await api.outward.getInvoice(id);
+      if (!res.invoiceFile || !openDataUrlInNewTab(res.invoiceFile)) {
+        setError('No invoice file is attached, or it could not be read.');
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not open the invoice');
+    }
+  }
 
   async function reload() {
     setRows(await api.outward.list({ fy: selectedFy || undefined }));
@@ -148,10 +180,15 @@ export function OutwardPage() {
           invNo: form.invNo.trim() || null,
           transporterId: form.transporterId || null,
           note: form.note.trim() || null,
+          // The same invoice covers every item line, so each row carries a copy.
+          invoiceFile: invoiceFile || undefined,
+          invoiceFileName: invoiceFile ? invoiceName || undefined : undefined,
         });
       }
       setForm((f) => ({ ...EMPTY, date: f.date }));
       setLines([{ ...BLANK_LINE }]);
+      setInvoiceFile(null);
+      setInvoiceName('');
       const efy = fyOfDate(form.date);
       if (efy && efy !== selectedFy) setSelectedFy(efy);
       else reload();
@@ -175,10 +212,27 @@ export function OutwardPage() {
   });
   // Freight and handling feed the transporter's and agent's ledgers, so they are separately granted.
   const canEditFreight = can('edit_outward_freight');
+  // A replacement invoice picked in the edit panel. Empty = keep whatever is already attached.
+  const [edInvoiceFile, setEdInvoiceFile] = useState<string | null>(null);
+  const [edInvoiceName, setEdInvoiceName] = useState('');
+
+  function onPickEditInvoice(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) return setError('Invoice file is too large (max 5 MB).');
+    const reader = new FileReader();
+    reader.onload = () => {
+      setEdInvoiceFile(String(reader.result));
+      setEdInvoiceName(file.name);
+    };
+    reader.readAsDataURL(file);
+  }
 
   function openEdit(r: Outward) {
     setError('');
     setEditing(r);
+    setEdInvoiceFile(null);
+    setEdInvoiceName('');
     setEd({
       date: r.date,
       partyId: r.partyId,
@@ -214,6 +268,8 @@ export function OutwardPage() {
         invNo: ed.invNo.trim() || null,
         invDate: ed.invDate || null,
         note: ed.note.trim() || null,
+        // Only sent when a new file was picked; omitting keeps the current one.
+        ...(edInvoiceFile ? { invoiceFile: edInvoiceFile, invoiceFileName: edInvoiceName || undefined } : {}),
         // Only sent when allowed — the server refuses these fields without the permission.
         ...(canEditFreight
           ? {
@@ -299,6 +355,26 @@ export function OutwardPage() {
             <label>Note</label>
             <input value={ed.note} onChange={(e) => setEd({ ...ed, note: e.target.value })} />
           </div>
+        </div>
+        <div className="toolbar" style={{ marginTop: 4, alignItems: 'center' }}>
+          <div className="field" style={{ margin: 0 }}>
+            <label>Invoice (PDF or image)</label>
+            <input type="file" accept="application/pdf,image/*" onChange={onPickEditInvoice} />
+          </div>
+          {edInvoiceName ? (
+            <span className="muted" style={{ fontSize: 12 }}>New file: {edInvoiceName}</span>
+          ) : r.invoiceFileName ? (
+            <span className="muted" style={{ fontSize: 12 }}>
+              Attached: {r.invoiceFileName}
+              {canViewInvoice && (
+                <button className="btn btn-sm" style={{ marginLeft: 8 }} onClick={() => openInvoice(r.id)}>
+                  View
+                </button>
+              )}
+            </span>
+          ) : (
+            <span className="muted" style={{ fontSize: 12 }}>No invoice attached.</span>
+          )}
         </div>
         {canEditFreight ? (
           <>
@@ -500,6 +576,27 @@ export function OutwardPage() {
               + Add item
             </button>
           </div>
+          <div className="toolbar" style={{ marginTop: 8, alignItems: 'center' }}>
+            <div className="field" style={{ margin: 0 }}>
+              <label>Invoice (PDF or image)</label>
+              <input type="file" accept="application/pdf,image/*" onChange={onPickInvoice} />
+            </div>
+            {invoiceName && (
+              <span className="muted" style={{ fontSize: 12 }}>
+                Attached: {invoiceName}
+                <button
+                  className="btn btn-sm"
+                  style={{ marginLeft: 8 }}
+                  onClick={() => {
+                    setInvoiceFile(null);
+                    setInvoiceName('');
+                  }}
+                >
+                  Remove
+                </button>
+              </span>
+            )}
+          </div>
           <div className="toolbar" style={{ marginTop: 4, alignItems: 'center' }}>
             <button className="btn btn-primary" onClick={onAdd}>
               Add Outward
@@ -528,7 +625,7 @@ export function OutwardPage() {
             <th>Inv No.</th>
             <th>Amount</th>
             <th>Pay Status</th>
-            {canEdit && <th></th>}
+            {showActions && <th></th>}
           </tr>
         </thead>
         <tbody>
@@ -546,9 +643,14 @@ export function OutwardPage() {
                 <td>{r.invNo || '—'}</td>
                 <td>{r.amount}</td>
                 <td>{r.payStatus}</td>
-                {canEdit && (
+                {showActions && (
                   <td>
                     <div style={{ display: 'flex', gap: 6 }}>
+                      {r.invoiceFileName && canViewInvoice && (
+                        <button className="btn btn-sm" onClick={() => openInvoice(r.id)} title="View the attached invoice">
+                          Invoice
+                        </button>
+                      )}
                       {canEditRow && (
                         <button className="btn btn-sm" onClick={() => (editing?.id === r.id ? setEditing(null) : openEdit(r))}>
                           Edit
@@ -565,7 +667,7 @@ export function OutwardPage() {
               </tr>
               {editing?.id === r.id && (
                 <tr>
-                  <td colSpan={canEdit ? 12 : 11} style={{ background: '#f8fafc' }}>
+                  <td colSpan={showActions ? 12 : 11} style={{ background: '#f8fafc' }}>
                     {editPanel(r)}
                   </td>
                 </tr>

@@ -17,6 +17,9 @@ export interface CreateOutwardInput {
   invDate?: string | null;
   transporterId?: string | null;
   note?: string | null;
+  /** Invoice scan as a base64 data URL, plus its file name. Shared across every item line. */
+  invoiceFile?: string | null;
+  invoiceFileName?: string | null;
   /** Historical imports come in already completed; a normal sale leaves this unset ('pending'). */
   fulfil?: 'pending' | 'dispatched' | 'delivered';
 }
@@ -38,6 +41,9 @@ export interface EditOutwardInput {
   transporterId?: string | null;
   handlingRate?: number;
   handlingAgentId?: string | null;
+  /** Attach or replace the invoice scan; omit to keep the existing file, null to remove it. */
+  invoiceFile?: string | null;
+  invoiceFileName?: string | null;
 }
 
 export function createOutwardClient(http: HttpClient) {
@@ -49,5 +55,8 @@ export function createOutwardClient(http: HttpClient) {
     create: (input: CreateOutwardInput) => http.post<Outward>('/outward', input),
     update: (id: string, input: EditOutwardInput) => http.patch<Outward>(`/outward/${id}`, input),
     remove: (id: string) => http.delete<void>(`/outward/${id}`),
+    // The list strips the (large) invoice blob; fetch it on demand. Gated by view_invoice.
+    getInvoice: (id: string) =>
+      http.get<{ invoiceFile: string | null; invoiceFileName: string | null }>(`/outward/${id}/invoice`),
   };
 }

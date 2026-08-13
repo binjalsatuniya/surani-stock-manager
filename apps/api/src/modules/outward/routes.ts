@@ -31,6 +31,8 @@ const outwardSchema = z.object({
   invDate: z.string().nullable().optional(),
   transporterId: z.string().uuid().nullable().optional(),
   note: z.string().nullable().optional(),
+  invoiceFile: z.string().nullable().optional(),
+  invoiceFileName: z.string().nullable().optional(),
   // Normally a new sale starts as 'pending'. Importing historical invoices is the exception:
   // those already happened, and forcing them through the pending list would mean marking several
   // hundred of them delivered by hand.
@@ -51,7 +53,23 @@ outwardRouter.get(
       },
       orderBy: { date: 'desc' },
     });
-    res.json(rows.map(toOutwardDTO));
+    // Drop the (potentially large) invoice blob from the list — the name stays so the UI knows an
+    // invoice exists; the file itself is fetched on demand via GET /outward/:id/invoice.
+    res.json(rows.map((r) => toOutwardDTO({ ...r, invoiceFile: null })));
+  })
+);
+
+// Fetch the attached invoice file for one outward entry — gated by view_invoice, mirroring Order Book.
+outwardRouter.get(
+  '/:id/invoice',
+  requirePermission('view_invoice'),
+  asyncHandler(async (req, res) => {
+    const row = await prisma.outward.findUnique({
+      where: { id: req.params.id },
+      select: { invoiceFile: true, invoiceFileName: true },
+    });
+    if (!row) throw new NotFoundError('Outward entry not found');
+    res.json({ invoiceFile: row.invoiceFile, invoiceFileName: row.invoiceFileName });
   })
 );
 
@@ -94,6 +112,8 @@ outwardRouter.post(
           transporterId: input.transporterId || null,
           fulfil: input.fulfil ?? 'pending',
           note: input.note || null,
+          invoiceFile: input.invoiceFile || null,
+          invoiceFileName: input.invoiceFileName || null,
           createdById: req.user!.id,
         },
       });
@@ -157,6 +177,9 @@ const editOutwardSchema = z.object({
   payStatus: z.enum(['pending', 'received', 'credit']).optional(),
   creditDays: z.coerce.number().int().optional(),
   note: z.string().nullable().optional(),
+  // Omit to keep the current invoice; send null to remove it, or a data URL to replace it.
+  invoiceFile: z.string().nullable().optional(),
+  invoiceFileName: z.string().nullable().optional(),
   // Freight and handling post entries into the transporter's and agent's ledgers, so changing
   // them means re-posting those entries — see below. Guarded by edit_outward_freight.
   freightRate: z.coerce.number().optional(),
