@@ -163,40 +163,77 @@ export function DashboardPage() {
   function setOrd<K extends keyof typeof order>(key: K, value: string) {
     setOrder((o) => ({ ...o, [key]: value }));
   }
-  function onOrderItemChange(id: string) {
-    const it = items.find((i) => i.id === id);
-    setOrder((o) => ({
-      ...o,
-      itemId: id,
-      rate: o.rate || (it ? String(it.rate) : ''),
-      // GST is fixed to the selected item's slab (set in Item Master) — not editable per order.
-      gstPct: it ? String(it.gstPct ?? 0) : o.gstPct,
-    }));
+  // One order can cover several items. Party, date, delivery and note are entered once; each line
+  // is placed as its own order sharing them, matching how stock and the ledgers read an order.
+  type OrderLine = { itemId: string; qty: string; rate: string; gstPct: string };
+  const BLANK_ORDER_LINE: OrderLine = { itemId: '', qty: '', rate: '', gstPct: '18' };
+  const [orderLines, setOrderLines] = useState<OrderLine[]>([{ ...BLANK_ORDER_LINE }]);
+
+  function setOrderLine(i: number, patch: Partial<OrderLine>) {
+    setOrderLines((ls) => ls.map((l, j) => (j === i ? { ...l, ...patch } : l)));
+  }
+  function addOrderLine() {
+    setOrderLines((ls) => [...ls, { ...BLANK_ORDER_LINE }]);
+  }
+  function removeOrderLine(i: number) {
+    setOrderLines((ls) => (ls.length === 1 ? ls : ls.filter((_, j) => j !== i)));
+  }
+  function onOrderLineItemChange(i: number, id: string) {
+    const it = items.find((x) => x.id === id);
+    setOrderLines((ls) =>
+      ls.map((l, j) =>
+        j === i
+          ? {
+              ...l,
+              itemId: id,
+              rate: l.rate || (it ? String(it.rate) : ''),
+              // GST is fixed to the item's slab (set in Item Master), as it was for a single item.
+              gstPct: it ? String(it.gstPct ?? 0) : l.gstPct,
+            }
+          : l
+      )
+    );
   }
 
   const selectedParty = debtors.find((p) => p.id === order.partyId);
-  const oQty = Number(order.qty) || 0;
-  const oRate = Number(order.rate) || 0;
-  const oGst = Number(order.gstPct) || 0;
-  const oGoods = oQty * oRate;
-  const oTotal = oGoods + (oGoods * oGst) / 100;
+  const orderTotals = orderLines.map((l) => {
+    const g = (Number(l.qty) || 0) * (Number(l.rate) || 0);
+    return { goods: g, withGst: g + (g * (Number(l.gstPct) || 0)) / 100 };
+  });
+  const filledOrderLines = orderLines.filter((l) => l.itemId && l.qty && l.rate);
+  const oGoods = orderTotals.reduce((s, t) => s + t.goods, 0);
+  const oTotal = orderTotals.reduce((s, t) => s + t.withGst, 0);
 
   async function onPlaceOrder() {
     setOrderError('');
-    if (!order.partyId || !order.itemId || !order.qty || !order.rate) return;
+    if (!order.partyId) return setOrderError('Select a party.');
+    if (filledOrderLines.length === 0) return setOrderError('Add at least one item, with a quantity and rate.');
+    const partial = orderLines.findIndex((l) => (l.itemId || l.qty || l.rate) && !(l.itemId && l.qty && l.rate));
+    if (partial >= 0) return setOrderError(`Item ${partial + 1} is incomplete — it needs an item, quantity and rate.`);
     if (required('outward.note') && !order.note.trim()) return setOrderError('Note is required.');
 
     const party = selectedParty;
-    const item = items.find((i) => i.id === order.itemId);
+    const nameOf = (id: string) => items.find((i) => i.id === id);
+    const first = nameOf(filledOrderLines[0].itemId);
+    const single = filledOrderLines.length === 1;
 
-    // Build the WhatsApp order-slip message NOW (from the current form values).
+    // Build the WhatsApp order-slip message NOW (from the current form values). A single-item
+    // order reads exactly as before; several items become an itemised list in place of the name,
+    // since the template has one slot for the item and inventing extra ones would break anyone's
+    // customised wording.
     const payStatus = party && party.creditDays > 0 ? `Credit (${party.creditDays} days)` : 'Pending';
+    const itemised = filledOrderLines
+      .map((l) => {
+        const it = nameOf(l.itemId);
+        return `${it?.name ?? ''} — ${l.qty} ${it?.unit ?? ''} @ ₹${Number(l.rate).toFixed(2)}`;
+      })
+      .join('\n');
     const message = fill('orderSlip', {
       partyName: party?.name || '',
-      itemName: item?.name || '',
-      qty: order.qty,
-      unit: item?.unit || '',
-      rate: Number(order.rate).toFixed(2),
+      itemName: single ? first?.name || '' : `\n${itemised}`,
+      qty: single ? filledOrderLines[0].qty : String(filledOrderLines.length),
+      unit: single ? first?.unit || '' : 'items',
+      rate: single ? Number(filledOrderLines[0].rate).toFixed(2) : 'see above',
       amount: oTotal.toFixed(2),
       date: fmtDate(order.date),
       invNo: 'N/A',
@@ -210,17 +247,20 @@ export function DashboardPage() {
     const waWin = window.open('', '_blank');
 
     try {
-      await api.orders.place({
-        date: order.date,
-        partyId: order.partyId,
-        itemId: order.itemId,
-        qty: Number(order.qty),
-        rate: Number(order.rate),
-        gstPct: Number(order.gstPct) || 0,
-        deliveryType: order.deliveryType,
-        note: order.note.trim() || null,
-        deliveryDate: order.deliveryDate || null,
-      });
+      // One order per item line, all sharing this order's party, date, delivery and note.
+      for (const l of filledOrderLines) {
+        await api.orders.place({
+          date: order.date,
+          partyId: order.partyId,
+          itemId: l.itemId,
+          qty: Number(l.qty),
+          rate: Number(l.rate),
+          gstPct: Number(l.gstPct) || 0,
+          deliveryType: order.deliveryType,
+          note: order.note.trim() || null,
+          deliveryDate: order.deliveryDate || null,
+        });
+      }
 
       // Redirect that tab straight to WhatsApp (with the party's number if saved, otherwise
       // WhatsApp's own contact picker) so you can share the order slip immediately.
@@ -228,7 +268,7 @@ export function DashboardPage() {
         await shareViaWindow(waWin, party?.phone, message);
         // Also open an email draft if the party has an email on file.
         if (party?.email) {
-          const subject = `Order Confirmation — ${item?.name || 'Order'}`;
+          const subject = `Order Confirmation — ${single ? first?.name || 'Order' : `${filledOrderLines.length} items`}`;
           window.open(
             `mailto:${encodeURIComponent(party.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(message)}`,
             '_blank'
@@ -241,6 +281,7 @@ export function DashboardPage() {
       const efy = fyOfDate(order.date);
       if (efy && efy !== selectedFy) setSelectedFy(efy);
       setOrder((o) => ({ ...EMPTY_ORDER, date: o.date }));
+      setOrderLines([{ ...BLANK_ORDER_LINE }]);
       loadRecent();
       loadKpisAndMasters();
     } catch (e) {
@@ -441,76 +482,6 @@ export function DashboardPage() {
               />
             </div>
             <div className="field" style={{ margin: 0 }}>
-              <label>Item</label>
-              <select value={order.itemId} onChange={(e) => onOrderItemChange(e.target.value)}>
-                <option value="">Select…</option>
-                {items.map((i) => (
-                  <option key={i.id} value={i.id}>
-                    {i.name}
-                  </option>
-                ))}
-              </select>
-              {order.itemId && (() => {
-                const it = items.find((i) => i.id === order.itemId);
-                const avail = stock[order.itemId] ?? 0;
-                const low = it && it.reorder > 0 && avail <= it.reorder;
-                const short = oQty > 0 && oQty > avail;
-                return (
-                  <div
-                    style={{
-                      marginTop: 6,
-                      fontSize: 11.5,
-                      fontWeight: 700,
-                      display: 'inline-block',
-                      padding: '3px 9px',
-                      borderRadius: 999,
-                      background: short ? '#fef2f2' : low ? '#fff7ed' : '#f0fdf4',
-                      color: short ? '#dc2626' : low ? '#c2410c' : '#15803d',
-                      border: `1px solid ${short ? '#fecaca' : low ? '#fed7aa' : '#bbf7d0'}`,
-                    }}
-                  >
-                    Live stock: {avail} {it?.unit || ''}
-                    {short ? ' · not enough!' : low ? ' · low' : ''}
-                    {it && (
-                      <span style={{ fontWeight: 500 }}>
-                        {' · '}Rate ₹{it.rate}
-                        {it.rateDate ? ` (updated ${fmtDate(it.rateDate)})` : ''}
-                      </span>
-                    )}
-                  </div>
-                );
-              })()}
-            </div>
-            <div className="field" style={{ margin: 0 }}>
-              <label>Quantity</label>
-              <input value={order.qty} onChange={(e) => setOrd('qty', e.target.value)} style={{ width: 90 }} />
-            </div>
-            <div className="field" style={{ margin: 0 }}>
-              <label>Selling rate (₹)</label>
-              <input value={order.rate} onChange={(e) => setOrd('rate', e.target.value)} style={{ width: 100 }} />
-            </div>
-            <div className="field" style={{ margin: 0 }}>
-              <label>GST %</label>
-              {(() => {
-                const it = items.find((i) => i.id === order.itemId);
-                const locked = !!it;
-                return (
-                  <select
-                    value={order.gstPct}
-                    onChange={(e) => setOrd('gstPct', e.target.value)}
-                    disabled={locked}
-                    title={locked ? "Set automatically from the item's GST slab" : ''}
-                  >
-                    <option value="0">0%</option>
-                    <option value="5">5%</option>
-                    <option value="12">12%</option>
-                    <option value="18">18%</option>
-                    <option value="28">28%</option>
-                  </select>
-                );
-              })()}
-            </div>
-            <div className="field" style={{ margin: 0 }}>
               <label>Delivery</label>
               <select value={order.deliveryType} onChange={(e) => setOrd('deliveryType', e.target.value as DeliveryType)}>
                 <option value="ExWorks">Ex Works</option>
@@ -526,7 +497,91 @@ export function DashboardPage() {
               <input value={order.note} onChange={(e) => setOrd('note', e.target.value)} placeholder="Remarks…" style={{ width: '100%' }} />
             </div>
           </div>
-          {oQty > 0 && oRate > 0 && (
+          {/* One invoice, several items. Each line below is saved as its own entry sharing the
+              party, date and invoice number above — which is what stock and the ledgers read. */}
+          <div style={{ marginTop: 10, border: '1px solid var(--line)', borderRadius: 9, padding: '10px 12px' }}>
+            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>Items</div>
+            {orderLines.map((l, i) => {
+              const it = items.find((x) => x.id === l.itemId);
+              const avail = l.itemId ? stock[l.itemId] ?? 0 : 0;
+              const q = Number(l.qty) || 0;
+              const short = q > 0 && q > avail;
+              const locked = !!it;
+              return (
+                <div key={i} className="toolbar" style={{ alignItems: 'flex-end', marginBottom: 6 }}>
+                  <div className="field" style={{ margin: 0, minWidth: 30 }}>
+                    <label>#</label>
+                    <div style={{ fontSize: 13, paddingTop: 6 }}>{i + 1}</div>
+                  </div>
+                  <div className="field" style={{ margin: 0 }}>
+                    <label>Item</label>
+                    <select value={l.itemId} onChange={(e) => onOrderLineItemChange(i, e.target.value)}>
+                      <option value="">Select…</option>
+                      {items.map((x) => (
+                        <option key={x.id} value={x.id}>
+                          {x.name}
+                        </option>
+                      ))}
+                    </select>
+                    {l.itemId && (
+                      <div
+                        style={{
+                          marginTop: 6,
+                          fontSize: 11.5,
+                          fontWeight: 700,
+                          display: 'inline-block',
+                          padding: '3px 9px',
+                          borderRadius: 999,
+                          background: short ? '#fef2f2' : '#f0fdf4',
+                          color: short ? '#dc2626' : '#15803d',
+                          border: `1px solid ${short ? '#fecaca' : '#bbf7d0'}`,
+                        }}
+                      >
+                        Live stock: {avail} {it?.unit || ''}
+                        {short ? ' · not enough!' : ''}
+                      </div>
+                    )}
+                  </div>
+                  <div className="field" style={{ margin: 0 }}>
+                    <label>Qty</label>
+                    <input value={l.qty} onChange={(e) => setOrderLine(i, { qty: e.target.value })} style={{ width: 90 }} />
+                  </div>
+                  <div className="field" style={{ margin: 0 }}>
+                    <label>Rate</label>
+                    <input value={l.rate} onChange={(e) => setOrderLine(i, { rate: e.target.value })} style={{ width: 90 }} />
+                  </div>
+                  <div className="field" style={{ margin: 0 }}>
+                    <label>GST %</label>
+                    <select
+                      value={l.gstPct}
+                      onChange={(e) => setOrderLine(i, { gstPct: e.target.value })}
+                      disabled={locked}
+                      title={locked ? "Set automatically from the item's GST slab" : ''}
+                    >
+                      {['0', '5', '12', '18', '28'].map((g) => (
+                        <option key={g} value={g}>{g}%</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="field" style={{ margin: 0 }}>
+                    <label>Amount</label>
+                    <div style={{ fontSize: 13, paddingTop: 6, whiteSpace: 'nowrap' }}>
+                      ₹{orderTotals[i].withGst.toFixed(2)}
+                    </div>
+                  </div>
+                  {orderLines.length > 1 && (
+                    <button className="btn btn-sm btn-danger" onClick={() => removeOrderLine(i)} title="Remove this item">
+                      ✕
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+            <button className="btn btn-sm" onClick={addOrderLine}>
+              + Add item
+            </button>
+          </div>
+          {filledOrderLines.length > 0 && (
             <div
               style={{
                 marginTop: 12,
@@ -541,12 +596,14 @@ export function DashboardPage() {
                 Amount Breakdown
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6 }}>
-                <span style={{ color: '#475569' }}>Goods value ({oQty} × ₹{oRate})</span>
+                <span style={{ color: '#475569' }}>
+                  Goods value ({filledOrderLines.length} item{filledOrderLines.length === 1 ? '' : 's'})
+                </span>
                 <span>{inr(oGoods)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6 }}>
-                <span style={{ color: '#475569' }}>GST ({oGst}%)</span>
-                <span>{inr((oGoods * oGst) / 100)}</span>
+                <span style={{ color: '#475569' }}>GST</span>
+                <span>{inr(oTotal - oGoods)}</span>
               </div>
               <div style={{ height: 1, background: 'var(--line, #e2e8f0)', margin: '6px 0' }} />
               <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 15 }}>
