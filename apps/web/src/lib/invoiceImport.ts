@@ -14,20 +14,25 @@ import { carveJpegs, loadImage, readInvoiceQr, type InvoiceQrData } from './invo
  * Nothing here writes anything; it produces a draft for a human to approve.
  */
 
+/** One goods line off the invoice. An invoice may carry several. */
+export interface ScannedLine {
+  hsn: string | null;
+  qty: number | null;
+  rate: number | null;
+  amount: number | null;
+  /** qty x rate agrees with the printed line amount. */
+  addsUp: boolean;
+}
+
 export interface ScannedInvoice {
   fileName: string;
   /** Exact fields from the signed QR — absent if no QR could be read. */
   qr: InvoiceQrData | null;
-  /** OCR guesses. */
-  hsn: string | null;
-  qty: number | null;
-  rate: number | null;
-  lineAmount: number | null;
-  /** qty x rate agrees with the printed line amount. */
-  lineAddsUp: boolean;
-  /** line amount + GST agrees with the QR's total (the strongest check available). */
+  /** Every goods line read off the page, in printed order. */
+  lines: ScannedLine[];
+  /** The lines' amounts summed, plus GST, agrees with the QR total — the strongest check there is. */
   matchesQrTotal: boolean;
-  /** Implied GST percentage, derived from the line amount and the QR total. */
+  /** GST percentage implied by the goods total and the QR total. */
   impliedGstPct: number | null;
   problems: string[];
 }
@@ -60,8 +65,8 @@ function prep(img: HTMLImageElement, fy: number, fh: number): HTMLCanvasElement 
  * also carries quantity, rate and amount, in that order — anchoring on the HSN is far more stable
  * than trying to locate table columns on a scan.
  */
-export function parseGoodsLine(text: string): { hsn: string | null; qty: number | null; rate: number | null; amount: number | null } {
-  const empty = { hsn: null, qty: null, rate: null, amount: null };
+export function parseGoodsLines(text: string): ScannedLine[] {
+  const out: ScannedLine[] = [];
   for (const line of text.split('\n')) {
     const hsnMatch = /\b(\d{8})\b/.exec(line);
     if (!hsnMatch) continue;
@@ -69,9 +74,24 @@ export function parseGoodsLine(text: string): { hsn: string | null; qty: number 
     const nums = [...after.matchAll(/\b\d{1,3}(?:,\d{2,3})*(?:\.\d{1,3})?\b/g)].map((m) => num(m[0]));
     if (nums.length < 3) continue;
     // qty, rate, amount — the first three figures printed after the HSN.
-    return { hsn: hsnMatch[1], qty: nums[0], rate: nums[1], amount: nums[2] };
+    const [qty, rate, amount] = nums;
+    out.push({
+      hsn: hsnMatch[1],
+      qty,
+      rate,
+      amount,
+      addsUp: near(qty * rate, amount, Math.max(1, amount * 0.002)),
+    });
   }
-  return empty;
+  // The tax summary near the foot of the invoice repeats each HSN with its taxable value, which
+  // would otherwise be read as a second goods line for the same item. Keep the first of each HSN.
+  const seen = new Set<string>();
+  return out.filter((l) => {
+    const key = l.hsn ?? '';
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 const near = (a: number, b: number, tolerance = 1) => Math.abs(a - b) <= tolerance;
@@ -80,11 +100,7 @@ export async function readScannedInvoice(file: File): Promise<ScannedInvoice> {
   const result: ScannedInvoice = {
     fileName: file.name,
     qr: null,
-    hsn: null,
-    qty: null,
-    rate: null,
-    lineAmount: null,
-    lineAddsUp: false,
+    lines: [],
     matchesQrTotal: false,
     impliedGstPct: null,
     problems: [],
@@ -115,30 +131,28 @@ export async function readScannedInvoice(file: File): Promise<ScannedInvoice> {
       await worker.terminate();
     }
 
-    const goods = parseGoodsLine(text);
-    result.hsn = goods.hsn;
-    result.qty = goods.qty;
-    result.rate = goods.rate;
-    result.lineAmount = goods.amount;
+    result.lines = parseGoodsLines(text);
 
-    if (goods.qty == null || goods.rate == null || goods.amount == null) {
-      result.problems.push('Could not read quantity and rate from the goods table.');
+    if (result.lines.length === 0) {
+      result.problems.push('Could not read any goods line (quantity and rate) from the invoice.');
       return result;
     }
+    // Check 1 — each printed line: qty x rate should be its amount.
+    const badLine = result.lines.findIndex((l) => !l.addsUp);
+    if (badLine >= 0) result.problems.push(`Line ${badLine + 1}: quantity x rate does not equal the printed amount.`);
 
-    // Check 1 — the printed line: qty x rate should be the line amount.
-    result.lineAddsUp = near(goods.qty * goods.rate, goods.amount, Math.max(1, goods.amount * 0.002));
-    if (!result.lineAddsUp) result.problems.push('Quantity x rate does not equal the printed amount.');
-
-    // Check 2 — against the QR, which is exact. This is what catches a misread digit.
-    if (result.qr?.totalValue != null && goods.amount > 0) {
-      const pct = ((result.qr.totalValue - goods.amount) / goods.amount) * 100;
+    // Check 2 — the whole invoice against the QR, which is exact. With several lines this is
+    // stronger still: every quantity and rate has to be right for the total to come out.
+    const goodsTotal = result.lines.reduce((s, l) => s + (l.amount ?? 0), 0);
+    if (result.qr?.totalValue != null && goodsTotal > 0) {
+      const pct = ((result.qr.totalValue - goodsTotal) / goodsTotal) * 100;
       const slab = [0, 5, 12, 18, 28].find((s) => Math.abs(pct - s) < 0.6);
       result.impliedGstPct = slab ?? Math.round(pct * 100) / 100;
       result.matchesQrTotal = slab != null;
       if (!result.matchesQrTotal) {
         result.problems.push(
-          `Goods value ${goods.amount.toLocaleString('en-IN')} plus GST does not reach the invoice total ` +
+          `The ${result.lines.length} goods line${result.lines.length === 1 ? '' : 's'} total ` +
+            `${goodsTotal.toLocaleString('en-IN')}, which plus GST does not reach the invoice total ` +
             `${result.qr.totalValue.toLocaleString('en-IN')} at any standard rate.`
         );
       }

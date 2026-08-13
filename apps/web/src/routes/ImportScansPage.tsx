@@ -15,7 +15,8 @@ import { readScannedInvoice, type ScannedInvoice } from '../lib/invoiceImport';
 
 interface Row extends ScannedInvoice {
   party: Party | null;
-  item: Item | null;
+  /** One matched item per goods line, in the same order; null where the HSN is unknown. */
+  items: (Item | null)[];
   /** True once the invoice number is known to already exist. */
   duplicate: boolean;
   selected: boolean;
@@ -71,11 +72,12 @@ export function ImportScansPage() {
       const scan = await readScannedInvoice(files[i]);
       const buyer = normGst(scan.qr?.buyerGstin);
       const party = buyer ? parties.find((p) => normGst(p.gst) === buyer) ?? null : null;
-      const item = scan.hsn ? items.find((it) => hsnCodesOf(it.code).includes(scan.hsn!)) ?? null : null;
+      const matched = scan.lines.map((l) => (l.hsn ? items.find((it) => hsnCodesOf(it.code).includes(l.hsn!)) ?? null : null));
       if (buyer && !party) scan.problems.push(`No party in your list has GSTIN ${buyer}.`);
-      if (scan.hsn && !item)
+      const missing = scan.lines.filter((l, i) => l.hsn && !matched[i]).map((l) => l.hsn);
+      if (missing.length)
         scan.problems.push(
-          `No item has HSN code ${scan.hsn}. Add it to that item's Code field in Item Master — ` +
+          `No item has HSN code ${missing.join(', ')}. Add it to that item's Code field in Item Master — ` +
             `several codes can be listed, separated by commas.`
         );
       const invNo = (scan.qr?.docNo || '').trim().toUpperCase();
@@ -89,7 +91,7 @@ export function ImportScansPage() {
       out.push({
         ...scan,
         party,
-        item,
+        items: matched,
         duplicate,
         // Only rows that need no judgement are ticked; the rest are a deliberate choice.
         selected: scan.problems.length === 0,
@@ -107,13 +109,14 @@ export function ImportScansPage() {
       !r.duplicate &&
       r.outcome !== 'imported' &&
       !!r.party &&
-      !!r.item &&
       !!r.qr?.docNo &&
       !!r.qr?.docDate &&
-      r.qty != null &&
-      r.rate != null &&
       r.impliedGstPct != null &&
-      r.matchesQrTotal
+      r.matchesQrTotal &&
+      r.lines.length > 0 &&
+      // Every line must be complete: importing an invoice with one of its items missing would
+      // understate the sale, and be harder to notice than a row that plainly failed.
+      r.lines.every((l, i) => !!r.items[i] && l.qty != null && l.rate != null)
     );
   }
 
@@ -129,20 +132,25 @@ export function ImportScansPage() {
       try {
         // Payment status follows the party's own credit terms, exactly as a normal sale would.
         const creditDays = r.party!.creditDays ?? 0;
-        await api.outward.create({
-          date: r.qr!.docDate,
-          invDate: r.qr!.docDate,
-          partyId: r.party!.id,
-          itemId: r.item!.id,
-          qty: r.qty!,
-          rate: r.rate!,
-          gstPct: r.impliedGstPct!,
-          invNo: r.qr!.docNo,
-          payStatus: creditDays > 0 ? 'credit' : 'pending',
-          creditDays,
-          fulfil: 'delivered', // these sales already happened
-          note: 'Imported from scanned invoice',
-        });
+        // One entry per goods line, all sharing the invoice number — the shape the rest of the
+        // system already expects, since stock and ledgers are read per item.
+        for (let li = 0; li < r.lines.length; li++) {
+          const line = r.lines[li];
+          await api.outward.create({
+            date: r.qr!.docDate,
+            invDate: r.qr!.docDate,
+            partyId: r.party!.id,
+            itemId: r.items[li]!.id,
+            qty: line.qty!,
+            rate: line.rate!,
+            gstPct: r.impliedGstPct!,
+            invNo: r.qr!.docNo,
+            payStatus: creditDays > 0 ? 'credit' : 'pending',
+            creditDays,
+            fulfil: 'delivered', // these sales already happened
+            note: 'Imported from scanned invoice',
+          });
+        }
         next[i] = { ...next[i], outcome: 'imported', selected: false };
         existingInvNos.add(r.qr!.docNo.trim().toUpperCase());
       } catch (e) {
@@ -303,11 +311,24 @@ export function ImportScansPage() {
                       )}
                     </td>
                     <td>
-                      {r.item ? r.item.name : <span style={{ color: '#b45309' }}>not matched</span>}
-                      {r.hsn && <div className="muted" style={{ fontSize: 10.5 }}>HSN {r.hsn}</div>}
+                      {r.lines.length === 0 && <span style={{ color: '#b45309' }}>no goods line read</span>}
+                      {r.lines.map((l, li) => (
+                        <div key={li} style={{ marginBottom: r.lines.length > 1 ? 3 : 0 }}>
+                          {r.items[li] ? r.items[li]!.name : <span style={{ color: '#b45309' }}>not matched</span>}
+                          {l.hsn && <span className="muted" style={{ fontSize: 10.5 }}> · HSN {l.hsn}</span>}
+                        </div>
+                      ))}
                     </td>
-                    <td style={{ textAlign: 'right' }}>{r.qty ?? '—'}</td>
-                    <td style={{ textAlign: 'right' }}>{r.rate ?? '—'}</td>
+                    <td style={{ textAlign: 'right' }}>
+                      {r.lines.map((l, li) => (
+                        <div key={li} style={{ marginBottom: r.lines.length > 1 ? 3 : 0 }}>{l.qty ?? '—'}</div>
+                      ))}
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      {r.lines.map((l, li) => (
+                        <div key={li} style={{ marginBottom: r.lines.length > 1 ? 3 : 0 }}>{l.rate ?? '—'}</div>
+                      ))}
+                    </td>
                     <td style={{ textAlign: 'right' }}>{r.impliedGstPct != null ? `${r.impliedGstPct}%` : '—'}</td>
                     <td style={{ textAlign: 'right' }}>{inr(r.qr?.totalValue)}</td>
                     <td style={{ fontSize: 11, maxWidth: 260 }}>
