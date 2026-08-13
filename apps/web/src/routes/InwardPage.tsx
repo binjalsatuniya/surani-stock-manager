@@ -133,64 +133,97 @@ export function InwardPage() {
   const isImporterParty = (partyId: string) => parties.find((p) => p.id === partyId)?.type === 'importer';
   const importing = isImporterParty(form.partyId);
 
+  // One supplier invoice can carry several items. Party, date, delivery and transport are entered
+  // once; each line becomes its own entry, which is the shape stock and the ledgers already read.
+  type Line = { itemId: string; qty: string; rate: string; gstPct: string };
+  const BLANK_LINE: Line = { itemId: '', qty: '', rate: '', gstPct: '18' };
+  const [lines, setLines] = useState<Line[]>([{ ...BLANK_LINE }]);
+
+  function setLine(i: number, patch: Partial<Line>) {
+    setLines((ls) => ls.map((l, j) => (j === i ? { ...l, ...patch } : l)));
+  }
+  function addLine() {
+    setLines((ls) => [...ls, { ...BLANK_LINE }]);
+  }
+  function removeLine(i: number) {
+    setLines((ls) => (ls.length === 1 ? ls : ls.filter((_, j) => j !== i)));
+  }
+
   // Auto-fill the item's rate when an item is chosen and no rate typed yet.
-  function onItemChange(id: string) {
-    const it = items.find((i) => i.id === id);
-    setForm((f) => ({
-      ...f,
-      itemId: id,
-      rate: f.rate || (it ? String(it.rate) : ''),
-      // GST is fixed to the selected item's slab (set in Item Master) — same as New Order —
-      // except on imports, where the slab does not apply and the figure stays editable.
-      gstPct: it && !isImporterParty(f.partyId) ? String(it.gstPct ?? 0) : f.gstPct,
-    }));
+  function onItemChange(i: number, id: string) {
+    const it = items.find((x) => x.id === id);
+    setLines((ls) =>
+      ls.map((l, j) =>
+        j === i
+          ? {
+              ...l,
+              itemId: id,
+              rate: l.rate || (it ? String(it.rate) : ''),
+              // GST is fixed to the item's slab (set in Item Master) — except on imports, where
+              // the slab does not apply and the figure stays editable.
+              gstPct: it && !importing ? String(it.gstPct ?? 0) : l.gstPct,
+            }
+          : l
+      )
+    );
   }
 
-  // Switching to an importer clears the slab-derived GST; switching away restores it.
+  // Switching to an importer clears the slab-derived GST on every line; switching away restores it.
   function onPartyChange(id: string) {
-    setForm((f) => {
-      const toImporter = isImporterParty(id);
-      const it = items.find((i) => i.id === f.itemId);
-      return {
-        ...f,
-        partyId: id,
-        gstPct: toImporter ? '0' : it ? String(it.gstPct ?? 0) : f.gstPct,
-      };
-    });
+    const toImporter = isImporterParty(id);
+    setForm((f) => ({ ...f, partyId: id }));
+    setLines((ls) =>
+      ls.map((l) => {
+        const it = items.find((x) => x.id === l.itemId);
+        return { ...l, gstPct: toImporter ? '0' : it ? String(it.gstPct ?? 0) : l.gstPct };
+      })
+    );
   }
 
-  const qtyN = Number(form.qty) || 0;
-  const rateN = Number(form.rate) || 0;
-  const gstN = Number(form.gstPct) || 0;
+  const lineTotals = lines.map((l) => {
+    const goods = (Number(l.qty) || 0) * (Number(l.rate) || 0);
+    return { goods, withGst: goods + (goods * (Number(l.gstPct) || 0)) / 100 };
+  });
+  const goods = lineTotals.reduce((s, t) => s + t.goods, 0);
+  const amountPreview = lineTotals.reduce((s, t) => s + t.withGst, 0);
+  const filledLines = lines.filter((l) => l.itemId && l.qty && l.rate);
+  const totalQty = filledLines.reduce((s, l) => s + (Number(l.qty) || 0), 0);
   const freightN = Number(form.freightRate) || 0;
-  const goods = qtyN * rateN;
-  const freightTotal = freightN * qtyN;
-  const amountPreview = goods + (goods * gstN) / 100;
+  const freightTotal = freightN * totalQty;
 
   // Step 1: record the goods as a Pending inward. Invoice no./date + handling are captured
   // later in the "Mark as Inward" step, so they aren't required (or shown) here.
   async function onAdd() {
     setError('');
-    if (!form.partyId || !form.itemId || !form.qty || !form.rate) return;
+    if (!form.partyId) return setError('Select a party.');
+    if (filledLines.length === 0) return setError('Add at least one item, with a quantity and rate.');
+    // A half-filled line is more likely a mistake than an intention, so say so rather than skip it.
+    const partial = lines.findIndex((l) => (l.itemId || l.qty || l.rate) && !(l.itemId && l.qty && l.rate));
+    if (partial >= 0) return setError(`Item ${partial + 1} is incomplete — it needs an item, quantity and rate.`);
     if (required('inward.deliveryType') && !form.deliveryType) return setError('Delivery type is required.');
     if (required('inward.transporter') && !form.transporterId) return setError('Transporter is required.');
     if (required('inward.vehicle') && !form.vehicle.trim()) return setError('Vehicle / LR no. is required.');
     if (required('inward.note') && !form.note.trim()) return setError('Note is required.');
     try {
-      await api.inward.create({
-        date: form.date,
-        partyId: form.partyId,
-        itemId: form.itemId,
-        qty: Number(form.qty),
-        rate: Number(form.rate),
-        gstPct: Number(form.gstPct) || 0,
-        deliveryType: form.deliveryType || null,
-        transporterId: form.transporterId || null,
-        freightRate: Number(form.freightRate) || 0,
-        vehicle: form.vehicle.trim() || null,
-        note: form.note.trim() || null,
-      });
+      // One pending entry per item line, all sharing this purchase's party, date and transport.
+      // Each is then marked as inward separately, as its own invoice line would be.
+      for (const l of filledLines) {
+        await api.inward.create({
+          date: form.date,
+          partyId: form.partyId,
+          itemId: l.itemId,
+          qty: Number(l.qty),
+          rate: Number(l.rate),
+          gstPct: Number(l.gstPct) || 0,
+          deliveryType: form.deliveryType || null,
+          transporterId: form.transporterId || null,
+          freightRate: Number(form.freightRate) || 0,
+          vehicle: form.vehicle.trim() || null,
+          note: form.note.trim() || null,
+        });
+      }
       setForm((f) => ({ ...EMPTY, date: f.date }));
+      setLines([{ ...BLANK_LINE }]);
       // If the entry is dated in a different financial year, switch to it so it stays visible.
       const efy = fyOfDate(form.date);
       if (efy && efy !== selectedFy) setSelectedFy(efy);
@@ -502,56 +535,6 @@ export function InwardPage() {
               )}
             </div>
             <div className="field" style={{ margin: 0 }}>
-              <label>Item</label>
-              <select value={form.itemId} onChange={(e) => onItemChange(e.target.value)}>
-                <option value="">Select…</option>
-                {items.map((i) => (
-                  <option key={i.id} value={i.id}>
-                    {i.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="field" style={{ margin: 0 }}>
-              <label>Qty</label>
-              <input value={form.qty} onChange={(e) => set('qty', e.target.value)} style={{ width: 90 }} />
-            </div>
-            <div className="field" style={{ margin: 0 }}>
-              <label>Rate</label>
-              <input value={form.rate} onChange={(e) => set('rate', e.target.value)} style={{ width: 90 }} />
-            </div>
-            <div className="field" style={{ margin: 0 }}>
-              <label>GST %</label>
-              {(() => {
-                const it = items.find((i) => i.id === form.itemId);
-                // Imports are never locked to the slab — the supplier charges no Indian GST.
-                const locked = !!it && !importing;
-                if (importing) {
-                  return (
-                    <select
-                      value={form.gstPct}
-                      onChange={(e) => set('gstPct', e.target.value)}
-                      style={{ width: 90 }}
-                      title="Import purchase — pick the GST that applies, or leave 0"
-                    >
-                      {(GST_SLABS.includes(form.gstPct) ? GST_SLABS : [...GST_SLABS, form.gstPct]).map((g) => (
-                        <option key={g} value={g}>{g}%</option>
-                      ))}
-                    </select>
-                  );
-                }
-                return (
-                  <input
-                    value={form.gstPct}
-                    onChange={(e) => set('gstPct', e.target.value)}
-                    style={{ width: 70 }}
-                    readOnly={locked}
-                    title={locked ? "Set automatically from the item's GST slab" : ''}
-                  />
-                );
-              })()}
-            </div>
-            <div className="field" style={{ margin: 0 }}>
               <FieldLabel required={required('inward.deliveryType')}>Delivery</FieldLabel>
               <select value={form.deliveryType} onChange={(e) => set('deliveryType', e.target.value)}>
                 <option value="">—</option>
@@ -583,7 +566,75 @@ export function InwardPage() {
               <input value={form.note} onChange={(e) => set('note', e.target.value)} placeholder="Remarks…" style={{ width: '100%' }} />
             </div>
           </div>
-          {qtyN > 0 && rateN > 0 && (
+          {/* One invoice, several items. Each line below is saved as its own entry sharing the
+              party, date and invoice number above — which is what stock and the ledgers read. */}
+          <div style={{ marginTop: 10, border: '1px solid var(--line)', borderRadius: 9, padding: '10px 12px' }}>
+            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>Items</div>
+            {lines.map((l, i) => {
+              const it = items.find((x) => x.id === l.itemId);
+                                                        const locked = !!it && !importing;
+              return (
+                <div key={i} className="toolbar" style={{ alignItems: 'flex-end', marginBottom: 6 }}>
+                  <div className="field" style={{ margin: 0, minWidth: 30 }}>
+                    <label>#</label>
+                    <div style={{ fontSize: 13, paddingTop: 6 }}>{i + 1}</div>
+                  </div>
+                  <div className="field" style={{ margin: 0 }}>
+                    <label>Item</label>
+                    <select value={l.itemId} onChange={(e) => onItemChange(i, e.target.value)}>
+                      <option value="">Select…</option>
+                      {items.map((x) => (
+                        <option key={x.id} value={x.id}>
+                          {x.name}
+                        </option>
+                      ))}
+                    </select>
+                                      </div>
+                  <div className="field" style={{ margin: 0 }}>
+                    <label>Qty</label>
+                    <input value={l.qty} onChange={(e) => setLine(i, { qty: e.target.value })} style={{ width: 90 }} />
+                  </div>
+                  <div className="field" style={{ margin: 0 }}>
+                    <label>Rate</label>
+                    <input value={l.rate} onChange={(e) => setLine(i, { rate: e.target.value })} style={{ width: 90 }} />
+                  </div>
+                  <div className="field" style={{ margin: 0 }}>
+                    <label>GST %</label>
+                    {importing ? (
+                      <select value={l.gstPct} onChange={(e) => setLine(i, { gstPct: e.target.value })} style={{ width: 90 }}>
+                        {(GST_SLABS.includes(l.gstPct) ? GST_SLABS : [...GST_SLABS, l.gstPct]).map((g) => (
+                          <option key={g} value={g}>{g}%</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        value={l.gstPct}
+                        onChange={(e) => setLine(i, { gstPct: e.target.value })}
+                        style={{ width: 70 }}
+                        readOnly={locked}
+                        title={locked ? "Set automatically from the item's GST slab" : ''}
+                      />
+                    )}
+                  </div>
+                  <div className="field" style={{ margin: 0 }}>
+                    <label>Amount</label>
+                    <div style={{ fontSize: 13, paddingTop: 6, whiteSpace: 'nowrap' }}>
+                      ₹{lineTotals[i].withGst.toFixed(2)}
+                    </div>
+                  </div>
+                  {lines.length > 1 && (
+                    <button className="btn btn-sm btn-danger" onClick={() => removeLine(i)} title="Remove this item">
+                      ✕
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+            <button className="btn btn-sm" onClick={addLine}>
+              + Add item
+            </button>
+          </div>
+          {filledLines.length > 0 && (
             <div
               style={{
                 marginTop: 12,
@@ -598,12 +649,14 @@ export function InwardPage() {
                 Amount Breakdown
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6 }}>
-                <span style={{ color: '#475569' }}>Goods value ({qtyN} × ₹{rateN})</span>
+                <span style={{ color: '#475569' }}>
+                  Goods value ({filledLines.length} item{filledLines.length === 1 ? '' : 's'})
+                </span>
                 <span>₹{goods.toFixed(2)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6 }}>
-                <span style={{ color: '#475569' }}>GST ({gstN}%)</span>
-                <span>₹{((goods * gstN) / 100).toFixed(2)}</span>
+                <span style={{ color: '#475569' }}>GST</span>
+                <span>₹{(amountPreview - goods).toFixed(2)}</span>
               </div>
               <div style={{ height: 1, background: 'var(--line, #e2e8f0)', margin: '6px 0' }} />
               <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 15 }}>
@@ -615,7 +668,7 @@ export function InwardPage() {
                   For reference only (not added above)
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                  <span style={{ color: '#475569' }}>Transportation ({qtyN} × ₹{freightN})</span>
+                  <span style={{ color: '#475569' }}>Transportation ({totalQty} × ₹{freightN})</span>
                   <span>₹{freightTotal.toFixed(2)}</span>
                 </div>
                 <div className="muted" style={{ fontSize: 11, marginTop: 8 }}>
