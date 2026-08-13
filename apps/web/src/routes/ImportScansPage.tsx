@@ -20,6 +20,12 @@ interface Row extends ScannedInvoice {
   party: Party | null;
   /** One matched item per goods line, in the same order; null where none is chosen yet. */
   items: (Item | null)[];
+  /**
+   * Per line: has a human confirmed the item? An HSN code is shared by many grades, so a match on
+   * HSN alone is only a guess and may be the wrong material. It stays unconfirmed (shown "check")
+   * until the item is chosen in the Edit panel — which is also why nothing is ticked automatically.
+   */
+  confirmed: boolean[];
   /** True once the invoice number is known to already exist (or repeats within this batch). */
   duplicate: boolean;
   duplicateNote?: string;
@@ -151,16 +157,19 @@ export function ImportScansPage() {
           : undefined;
       // Build the row, then recompute so its problems reflect the editable review model (the raw
       // OCR problems from the reader are superseded — a person can now fix each of them here).
+      // Never tick a row automatically: the item is only an HSN guess and must be eyeballed. The
+      // person selects what to import after checking — "Select all ready" is there for a knowing
+      // bulk action.
       const row = recompute({
         ...scan,
         party,
         items: matched,
+        confirmed: matched.map(() => false),
         duplicate,
         duplicateNote,
         selected: false,
         outcome: null,
       });
-      row.selected = row.problems.length === 0;
       out.push(row);
       setRows([...out]);
       setProgress({ done: i + 1, total: files.length });
@@ -179,9 +188,10 @@ export function ImportScansPage() {
       r.impliedGstPct != null &&
       r.matchesQrTotal &&
       r.lines.length > 0 &&
-      // Every line must be complete: importing an invoice with one of its items missing would
-      // understate the sale, and be harder to notice than a row that plainly failed.
-      r.lines.every((l, i) => !!r.items[i] && l.qty != null && l.rate != null)
+      // Every line must be complete AND its item confirmed by a person: the item is only guessed
+      // from the HSN code, which is shared across grades, so importing on that guess alone would
+      // silently record the wrong material. The figures reconciling does not vouch for the item.
+      r.lines.every((l, i) => !!r.items[i] && r.confirmed[i] && l.qty != null && l.rate != null)
     );
   }
 
@@ -192,24 +202,28 @@ export function ImportScansPage() {
     setRows((rs) =>
       rs.map((r, j) => {
         if (j !== i) return r;
-        const draft: Row = { ...r, lines: r.lines.map((l) => ({ ...l })), items: [...r.items] };
+        const draft: Row = { ...r, lines: r.lines.map((l) => ({ ...l })), items: [...r.items], confirmed: [...r.confirmed] };
         fn(draft);
         return recompute(draft);
       })
     );
   }
   const setParty = (i: number, id: string) => updateRow(i, (r) => { r.party = parties.find((p) => p.id === id) ?? null; });
+  // Choosing the item by hand is what confirms it — from here on it is a decision, not a guess.
   const setLineItem = (i: number, li: number, id: string) =>
-    updateRow(i, (r) => { r.items[li] = items.find((x) => x.id === id) ?? null; });
+    updateRow(i, (r) => { r.items[li] = items.find((x) => x.id === id) ?? null; r.confirmed[li] = true; });
+  // Accept the HSN guess as correct without changing it — for when the matched item is right.
+  const confirmLineItem = (i: number, li: number) => updateRow(i, (r) => { if (r.items[li]) r.confirmed[li] = true; });
   const setLineQty = (i: number, li: number, v: string) => updateRow(i, (r) => { r.lines[li].qty = toNum(v); });
   const setLineRate = (i: number, li: number, v: string) => updateRow(i, (r) => { r.lines[li].rate = toNum(v); });
   const addLine = (i: number) =>
     updateRow(i, (r) => {
       r.lines.push({ hsn: null, qty: null, rate: null, amount: null, addsUp: false });
       r.items.push(null);
+      r.confirmed.push(false);
     });
   const removeLine = (i: number, li: number) =>
-    updateRow(i, (r) => { r.lines.splice(li, 1); r.items.splice(li, 1); });
+    updateRow(i, (r) => { r.lines.splice(li, 1); r.items.splice(li, 1); r.confirmed.splice(li, 1); });
 
   async function onImport() {
     const chosen = rows.map((r, i) => ({ r, i })).filter(({ r }) => r.selected && importable(r));
@@ -285,9 +299,11 @@ export function ImportScansPage() {
         <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
           Select scanned sales invoices to see what can be read from them. The invoice number, date,
           party and total come from the e-Invoice QR and are exact. Quantity and rate are read off
-          the page — and where the reading is wrong or incomplete, you can <strong>fix it by hand</strong>{' '}
-          with the Edit button: correct a figure, add a missing item line, or choose the party. A row
-          only becomes ready to import once its lines reconcile with the invoice total.
+          the page, and the <strong>item is only guessed from the HSN code</strong> — the same HSN
+          covers many grades, so it may be the wrong material and is shown as <strong>“check”</strong>{' '}
+          until you confirm it. Use the <strong>Edit</strong> button to confirm the item, correct a
+          figure, add a missing line, or choose the party. Nothing is ticked for you: a row is only
+          imported once you select it, and only after its lines reconcile with the invoice total.
         </p>
         <div
           style={{
@@ -411,7 +427,18 @@ export function ImportScansPage() {
                         {r.lines.length === 0 && <span style={{ color: '#b45309' }}>no goods line read</span>}
                         {r.lines.map((l, li) => (
                           <div key={li} style={{ marginBottom: r.lines.length > 1 ? 3 : 0 }}>
-                            {r.items[li] ? r.items[li]!.name : <span style={{ color: '#b45309' }}>not matched</span>}
+                            {r.items[li] ? (
+                              <>
+                                {r.items[li]!.name}
+                                {!r.confirmed[li] && (
+                                  <span style={{ color: '#b45309', fontWeight: 600 }} title="Matched from the HSN code only — open Edit and confirm it is the right grade">
+                                    {' '}· check
+                                  </span>
+                                )}
+                              </>
+                            ) : (
+                              <span style={{ color: '#b45309' }}>not matched</span>
+                            )}
                             {l.hsn && <span className="muted" style={{ fontSize: 10.5 }}> · HSN {l.hsn}</span>}
                           </div>
                         ))}
@@ -433,10 +460,15 @@ export function ImportScansPage() {
                           <span style={{ color: '#15803d', fontWeight: 600 }}>✓ imported</span>
                         ) : r.outcome === 'failed' ? (
                           <span style={{ color: '#dc2626' }}>Failed — {r.outcomeNote}</span>
-                        ) : (
-                          <span style={{ color: ok ? '#15803d' : '#b45309' }}>
-                            {ok ? '✓ figures reconcile' : r.problems.join(' ')}
+                        ) : ok ? (
+                          <span style={{ color: '#15803d' }}>
+                            ✓ figures reconcile
+                            {r.lines.some((l, li) => r.items[li] && !r.confirmed[li]) && (
+                              <span style={{ color: '#b45309', fontWeight: 600 }}> · check the item grade in Edit before importing</span>
+                            )}
                           </span>
+                        ) : (
+                          <span style={{ color: '#b45309' }}>{r.problems.join(' ')}</span>
                         )}
                       </td>
                       <td>
@@ -504,6 +536,18 @@ export function ImportScansPage() {
                   options={items.map((x) => ({ id: x.id, label: x.name }))}
                   placeholder="Type item name…"
                 />
+                {r.items[li] && (
+                  r.confirmed[li] ? (
+                    <div style={{ fontSize: 11, color: '#15803d', marginTop: 4 }}>✓ item confirmed</div>
+                  ) : (
+                    <div style={{ fontSize: 11, marginTop: 4 }}>
+                      <span style={{ color: '#b45309' }}>Guessed from HSN — </span>
+                      <button className="btn btn-sm" style={{ padding: '1px 8px' }} onClick={() => confirmLineItem(i, li)}>
+                        Confirm this is correct
+                      </button>
+                    </div>
+                  )
+                )}
               </div>
               <div className="field" style={{ margin: 0 }}>
                 <label>Qty</label>
