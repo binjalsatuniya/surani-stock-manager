@@ -43,6 +43,12 @@ export function OutwardPage() {
   const [handlers, setHandlers] = useState<Party[]>([]);
   const [stock, setStock] = useState<Record<string, number>>({});
   const [form, setForm] = useState({ ...EMPTY });
+  // Filter the list below by invoice number and/or a date range (matches the entry date or, when
+  // present, the invoice date). Opened with the Filter button so it stays out of the way.
+  const [showFilter, setShowFilter] = useState(false);
+  const [fInvNo, setFInvNo] = useState('');
+  const [fFrom, setFFrom] = useState('');
+  const [fTo, setFTo] = useState('');
   const [error, setError] = useState('');
   const canViewInvoice = can('view_invoice');
   // Invoice scan for the entry being added. One file is shared by every item line on the invoice.
@@ -425,6 +431,27 @@ export function OutwardPage() {
     );
   }
 
+  const filterActive = !!(fInvNo.trim() || fFrom || fTo);
+  const dOnly = (s: string | null | undefined) => (s || '').slice(0, 10);
+  const inRange = (d: string | null | undefined) => {
+    const x = dOnly(d);
+    if (!x) return false;
+    if (fFrom && x < fFrom) return false;
+    if (fTo && x > fTo) return false;
+    return true;
+  };
+  const visibleRows = rows.filter((r) => {
+    if (fInvNo.trim() && !(r.invNo || '').toLowerCase().includes(fInvNo.trim().toLowerCase())) return false;
+    // Match the range against the entry date OR the invoice date, so either one the user has in mind works.
+    if ((fFrom || fTo) && !(inRange(r.date) || inRange(r.invDate))) return false;
+    return true;
+  });
+  function clearFilter() {
+    setFInvNo('');
+    setFFrom('');
+    setFTo('');
+  }
+
   return (
     <div className="card">
       <h2 style={{ marginTop: 0 }}>Outward</h2>
@@ -611,6 +638,35 @@ export function OutwardPage() {
       )}
       {/* While an inline panel is open its own error is shown next to its buttons. */}
       {error && !editing && <div className="login-err show">{error}</div>}
+
+      <div className="toolbar" style={{ marginTop: 8, marginBottom: 8, alignItems: 'flex-end' }}>
+        <button className="btn btn-sm" onClick={() => setShowFilter((s) => !s)}>
+          {showFilter ? 'Hide Filter' : 'Filter'}{filterActive ? ' ●' : ''}
+        </button>
+        {showFilter && (
+          <>
+            <div className="field" style={{ margin: 0 }}>
+              <label>Invoice No.</label>
+              <input value={fInvNo} onChange={(e) => setFInvNo(e.target.value)} placeholder="Invoice number…" style={{ width: 160 }} />
+            </div>
+            <div className="field" style={{ margin: 0 }}>
+              <label>From date</label>
+              <input type="date" value={fFrom} onChange={(e) => setFFrom(e.target.value)} />
+            </div>
+            <div className="field" style={{ margin: 0 }}>
+              <label>To date</label>
+              <input type="date" value={fTo} onChange={(e) => setFTo(e.target.value)} />
+            </div>
+            {filterActive && (
+              <button className="btn btn-sm" onClick={clearFilter}>Clear</button>
+            )}
+            <span className="muted" style={{ fontSize: 12 }}>
+              Showing {visibleRows.length} of {rows.length}
+            </span>
+          </>
+        )}
+      </div>
+
       <table>
         <thead>
           <tr>
@@ -629,7 +685,7 @@ export function OutwardPage() {
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => (
+          {visibleRows.map((r) => (
             <Fragment key={r.id}>
               <tr>
                 <td>{r.date}</td>
@@ -674,10 +730,10 @@ export function OutwardPage() {
               )}
             </Fragment>
           ))}
-          {rows.length === 0 && (
+          {visibleRows.length === 0 && (
             <tr>
               <td colSpan={12} className="muted">
-                No outward entries yet.
+                {rows.length === 0 ? 'No outward entries yet.' : 'No entries match the filter.'}
               </td>
             </tr>
           )}
