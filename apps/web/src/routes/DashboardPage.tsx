@@ -508,7 +508,7 @@ export function DashboardPage() {
               const short = q > 0 && q > avail;
               const locked = !!it;
               return (
-                <div key={i} className="toolbar" style={{ alignItems: 'flex-end', marginBottom: 6 }}>
+                <div key={i} className="toolbar" style={{ alignItems: 'flex-start', marginBottom: 6 }}>
                   <div className="field" style={{ margin: 0, minWidth: 30 }}>
                     <label>#</label>
                     <div style={{ fontSize: 13, paddingTop: 6 }}>{i + 1}</div>
