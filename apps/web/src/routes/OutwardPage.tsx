@@ -49,6 +49,8 @@ export function OutwardPage() {
   const [fInvNo, setFInvNo] = useState('');
   const [fFrom, setFFrom] = useState('');
   const [fTo, setFTo] = useState('');
+  // How the invoices are ordered in the list below.
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'invno'>('newest');
   const [error, setError] = useState('');
   const canViewInvoice = can('view_invoice');
   // Invoice scan for the entry being added. One file is shared by every item line on the invoice.
@@ -452,6 +454,38 @@ export function OutwardPage() {
     setFTo('');
   }
 
+  // Group the item rows into invoices: several items share one invoice number, so they belong
+  // together. Rows without an invoice number each stand alone.
+  const groups = (() => {
+    const map = new Map<string, Outward[]>();
+    const order: string[] = [];
+    for (const r of visibleRows) {
+      const key = r.invNo ? `inv:${r.invNo}` : `id:${r.id}`;
+      if (!map.has(key)) {
+        map.set(key, []);
+        order.push(key);
+      }
+      map.get(key)!.push(r);
+    }
+    const gs = order.map((key) => {
+      const rs = map.get(key)!;
+      return {
+        key,
+        invNo: rs[0].invNo,
+        date: rs[0].date,
+        partyId: rs[0].partyId,
+        rows: rs,
+        total: rs.reduce((s, x) => s + Number(x.amount || 0), 0),
+      };
+    });
+    gs.sort((a, b) => {
+      if (sortBy === 'invno') return (a.invNo || '').localeCompare(b.invNo || '') || (a.date < b.date ? 1 : -1);
+      if (sortBy === 'oldest') return a.date < b.date ? -1 : a.date > b.date ? 1 : 0;
+      return a.date > b.date ? -1 : a.date < b.date ? 1 : 0; // newest first
+    });
+    return gs;
+  })();
+
   return (
     <div className="card">
       <h2 style={{ marginTop: 0 }}>Outward</h2>
@@ -643,6 +677,14 @@ export function OutwardPage() {
         <button className="btn btn-sm" onClick={() => setShowFilter((s) => !s)}>
           {showFilter ? 'Hide Filter' : 'Filter'}{filterActive ? ' ●' : ''}
         </button>
+        <div className="field" style={{ margin: 0 }}>
+          <label>Sort</label>
+          <select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)}>
+            <option value="newest">Date — new to old</option>
+            <option value="oldest">Date — old to new</option>
+            <option value="invno">Invoice No.</option>
+          </select>
+        </div>
         {showFilter && (
           <>
             <div className="field" style={{ margin: 0 }}>
@@ -685,7 +727,15 @@ export function OutwardPage() {
           </tr>
         </thead>
         <tbody>
-          {visibleRows.map((r) => (
+          {groups.map((g) => (
+            <Fragment key={g.key}>
+              <tr>
+                <td colSpan={showActions ? 12 : 11} style={{ background: '#f1f5f9', fontWeight: 600, fontSize: 12.5 }}>
+                  🧾 Invoice {g.invNo || '(no number)'} · {partyName(g.partyId)} · {g.date}
+                  {g.rows.length > 1 && ` · ${g.rows.length} items`} · Total ₹{g.total.toFixed(2)}
+                </td>
+              </tr>
+              {g.rows.map((r) => (
             <Fragment key={r.id}>
               <tr>
                 <td>{r.date}</td>
@@ -728,6 +778,8 @@ export function OutwardPage() {
                   </td>
                 </tr>
               )}
+            </Fragment>
+              ))}
             </Fragment>
           ))}
           {visibleRows.length === 0 && (
