@@ -67,8 +67,11 @@ export async function exportAllData(client: Db = prisma) {
 }
 
 // The categories of data a Reset can wipe. User logins and app config are never wiped.
+// 'sales' and 'purchases' replaced the old combined 'transactions'; that key is still ACCEPTED as a
+// backward-compatible alias (older phone clients send it) — see wipeSelected / validateResetScopes.
 export const ALL_RESET_SCOPES = [
-  'transactions',
+  'sales',
+  'purchases',
   'expenses',
   'parties',
   'items',
@@ -84,10 +87,13 @@ export type ResetScope = (typeof ALL_RESET_SCOPES)[number];
 // message if the selection is inconsistent, otherwise null.
 export function validateResetScopes(scopes: Set<string>): string | null {
   if (scopes.size === 0) return 'Select at least one type of data to reset.';
-  if (scopes.has('parties') && !scopes.has('transactions'))
-    return 'To delete Parties you must also delete Sales & Purchases (they reference parties).';
-  if (scopes.has('items') && !scopes.has('transactions'))
-    return 'To delete Items you must also delete Sales & Purchases (they reference items).';
+  // Parties and Items are referenced by BOTH sides, so both must go before they can. The legacy
+  // 'transactions' alias means "both sales and purchases".
+  const bothTransactions = scopes.has('transactions') || (scopes.has('sales') && scopes.has('purchases'));
+  if (scopes.has('parties') && !bothTransactions)
+    return 'To delete Parties you must also delete both Sales and Purchases (they reference parties).';
+  if (scopes.has('items') && !bothTransactions)
+    return 'To delete Items you must also delete both Sales and Purchases (they reference items).';
   if (scopes.has('salesPersons') && (!scopes.has('parties') || !scopes.has('expenses')))
     return 'To delete Sales Persons you must also delete Parties and Expenses.';
   return null;
@@ -99,13 +105,23 @@ export function validateResetScopes(scopes: Set<string>): string | null {
  * first.
  */
 export async function wipeSelected(tx: Prisma.TransactionClient, scopes: Set<string>) {
-  if (scopes.has('transactions')) {
-    await tx.paymentAllocation.deleteMany();
-    await tx.paymentInwardAllocation.deleteMany();
-    await tx.freightEntry.deleteMany();
-    await tx.handlingEntry.deleteMany();
-    await tx.payment.deleteMany();
+  // 'transactions' is the legacy combined key — treat it as both sales and purchases.
+  const wipeSales = scopes.has('sales') || scopes.has('transactions');
+  const wipePurchases = scopes.has('purchases') || scopes.has('transactions');
+
+  if (wipeSales) {
+    // Sales side: outward invoices, the receipts (dir='in') taken against them, and the freight and
+    // handling posted on them. Deleting an outward row cascades its freight entries and payment
+    // allocations (FK onDelete: Cascade); handling entries are polymorphic (no FK) so go by hand.
+    await tx.handlingEntry.deleteMany({ where: { sourceKind: 'outward' } });
+    await tx.payment.deleteMany({ where: { dir: 'in' } });
     await tx.outward.deleteMany();
+  }
+  if (wipePurchases) {
+    // Purchase side: inward invoices, the payments (dir='out') made against them, and their freight
+    // and handling. Deleting an inward row cascades its freight and inward payment allocations.
+    await tx.handlingEntry.deleteMany({ where: { sourceKind: 'inward' } });
+    await tx.payment.deleteMany({ where: { dir: 'out' } });
     await tx.inward.deleteMany();
   }
   if (scopes.has('expenses')) await tx.salesPersonExpense.deleteMany();

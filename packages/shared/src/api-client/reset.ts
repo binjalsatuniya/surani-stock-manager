@@ -9,7 +9,8 @@ export interface ResetBackup {
 
 // The selectable categories a reset can wipe, with friendly labels (order = display order).
 export const RESET_SCOPES: { key: string; label: string }[] = [
-  { key: 'transactions', label: 'Sales & Purchases (inward, outward, orders, payments, freight/handling)' },
+  { key: 'sales', label: 'Sales (outward invoices, receipts, freight/handling on sales)' },
+  { key: 'purchases', label: 'Purchases (inward invoices, payments, freight/handling on purchases)' },
   { key: 'expenses', label: 'Expenses' },
   { key: 'parties', label: 'Parties (needs Sales & Purchases too)' },
   { key: 'items', label: 'Items (needs Sales & Purchases too)' },
