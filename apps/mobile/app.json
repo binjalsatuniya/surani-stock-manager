@@ -5,7 +5,7 @@
     "scheme": "suraniandsons",
     "version": "1.0.1",
     "orientation": "portrait",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
