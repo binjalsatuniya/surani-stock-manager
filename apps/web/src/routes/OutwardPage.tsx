@@ -49,8 +49,8 @@ export function OutwardPage() {
   const [fInvNo, setFInvNo] = useState('');
   const [fFrom, setFFrom] = useState('');
   const [fTo, setFTo] = useState('');
-  // How the invoices are ordered in the list below.
-  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'invno'>('newest');
+  // How the invoices are ordered in the list below. Default: by bill number, newest bill first.
+  const [sortBy, setSortBy] = useState<'billDesc' | 'billAsc' | 'dateNew' | 'dateOld'>('billDesc');
   const [error, setError] = useState('');
   const canViewInvoice = can('view_invoice');
   // Invoice scan for the entry being added. One file is shared by every item line on the invoice.
@@ -478,10 +478,19 @@ export function OutwardPage() {
         total: rs.reduce((s, x) => s + Number(x.amount || 0), 0),
       };
     });
+    const dateAsc = (a: (typeof gs)[number], b: (typeof gs)[number]) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
     gs.sort((a, b) => {
-      if (sortBy === 'invno') return (a.invNo || '').localeCompare(b.invNo || '') || (a.date < b.date ? 1 : -1);
-      if (sortBy === 'oldest') return a.date < b.date ? -1 : a.date > b.date ? 1 : 0;
-      return a.date > b.date ? -1 : a.date < b.date ? 1 : 0; // newest first
+      if (sortBy === 'dateOld') return dateAsc(a, b);
+      if (sortBy === 'dateNew') return -dateAsc(a, b);
+      // Bill-number order: compare the numbers inside the invoice number properly (so 99 < 428),
+      // and always keep entries without a bill number at the end.
+      const an = a.invNo || '';
+      const bn = b.invNo || '';
+      if (!an && !bn) return -dateAsc(a, b);
+      if (!an) return 1;
+      if (!bn) return -1;
+      const c = an.localeCompare(bn, undefined, { numeric: true, sensitivity: 'base' });
+      return sortBy === 'billAsc' ? c || dateAsc(a, b) : -c || -dateAsc(a, b);
     });
     return gs;
   })();
@@ -680,9 +689,10 @@ export function OutwardPage() {
         <div className="field" style={{ margin: 0 }}>
           <label>Sort</label>
           <select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)}>
-            <option value="newest">Date — new to old</option>
-            <option value="oldest">Date — old to new</option>
-            <option value="invno">Invoice No.</option>
+            <option value="billDesc">Bill No. — new to old</option>
+            <option value="billAsc">Bill No. — old to new</option>
+            <option value="dateNew">Date — new to old</option>
+            <option value="dateOld">Date — old to new</option>
           </select>
         </div>
         {showFilter && (
