@@ -10,6 +10,15 @@ export interface CreateExpenseInput {
   attachmentName?: string | null;
 }
 
+export interface EditExpenseInput {
+  salesPersonId?: string;
+  date?: string;
+  amount?: number;
+  expenseFor?: string;
+  attachment?: string | null;
+  attachmentName?: string | null;
+}
+
 export interface ExpenseRule {
   backdateDays: number | null; // max days an expense can be back-dated; null = no limit
   today: string; // today's date (YYYY-MM-DD) in the business timezone
@@ -24,6 +33,7 @@ export function createExpensesClient(http: HttpClient) {
       return http.get<SalesPersonExpense[]>(`/expenses${qs}`);
     },
     create: (input: CreateExpenseInput) => http.post<SalesPersonExpense>('/expenses', input),
+    update: (id: string, input: EditExpenseInput) => http.patch<SalesPersonExpense>(`/expenses/${id}`, input),
     setPaid: (id: string, paid: boolean, details?: { paidBy?: string | null; paidMode?: string | null }) =>
       http.patch<SalesPersonExpense>(`/expenses/${id}/paid`, { paid, ...details }),
     remove: (id: string) => http.delete<void>(`/expenses/${id}`),

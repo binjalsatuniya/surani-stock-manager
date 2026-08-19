@@ -161,6 +161,60 @@ expensesRouter.patch(
   })
 );
 
+// Edit an expense's details (date, sales person, amount, what it was for, attachment). Gated by
+// edit_expenses. The back-dating rule is only enforced when the date is actually being changed, so
+// correcting the amount of an old expense is never blocked by it.
+const editExpenseSchema = z.object({
+  salesPersonId: z.string().uuid().optional(),
+  date: z.string().min(1).optional(),
+  amount: z.coerce.number().nonnegative().optional(),
+  expenseFor: z.string().min(1).optional(),
+  attachment: z.string().max(7_000_000).nullable().optional(),
+  attachmentName: z.string().nullable().optional(),
+});
+expensesRouter.patch(
+  '/:id',
+  requirePermission('edit_expenses'),
+  asyncHandler(async (req, res) => {
+    const input = editExpenseSchema.parse(req.body);
+    const existing = await prisma.salesPersonExpense.findUnique({ where: { id: req.params.id } });
+    if (!existing) throw new NotFoundError('Expense not found');
+
+    const existingDate = existing.date.toISOString().slice(0, 10);
+    if (input.date !== undefined && input.date !== existingDate) {
+      const backdateDays = await getBackdateDays();
+      const today = istToday();
+      if (input.date > today) throw new HttpError(400, "Expense date can't be in the future.");
+      if (backdateDays !== null) {
+        const earliest = addDays(today, -backdateDays);
+        if (input.date < earliest) {
+          throw new HttpError(
+            400,
+            backdateDays === 0
+              ? 'Only today’s date is allowed by the expense date rule.'
+              : `An expense can be dated at most ${backdateDays} day(s) back (not before ${earliest}).`
+          );
+        }
+      }
+    }
+
+    const updated = await prisma.salesPersonExpense.update({
+      where: { id: existing.id },
+      data: {
+        ...(input.salesPersonId !== undefined ? { salesPersonId: input.salesPersonId } : {}),
+        ...(input.date !== undefined ? { date: new Date(input.date) } : {}),
+        ...(input.amount !== undefined ? { amount: input.amount } : {}),
+        ...(input.expenseFor !== undefined ? { expenseFor: input.expenseFor } : {}),
+        ...(input.attachment !== undefined ? { attachment: input.attachment || null } : {}),
+        ...(input.attachmentName !== undefined ? { attachmentName: input.attachmentName || null } : {}),
+      },
+    });
+    await logActivity(prisma, req.user!, 'edit', 'expense', existing.id,
+      `Expense edited: ₹${Number(updated.amount).toLocaleString('en-IN')} · ${updated.expenseFor}`);
+    res.json(toExpenseDTO(updated));
+  })
+);
+
 expensesRouter.delete(
   '/:id',
   requirePermission('delete_expenses'),

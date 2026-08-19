@@ -25,7 +25,8 @@ export function ExpensesPage() {
   const can = usePermission();
   const { confirm } = useDialogs();
   const canDelete = can('delete_expenses');
-  const canEdit = can('add_expenses') || can('edit_expenses') || canDelete;
+  const canEditExpense = can('edit_expenses');
+  const canEdit = can('add_expenses') || canEditExpense || canDelete;
   const [salesPersons, setSalesPersons] = useState<SalesPerson[]>([]);
   const [rows, setRows] = useState<SalesPersonExpense[]>([]);
   const [filterSp, setFilterSp] = useState('');
@@ -187,6 +188,49 @@ export function ExpensesPage() {
     setPayTarget(null);
     reload();
     if (ledgerSpId) openLedger(ledgerSpId);
+  }
+
+  // Editing an expense's details (JAYNIL / anyone with edit_expenses).
+  const [editTarget, setEditTarget] = useState<SalesPersonExpense | null>(null);
+  const [ed, setEd] = useState({ date: '', salesPersonId: '', amount: '', expenseFor: '' });
+  const [edAttachment, setEdAttachment] = useState<{ data: string; name: string } | null>(null);
+
+  function openEdit(exp: SalesPersonExpense) {
+    setError('');
+    setEditTarget(exp);
+    setEd({ date: exp.date.slice(0, 10), salesPersonId: exp.salesPersonId, amount: String(exp.amount), expenseFor: exp.expenseFor });
+    setEdAttachment(null);
+  }
+  function onPickEditFile(file: File | null) {
+    setError('');
+    if (!file) return setEdAttachment(null);
+    if (file.size > MAX_ATTACHMENT_BYTES) return setError('Attachment is too large (max 5 MB).');
+    const reader = new FileReader();
+    reader.onload = () => setEdAttachment({ data: String(reader.result), name: file.name });
+    reader.onerror = () => setError('Could not read that file. Please try another one.');
+    reader.readAsDataURL(file);
+  }
+  async function confirmEdit() {
+    if (!editTarget) return;
+    setError('');
+    if (!ed.salesPersonId) return setError('Please select a sales person.');
+    if (!ed.amount) return setError('Please enter an amount.');
+    if (!ed.expenseFor.trim()) return setError('Please enter what the expense is for.');
+    try {
+      await api.expenses.update(editTarget.id, {
+        salesPersonId: ed.salesPersonId,
+        date: ed.date,
+        amount: Number(ed.amount),
+        expenseFor: ed.expenseFor.trim(),
+        // Only send a new attachment when one was picked; leaving it keeps the current file.
+        ...(edAttachment ? { attachment: edAttachment.data, attachmentName: edAttachment.name } : {}),
+      });
+      setEditTarget(null);
+      reload();
+      if (ledgerSpId) openLedger(ledgerSpId);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to edit expense');
+    }
   }
 
   // Opens the bill in a new tab. A data: URL is converted to a blob first — Chromium will not
@@ -403,11 +447,16 @@ export function ExpensesPage() {
                       </td>
                       {canEdit && (
                         <td>
-                          {canDelete && (
-                            <button className="btn btn-sm btn-danger" onClick={() => onDelete(r.id)}>
-                              Delete
-                            </button>
-                          )}
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            {canEditExpense && (
+                              <button className="btn btn-sm" onClick={() => openEdit(r)}>Edit</button>
+                            )}
+                            {canDelete && (
+                              <button className="btn btn-sm btn-danger" onClick={() => onDelete(r.id)}>
+                                Delete
+                              </button>
+                            )}
+                          </div>
                         </td>
                       )}
                     </tr>
@@ -507,11 +556,16 @@ export function ExpensesPage() {
                 </td>
                 {canEdit && (
                   <td>
-                    {canDelete && (
-                      <button className="btn btn-sm btn-danger" onClick={() => onDelete(r.id)}>
-                        Delete
-                      </button>
-                    )}
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      {canEditExpense && (
+                        <button className="btn btn-sm" onClick={() => openEdit(r)}>Edit</button>
+                      )}
+                      {canDelete && (
+                        <button className="btn btn-sm btn-danger" onClick={() => onDelete(r.id)}>
+                          Delete
+                        </button>
+                      )}
+                    </div>
                   </td>
                 )}
               </tr>
@@ -550,6 +604,50 @@ export function ExpensesPage() {
             <div style={{ display: 'flex', gap: 8 }}>
               <button className="btn btn-primary" style={{ flex: 1 }} onClick={confirmPay}>Confirm paid</button>
               <button className="btn" style={{ flex: 1 }} onClick={() => setPayTarget(null)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editTarget && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}
+          onClick={() => setEditTarget(null)}
+        >
+          <div className="card" style={{ width: 420, maxWidth: '92%' }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ marginTop: 0 }}>Edit expense</h3>
+            <div className="field" style={{ margin: '0 0 10px' }}>
+              <label>Date</label>
+              <input type="date" value={ed.date} min={earliestDate} max={rule?.today} onChange={(e) => setEd({ ...ed, date: e.target.value })} />
+            </div>
+            <div className="field" style={{ margin: '0 0 10px' }}>
+              <label>Sales Person</label>
+              <select value={ed.salesPersonId} onChange={(e) => setEd({ ...ed, salesPersonId: e.target.value })}>
+                <option value="">Select…</option>
+                {salesPersons.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="field" style={{ margin: '0 0 10px' }}>
+              <label>Amount (₹)</label>
+              <input value={ed.amount} onChange={(e) => setEd({ ...ed, amount: e.target.value })} />
+            </div>
+            <div className="field" style={{ margin: '0 0 10px' }}>
+              <label>Expense For</label>
+              <input value={ed.expenseFor} onChange={(e) => setEd({ ...ed, expenseFor: e.target.value })} />
+            </div>
+            <div className="field" style={{ margin: '0 0 14px' }}>
+              <label>Attachment (invoice)</label>
+              <input type="file" accept="image/*,application/pdf" onChange={(e) => onPickEditFile(e.target.files?.[0] || null)} />
+              <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
+                {edAttachment ? `📎 ${edAttachment.name} (new)` : editTarget.attachmentName ? `📎 ${editTarget.attachmentName} — leave blank to keep it` : 'No attachment'}
+              </div>
+            </div>
+            {error && <div className="login-err show" style={{ marginBottom: 10 }}>{error}</div>}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-primary" style={{ flex: 1 }} onClick={confirmEdit}>Save changes</button>
+              <button className="btn" style={{ flex: 1 }} onClick={() => setEditTarget(null)}>Cancel</button>
             </div>
           </div>
         </div>
