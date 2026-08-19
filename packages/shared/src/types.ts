@@ -100,6 +100,16 @@ export interface SalesPersonExpense {
   paidAt: string | null;
   paidBy: string | null; // who paid it
   paidMode: string | null; // Cash / bank account used
+  tripId: string | null; // the trip this expense belongs to, or null
+  tripName?: string | null; // resolved trip name (embedded by the list endpoint) for display
+  createdAt: string;
+}
+
+// A named trip that expenses can be grouped under (field visits, travel, etc.).
+export interface Trip {
+  id: string;
+  name: string;
+  note: string | null;
   createdAt: string;
 }
 

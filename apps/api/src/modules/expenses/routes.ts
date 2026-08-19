@@ -29,7 +29,7 @@ async function getBackdateDays(): Promise<number | null> {
   return typeof v === 'number' ? v : null;
 }
 
-function toExpenseDTO(e: PrismaExpense): SalesPersonExpense {
+function toExpenseDTO(e: PrismaExpense & { trip?: { name: string } | null }): SalesPersonExpense {
   return {
     id: e.id,
     salesPersonId: e.salesPersonId,
@@ -42,6 +42,8 @@ function toExpenseDTO(e: PrismaExpense): SalesPersonExpense {
     paidAt: e.paidAt ? e.paidAt.toISOString() : null,
     paidBy: e.paidBy,
     paidMode: e.paidMode,
+    tripId: e.tripId ?? null,
+    tripName: e.trip?.name ?? null,
     createdAt: e.createdAt.toISOString(),
   };
 }
@@ -54,6 +56,7 @@ const expenseSchema = z.object({
   // A data: URL (base64) of the attached invoice image/PDF, capped to keep the DB lean (~5MB encoded).
   attachment: z.string().max(7_000_000).nullable().optional(),
   attachmentName: z.string().nullable().optional(),
+  tripId: z.string().uuid().nullable().optional(),
 });
 
 // Read the back-dating rule (everyone, so their form can enforce it) — { backdateDays, today }.
@@ -89,6 +92,7 @@ expensesRouter.get(
     const rows = await prisma.salesPersonExpense.findMany({
       where: { ...(validSp.success ? { salesPersonId: validSp.data } : {}) },
       orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+      include: { trip: { select: { name: true } } },
     });
     res.json(rows.map(toExpenseDTO));
   })
@@ -124,6 +128,7 @@ expensesRouter.post(
         expenseFor: input.expenseFor,
         attachment: input.attachment || null,
         attachmentName: input.attachmentName || null,
+        tripId: input.tripId || null,
         createdById: req.user!.id,
       },
     });
@@ -171,6 +176,7 @@ const editExpenseSchema = z.object({
   expenseFor: z.string().min(1).optional(),
   attachment: z.string().max(7_000_000).nullable().optional(),
   attachmentName: z.string().nullable().optional(),
+  tripId: z.string().uuid().nullable().optional(),
 });
 expensesRouter.patch(
   '/:id',
@@ -207,6 +213,7 @@ expensesRouter.patch(
         ...(input.expenseFor !== undefined ? { expenseFor: input.expenseFor } : {}),
         ...(input.attachment !== undefined ? { attachment: input.attachment || null } : {}),
         ...(input.attachmentName !== undefined ? { attachmentName: input.attachmentName || null } : {}),
+        ...(input.tripId !== undefined ? { tripId: input.tripId || null } : {}),
       },
     });
     await logActivity(prisma, req.user!, 'edit', 'expense', existing.id,

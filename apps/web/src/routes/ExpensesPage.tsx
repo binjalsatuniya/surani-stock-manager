@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { buildWhatsappLink, PAYMENT_MODES, type SalesPerson, type SalesPersonExpense } from '@surani/shared';
+import { buildWhatsappLink, PAYMENT_MODES, type SalesPerson, type SalesPersonExpense, type Trip } from '@surani/shared';
 import { api } from '../lib/apiClient';
 import { shareOnWhatsapp } from '../lib/whatsappShare';
 import { useAuth } from '../context/AuthContext';
@@ -18,6 +18,7 @@ const EMPTY = {
   salesPersonId: '',
   amount: '',
   expenseFor: '',
+  tripId: '',
 };
 
 export function ExpensesPage() {
@@ -36,6 +37,12 @@ export function ExpensesPage() {
   // The sales person whose dedicated ledger is open (null = none).
   const [ledgerSpId, setLedgerSpId] = useState<string | null>(null);
   const [ledgerRows, setLedgerRows] = useState<SalesPersonExpense[]>([]);
+  // Trips: a named grouping an expense can be tagged with.
+  const canManageTrips = can('manage_expense_trips');
+  const [trips, setTrips] = useState<Trip[]>([]);
+  const [newTripName, setNewTripName] = useState('');
+  const [tripMsg, setTripMsg] = useState('');
+  const loadTrips = () => api.trips.list().then(setTrips).catch(() => {});
 
   function openLedger(id: string) {
     setLedgerSpId(id);
@@ -84,6 +91,7 @@ export function ExpensesPage() {
 
   useEffect(() => {
     api.salesPersons.list().then(setSalesPersons);
+    loadTrips();
     api.expenses.getRule().then((r) => {
       setRule(r);
       setRuleInput(r.backdateDays === null ? '' : String(r.backdateDays));
@@ -135,6 +143,30 @@ export function ExpensesPage() {
     reader.readAsDataURL(file);
   }
 
+  async function createTrip() {
+    setTripMsg('');
+    if (!newTripName.trim()) return setTripMsg('Enter a trip name.');
+    try {
+      await api.trips.create({ name: newTripName.trim() });
+      setNewTripName('');
+      setTripMsg('Trip added.');
+      loadTrips();
+    } catch (e) {
+      setTripMsg(e instanceof Error ? e.message : 'Failed to add trip');
+    }
+  }
+  async function deleteTrip(id: string) {
+    if (!(await confirm('Delete this trip? Expenses tagged to it just lose the tag; they are not deleted.', { okLabel: 'Delete', danger: true }))) return;
+    try {
+      await api.trips.remove(id);
+      loadTrips();
+      reload();
+      if (ledgerSpId) openLedger(ledgerSpId);
+    } catch (e) {
+      setTripMsg(e instanceof Error ? e.message : 'Failed to delete trip');
+    }
+  }
+
   async function onAdd() {
     setError('');
     if (!form.salesPersonId) return setError('Please select a sales person.');
@@ -148,6 +180,7 @@ export function ExpensesPage() {
         expenseFor: form.expenseFor.trim(),
         attachment: attachment?.data || null,
         attachmentName: attachment?.name || null,
+        tripId: form.tripId || null,
       });
       setForm((f) => ({ ...EMPTY, date: f.date }));
       setAttachment(null);
@@ -192,13 +225,13 @@ export function ExpensesPage() {
 
   // Editing an expense's details (JAYNIL / anyone with edit_expenses).
   const [editTarget, setEditTarget] = useState<SalesPersonExpense | null>(null);
-  const [ed, setEd] = useState({ date: '', salesPersonId: '', amount: '', expenseFor: '' });
+  const [ed, setEd] = useState({ date: '', salesPersonId: '', amount: '', expenseFor: '', tripId: '' });
   const [edAttachment, setEdAttachment] = useState<{ data: string; name: string } | null>(null);
 
   function openEdit(exp: SalesPersonExpense) {
     setError('');
     setEditTarget(exp);
-    setEd({ date: exp.date.slice(0, 10), salesPersonId: exp.salesPersonId, amount: String(exp.amount), expenseFor: exp.expenseFor });
+    setEd({ date: exp.date.slice(0, 10), salesPersonId: exp.salesPersonId, amount: String(exp.amount), expenseFor: exp.expenseFor, tripId: exp.tripId || '' });
     setEdAttachment(null);
   }
   function onPickEditFile(file: File | null) {
@@ -222,6 +255,7 @@ export function ExpensesPage() {
         date: ed.date,
         amount: Number(ed.amount),
         expenseFor: ed.expenseFor.trim(),
+        tripId: ed.tripId || null,
         // Only send a new attachment when one was picked; leaving it keeps the current file.
         ...(edAttachment ? { attachment: edAttachment.data, attachmentName: edAttachment.name } : {}),
       });
@@ -313,6 +347,35 @@ export function ExpensesPage() {
           </div>
         )}
 
+        {canManageTrips && (
+          <div style={{ marginBottom: 12, padding: 10, border: '1px dashed var(--line)', borderRadius: 8 }}>
+            <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 6 }}>
+              Trips <span className="muted" style={{ fontWeight: 500 }}>— create a trip, then tag expenses to it</span>
+            </div>
+            <div className="toolbar" style={{ margin: 0, alignItems: 'center' }}>
+              <input
+                value={newTripName}
+                onChange={(e) => setNewTripName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); createTrip(); } }}
+                placeholder="New trip name (e.g. Mumbai — Aug)"
+                style={{ minWidth: 240, padding: '8px 10px', border: '1px solid var(--line)', borderRadius: 8 }}
+              />
+              <button className="btn btn-sm btn-primary" onClick={createTrip}>Add Trip</button>
+              {tripMsg && <span className="muted" style={{ fontSize: 12 }}>{tripMsg}</span>}
+            </div>
+            {trips.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                {trips.map((t) => (
+                  <span key={t.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, background: '#f1f5f9', borderRadius: 999, padding: '3px 10px' }}>
+                    {t.name}
+                    <button onClick={() => deleteTrip(t.id)} title="Delete trip" style={{ border: 'none', background: 'transparent', color: '#dc2626', cursor: 'pointer', fontWeight: 700, padding: 0 }}>✕</button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {canEdit && (
           <div onKeyDown={onAddFormKey}>
             {rule && rule.backdateDays !== null && (
@@ -345,6 +408,15 @@ export function ExpensesPage() {
               <div className="field" style={{ margin: 0, flex: 1, minWidth: 180 }}>
                 <label>Expense For</label>
                 <input value={form.expenseFor} onChange={(e) => set('expenseFor', e.target.value)} placeholder="e.g. Fuel, hotel, client lunch…" />
+              </div>
+              <div className="field" style={{ margin: 0 }}>
+                <label>Trip</label>
+                <select value={form.tripId} onChange={(e) => set('tripId', e.target.value)}>
+                  <option value="">— none —</option>
+                  {trips.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
               </div>
               <div className="field" style={{ margin: 0 }}>
                 <label>Attachment (invoice)</label>
@@ -449,7 +521,10 @@ export function ExpensesPage() {
                   return (
                     <tr key={r.id}>
                       <td>{fmtDate(r.date)}</td>
-                      <td>{r.expenseFor}</td>
+                      <td>
+                  {r.expenseFor}
+                  {r.tripName && <div style={{ fontSize: 10.5, color: '#0f766e', fontWeight: 600 }}>🧭 {r.tripName}</div>}
+                </td>
                       <td style={{ textAlign: 'right', fontWeight: 600 }}>{inr(r.amount)}</td>
                       <td style={{ textAlign: 'right', fontWeight: 700 }}>{inr(running)}</td>
                       <td>
@@ -558,7 +633,10 @@ export function ExpensesPage() {
               <tr key={r.id}>
                 <td>{fmtDate(r.date)}</td>
                 <td>{spName(r.salesPersonId)}</td>
-                <td>{r.expenseFor}</td>
+                <td>
+                  {r.expenseFor}
+                  {r.tripName && <div style={{ fontSize: 10.5, color: '#0f766e', fontWeight: 600 }}>🧭 {r.tripName}</div>}
+                </td>
                 <td style={{ textAlign: 'right', fontWeight: 600 }}>{inr(r.amount)}</td>
                 <td>
                   {r.paid ? (
@@ -666,6 +744,15 @@ export function ExpensesPage() {
             <div className="field" style={{ margin: '0 0 10px' }}>
               <label>Expense For</label>
               <input value={ed.expenseFor} onChange={(e) => setEd({ ...ed, expenseFor: e.target.value })} />
+            </div>
+            <div className="field" style={{ margin: '0 0 10px' }}>
+              <label>Trip</label>
+              <select value={ed.tripId} onChange={(e) => setEd({ ...ed, tripId: e.target.value })}>
+                <option value="">— none —</option>
+                {trips.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
             </div>
             <div className="field" style={{ margin: '0 0 14px' }}>
               <label>Attachment (invoice)</label>

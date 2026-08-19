@@ -46,6 +46,7 @@ backupRouter.post(
       await tx.approvalRequest.deleteMany();
       await tx.loginLocation.deleteMany();
       await tx.salesPersonExpense.deleteMany();
+      await tx.trip.deleteMany();
       await tx.payment.deleteMany();
       await tx.outward.deleteMany();
       await tx.inward.deleteMany();
@@ -58,6 +59,8 @@ backupRouter.post(
 
       if (db.users) await tx.user.createMany({ data: db.users as never[] });
       if (db.salesPersons) await tx.salesPerson.createMany({ data: db.salesPersons as never[] });
+      // Trips must exist before the expenses that reference them.
+      if (db.expenseTrips) await tx.trip.createMany({ data: db.expenseTrips as never[] });
       if (db.salespersonExpenses) await tx.salesPersonExpense.createMany({ data: db.salespersonExpenses as never[] });
       if (db.parties) await tx.party.createMany({ data: db.parties as never[] });
       if (db.items) await tx.item.createMany({ data: db.items as never[] });

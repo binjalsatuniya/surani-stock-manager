@@ -42,6 +42,7 @@ export const PERMS = [
   { id: 'add_expenses', label: 'Add Expenses', group: 'Expenses' },
   { id: 'edit_expenses', label: 'Edit / Mark-paid Expenses', group: 'Expenses' },
   { id: 'delete_expenses', label: 'Delete Expenses', group: 'Expenses' },
+  { id: 'manage_expense_trips', label: 'Create / delete Expense Trips', group: 'Expenses' },
 
   { id: 'view_payments', label: 'View Payment Due', group: 'Finance' },
   { id: 'record_payments', label: 'Add Payments', group: 'Finance' },

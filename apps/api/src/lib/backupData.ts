@@ -16,6 +16,7 @@ export async function exportAllData(client: Db = prisma) {
     items,
     salesPersons,
     salespersonExpenses,
+    expenseTrips,
     inward,
     outward,
     payments,
@@ -33,6 +34,7 @@ export async function exportAllData(client: Db = prisma) {
     client.item.findMany(),
     client.salesPerson.findMany(),
     client.salesPersonExpense.findMany(),
+    client.trip.findMany(),
     client.inward.findMany(),
     client.outward.findMany(),
     client.payment.findMany(),
@@ -52,6 +54,7 @@ export async function exportAllData(client: Db = prisma) {
     items,
     salesPersons,
     salespersonExpenses,
+    expenseTrips,
     inward,
     outward,
     payments,
@@ -124,7 +127,10 @@ export async function wipeSelected(tx: Prisma.TransactionClient, scopes: Set<str
     await tx.payment.deleteMany({ where: { dir: 'out' } });
     await tx.inward.deleteMany();
   }
-  if (scopes.has('expenses')) await tx.salesPersonExpense.deleteMany();
+  if (scopes.has('expenses')) {
+    await tx.salesPersonExpense.deleteMany();
+    await tx.trip.deleteMany();
+  }
   if (scopes.has('loginLocations')) await tx.loginLocation.deleteMany();
   if (scopes.has('auditLog')) await tx.auditLog.deleteMany();
   if (scopes.has('approvals')) await tx.approvalRequest.deleteMany();

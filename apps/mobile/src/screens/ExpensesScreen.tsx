@@ -17,7 +17,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { File, Paths } from 'expo-file-system';
-import { buildWhatsappLink, PAYMENT_MODES, type SalesPerson, type SalesPersonExpense } from '@surani/shared';
+import { buildWhatsappLink, PAYMENT_MODES, type SalesPerson, type SalesPersonExpense, type Trip } from '@surani/shared';
 import { api } from '../lib/apiClient';
 import { useAuth } from '../context/AuthContext';
 import { usePermission } from '../hooks/usePermission';
@@ -40,6 +40,7 @@ const EMPTY = {
   salesPersonId: '',
   amount: '',
   expenseFor: '',
+  tripId: '',
 };
 
 type Attachment = { data: string; name: string };
@@ -76,11 +77,16 @@ export function ExpensesScreen() {
   // The sales person whose dedicated ledger is open (null = none).
   const [ledgerSpId, setLedgerSpId] = useState<string | null>(null);
   const [ledgerRows, setLedgerRows] = useState<SalesPersonExpense[]>([]);
+  // Trips: a named grouping expenses can be tagged with.
+  const canManageTrips = can('manage_expense_trips');
+  const [trips, setTrips] = useState<Trip[]>([]);
+  const [newTripName, setNewTripName] = useState('');
+  const loadTrips = () => api.trips.list().then(setTrips).catch(() => {});
   // Image attachment being previewed full-screen (data URL).
   const [preview, setPreview] = useState<{ uri: string; name: string } | null>(null);
   // Editing an existing expense (needs edit_expenses).
   const [editTarget, setEditTarget] = useState<SalesPersonExpense | null>(null);
-  const [ed, setEd] = useState({ date: '', salesPersonId: '', amount: '', expenseFor: '' });
+  const [ed, setEd] = useState({ date: '', salesPersonId: '', amount: '', expenseFor: '', tripId: '' });
   const [edAttachment, setEdAttachment] = useState<Attachment | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
 
@@ -90,6 +96,7 @@ export function ExpensesScreen() {
 
   useEffect(() => {
     api.salesPersons.list().then(setSalesPersons).catch(() => {});
+    loadTrips();
     api.expenses.getRule().then((r) => {
       setRule(r);
       setRuleInput(r.backdateDays === null ? '' : String(r.backdateDays));
@@ -257,6 +264,7 @@ export function ExpensesScreen() {
         expenseFor: form.expenseFor.trim(),
         attachment: attachment?.data || null,
         attachmentName: attachment?.name || null,
+        tripId: form.tripId || null,
       });
       setForm((f) => ({ ...EMPTY, date: f.date }));
       setAttachment(null);
@@ -304,10 +312,41 @@ export function ExpensesScreen() {
     }
   }
 
+  async function createTrip() {
+    const name = newTripName.trim();
+    if (!name) return;
+    try {
+      await api.trips.create({ name });
+      setNewTripName('');
+      await loadTrips();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to add trip');
+    }
+  }
+  function deleteTrip(id: string) {
+    Alert.alert('Delete trip', 'Delete this trip? Tagged expenses just lose the tag — they are not deleted.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await api.trips.remove(id);
+            await loadTrips();
+            await reload();
+            if (ledgerSpId) openLedger(ledgerSpId);
+          } catch (e) {
+            setError(e instanceof Error ? e.message : 'Failed to delete trip');
+          }
+        },
+      },
+    ]);
+  }
+
   function openEdit(exp: SalesPersonExpense) {
     setError('');
     setEditTarget(exp);
-    setEd({ date: exp.date.slice(0, 10), salesPersonId: exp.salesPersonId, amount: String(exp.amount), expenseFor: exp.expenseFor });
+    setEd({ date: exp.date.slice(0, 10), salesPersonId: exp.salesPersonId, amount: String(exp.amount), expenseFor: exp.expenseFor, tripId: exp.tripId || '' });
     setEdAttachment(null);
   }
 
@@ -337,6 +376,7 @@ export function ExpensesScreen() {
         date: ed.date,
         amount: Number(ed.amount),
         expenseFor: ed.expenseFor.trim(),
+        tripId: ed.tripId || null,
         // Only send a new attachment when one was picked; leaving it keeps the current file.
         ...(edAttachment ? { attachment: edAttachment.data, attachmentName: edAttachment.name } : {}),
       });
@@ -485,6 +525,34 @@ export function ExpensesScreen() {
         </View>
       )}
 
+      {canManageTrips && (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Trips</Text>
+          <Text style={styles.ruleDesc}>Create a trip, then tag expenses to it.</Text>
+          <View style={styles.ruleRow}>
+            <TextInput
+              style={[styles.input, { flex: 1 }]}
+              value={newTripName}
+              onChangeText={setNewTripName}
+              placeholder="New trip name (e.g. Mumbai — Aug)"
+              placeholderTextColor="#94a3b8"
+            />
+            <TouchableOpacity style={styles.ruleBtn} onPress={createTrip}>
+              <Text style={styles.btnText}>Add</Text>
+            </TouchableOpacity>
+          </View>
+          {trips.length > 0 && (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
+              {trips.map((t) => (
+                <TouchableOpacity key={t.id} onPress={() => deleteTrip(t.id)} style={styles.tripChip}>
+                  <Text style={styles.tripChipText}>{t.name}  ✕</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </View>
+      )}
+
       {canEdit && !showForm && (
         <TouchableOpacity style={styles.btn} onPress={() => setShowForm(true)}>
           <Text style={styles.btnText}>＋ Add Expense</Text>
@@ -528,6 +596,16 @@ export function ExpensesScreen() {
             onChangeText={(v) => set('expenseFor', v)}
             placeholder="e.g. Fuel, hotel, client lunch…"
           />
+
+          <Text style={styles.label}>Trip</Text>
+          <View style={styles.pickerWrap}>
+            <Picker selectedValue={form.tripId} onValueChange={(v) => set('tripId', String(v))} style={styles.picker}>
+              <Picker.Item label="— none —" value="" />
+              {trips.map((t) => (
+                <Picker.Item key={t.id} label={t.name} value={t.id} />
+              ))}
+            </Picker>
+          </View>
 
           <Text style={styles.label}>Attachment (invoice)</Text>
           <TouchableOpacity style={styles.attachBtn} onPress={() => chooseAttachment('add')}>
@@ -602,6 +680,7 @@ export function ExpensesScreen() {
                     <Text style={styles.ledgerMeta}>
                       {fmtDate(r.date)} · Running {inr(running)}
                     </Text>
+                    {r.tripName ? <Text style={styles.tripTag}>🧭 {r.tripName}</Text> : null}
                     <Text style={[styles.paidTag, r.paid ? styles.paidYes : styles.paidNo]}>
                       {r.paid
                         ? `✅ Paid${r.paidMode ? ` · ${r.paidMode}` : ''}${r.paidBy ? ` · by ${r.paidBy}` : ''}`
@@ -683,6 +762,7 @@ export function ExpensesScreen() {
               <Text style={styles.ledgerMeta}>
                 {fmtDate(r.date)} · {spName(r.salesPersonId)}
               </Text>
+              {r.tripName ? <Text style={styles.tripTag}>🧭 {r.tripName}</Text> : null}
             </View>
             <Text style={styles.ledgerAmt}>{inr(r.amount)}</Text>
             {canEditExpense && (
@@ -748,6 +828,16 @@ export function ExpensesScreen() {
 
               <Text style={styles.label}>Expense For</Text>
               <TextInput style={styles.input} value={ed.expenseFor} onChangeText={(v) => setEd({ ...ed, expenseFor: v })} />
+
+              <Text style={styles.label}>Trip</Text>
+              <View style={styles.pickerWrap}>
+                <Picker selectedValue={ed.tripId} onValueChange={(v) => setEd({ ...ed, tripId: String(v) })} style={styles.picker}>
+                  <Picker.Item label="— none —" value="" />
+                  {trips.map((t) => (
+                    <Picker.Item key={t.id} label={t.name} value={t.id} />
+                  ))}
+                </Picker>
+              </View>
 
               <Text style={styles.label}>Attachment (invoice)</Text>
               <TouchableOpacity style={styles.attachBtn} onPress={() => chooseAttachment('edit')}>
@@ -845,6 +935,9 @@ const styles = StyleSheet.create({
   ledgerRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, borderTopWidth: 1, borderTopColor: '#f1f5f9' },
   ledgerFor: { fontWeight: '600', fontSize: 13, color: '#0b1220' },
   ledgerMeta: { color: '#94a3b8', fontSize: 11, marginTop: 2 },
+  tripTag: { color: '#0f766e', fontSize: 11, fontWeight: '700', marginTop: 2 },
+  tripChip: { backgroundColor: '#f1f5f9', borderRadius: 999, paddingVertical: 5, paddingHorizontal: 12 },
+  tripChipText: { color: '#0b1220', fontSize: 12, fontWeight: '600' },
   ledgerAmt: { fontWeight: '700', fontSize: 13, color: '#0b1220' },
   paidTag: { fontSize: 10.5, fontWeight: '700', marginTop: 3 },
   paidYes: { color: '#15803d' },

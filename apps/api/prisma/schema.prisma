@@ -39,6 +39,7 @@ model User {
   financialYearsMade FinancialYear[]
   loginLocations    LoginLocation[]
   pushTokens        PushToken[]
+  expenseTrips      Trip[]             @relation("TripCreatedBy")
 
   @@map("users")
 }
@@ -112,12 +113,31 @@ model SalesPersonExpense {
   paidBy         String?  @map("paid_by") // who paid it
   paidMode       String?  @map("paid_mode") // Cash / bank account used
   createdById    String?  @map("created_by_id") @db.Uuid
+  tripId         String?  @map("trip_id") @db.Uuid // optional trip this expense belongs to
   createdAt      DateTime @default(now()) @map("created_at")
 
   salesPerson SalesPerson @relation(fields: [salesPersonId], references: [id], onDelete: Cascade)
+  trip        Trip?       @relation(fields: [tripId], references: [id], onDelete: SetNull)
 
   @@index([salesPersonId])
+  @@index([tripId])
   @@map("salesperson_expenses")
+}
+
+// A named trip that expenses can be tagged with, so field/travel spend can be grouped and totalled
+// per trip. Created from the Expenses screen (needs manage_expense_trips); selecting one while
+// entering an expense is part of add_expenses.
+model Trip {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String
+  note        String?
+  createdById String?  @map("created_by") @db.Uuid
+  createdBy   User?    @relation("TripCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  expenses SalesPersonExpense[]
+
+  @@map("expense_trips")
 }
 
 // ============ PARTIES ============

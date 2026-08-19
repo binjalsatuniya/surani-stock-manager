@@ -8,6 +8,7 @@ export interface CreateExpenseInput {
   expenseFor: string;
   attachment?: string | null; // data: URL (base64) of the invoice image/PDF
   attachmentName?: string | null;
+  tripId?: string | null; // optional trip this expense belongs to
 }
 
 export interface EditExpenseInput {
@@ -17,6 +18,7 @@ export interface EditExpenseInput {
   expenseFor?: string;
   attachment?: string | null;
   attachmentName?: string | null;
+  tripId?: string | null;
 }
 
 export interface ExpenseRule {

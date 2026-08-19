@@ -17,6 +17,7 @@ import { createWhatsappClient } from './whatsapp';
 import { createFinancialYearsClient } from './financial-years';
 import { createFieldSettingsClient } from './field-settings';
 import { createExpensesClient } from './expenses';
+import { createTripsClient } from './trips';
 import { createLoginLocationsClient } from './login-locations';
 import { createResetClient } from './reset';
 import { createRecoveryClient } from './recovery';
@@ -92,6 +93,7 @@ export function createApiClient(opts: HttpClientOptions) {
     financialYears: createFinancialYearsClient(http),
     fieldSettings: createFieldSettingsClient(http),
     expenses: createExpensesClient(http),
+    trips: createTripsClient(http),
     loginLocations: createLoginLocationsClient(http),
     reset: createResetClient(http),
     recovery: createRecoveryClient(http),
