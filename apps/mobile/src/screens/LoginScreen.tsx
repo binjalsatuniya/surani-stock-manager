@@ -122,6 +122,11 @@ export function LoginScreen() {
         autoCapitalize="none"
         value={username}
         onChangeText={setUsername}
+        // Tag the field so the phone's password manager (Google Password Manager / iCloud Keychain)
+        // recognises it and offers to save & autofill the login.
+        autoComplete="username"
+        textContentType="username"
+        importantForAutofill="yes"
       />
       <View style={styles.passwordRow}>
         <TextInput
@@ -131,6 +136,9 @@ export function LoginScreen() {
           secureTextEntry={!showPassword}
           value={password}
           onChangeText={setPassword}
+          autoComplete="current-password"
+          textContentType="password"
+          importantForAutofill="yes"
         />
         <TouchableOpacity style={styles.eyeBtn} onPress={() => setShowPassword((s) => !s)}>
           <Text style={styles.eyeText}>{showPassword ? '🙈' : '👁'}</Text>

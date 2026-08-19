@@ -190,11 +190,12 @@ export function LoginPage() {
         <form onSubmit={onSubmit}>
           <div className="field">
             <label>Username</label>
-            <input value={username} onChange={(e) => setUsername(e.target.value)} autoFocus />
+            {/* name + autoComplete let the browser / OS password manager offer to save & fill the login. */}
+            <input name="username" autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} autoFocus />
           </div>
           <div className="field">
             <label>Password</label>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+            <input type="password" name="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
           </div>
           <button className="btn btn-primary" style={{ width: '100%' }} disabled={busy}>
             {busy ? 'Signing in…' : 'Sign in'}
