@@ -3,7 +3,7 @@
     "name": "Surani and Sons",
     "slug": "surani-and-sons-stock-manager",
     "scheme": "suraniandsons",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "newArchEnabled": false,
     "icon": "./assets/icon.png",
@@ -14,8 +14,14 @@
     },
     "android": {
       "package": "com.suraniandsons.stockmanager",
+      "googleServicesFile": "./google-services.json",
+      "permissions": [
+        "CAMERA",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ],
       "adaptiveIcon": {
-        "backgroundColor": "#134e4a",
+        "backgroundColor": "#ffffff",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -26,7 +32,25 @@
       "favicon": "./assets/favicon.png"
     },
     "extra": {
-      "apiBaseUrl": "https://surani-stock-manager.onrender.com"
-    }
+      "apiBaseUrl": "https://stock.suraniandsons.com/api"
+    },
+    "plugins": [
+      "expo-sharing",
+      "expo-notifications",
+      "./plugins/withLightTheme.js",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Surani and Sons to attach a bill photo from your gallery to an expense.",
+          "cameraPermission": "Allow Surani and Sons to photograph a bill to attach to an expense."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow Surani and Sons to record your location when you sign in."
+        }
+      ]
+    ]
   }
 }
