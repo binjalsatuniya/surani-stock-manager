@@ -2,6 +2,7 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import * as SecureStore from 'expo-secure-store';
 
 const HINT_KEY = 'surani-quick-unlock-hint';
+const CREDS_KEY = 'surani-saved-credentials';
 
 export interface QuickUnlockHint {
   userId: string;
@@ -31,6 +32,41 @@ export async function getQuickUnlockHint(): Promise<QuickUnlockHint | null> {
   try {
     const raw = await SecureStore.getItemAsync(HINT_KEY);
     return raw ? (JSON.parse(raw) as QuickUnlockHint) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * "Remember password" on this device. The username and password are kept in the OS secure store
+ * (encrypted Keychain / Keystore, app-scoped) so the login screen can pre-fill them next time — for
+ * users whose phone has no fingerprint enrolled and so cannot use Quick Unlock. Opt-in only.
+ */
+export interface SavedCredentials {
+  username: string;
+  password: string;
+}
+
+export async function saveCredentials(username: string, password: string) {
+  try {
+    await SecureStore.setItemAsync(CREDS_KEY, JSON.stringify({ username, password }));
+  } catch {
+    /* not available on this platform (e.g. web preview) */
+  }
+}
+
+export async function clearSavedCredentials() {
+  try {
+    await SecureStore.deleteItemAsync(CREDS_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+export async function getSavedCredentials(): Promise<SavedCredentials | null> {
+  try {
+    const raw = await SecureStore.getItemAsync(CREDS_KEY);
+    return raw ? (JSON.parse(raw) as SavedCredentials) : null;
   } catch {
     return null;
   }

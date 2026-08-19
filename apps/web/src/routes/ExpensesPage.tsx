@@ -233,6 +233,36 @@ export function ExpensesPage() {
     }
   }
 
+  // Keyboard shortcuts while a dialog is open: Enter saves, Esc cancels.
+  useEffect(() => {
+    if (!editTarget && !payTarget) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        editTarget ? setEditTarget(null) : setPayTarget(null);
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        editTarget ? confirmEdit() : confirmPay();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editTarget, payTarget, ed, edAttachment, payBy, payMode]);
+
+  // Enter saves the new expense; Esc clears the add form. Scoped to the form so it doesn't fire elsewhere.
+  function onAddFormKey(e: React.KeyboardEvent) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      onAdd();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      setForm((f) => ({ ...EMPTY, date: f.date }));
+      setAttachment(null);
+      setError('');
+    }
+  }
+
   // Opens the bill in a new tab. A data: URL is converted to a blob first — Chromium will not
   // render a PDF from a data: URL, so the old viewer showed an empty frame. See lib/dataUrl.ts.
   function openAttachment(exp: SalesPersonExpense) {
@@ -284,7 +314,7 @@ export function ExpensesPage() {
         )}
 
         {canEdit && (
-          <>
+          <div onKeyDown={onAddFormKey}>
             {rule && rule.backdateDays !== null && (
               <div className="muted" style={{ fontSize: 11.5, marginBottom: 6 }}>
                 {rule.backdateDays === 0
@@ -330,7 +360,7 @@ export function ExpensesPage() {
                 <span className="muted">Add sales persons first (Parties page) to record expenses against them.</span>
               )}
             </div>
-          </>
+          </div>
         )}
         {error && <div className="login-err show">{error}</div>}
       </div>
