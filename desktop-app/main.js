@@ -1,6 +1,34 @@
 const { app, BrowserWindow, Menu, shell, session } = require('electron');
 const path = require('path');
 
+// Turn a WhatsApp web link (wa.me / *.whatsapp.com) into the desktop-app protocol, so the installed
+// WhatsApp application opens instead of a browser tab. Returns null for any non-WhatsApp URL.
+function toWhatsappProtocol(rawUrl) {
+  try {
+    const u = new URL(rawUrl);
+    const host = u.hostname.toLowerCase();
+    if (host === 'wa.me' || host === 'whatsapp.com' || host.endsWith('.whatsapp.com')) {
+      let phone = u.pathname.replace(/\D/g, '');
+      if (!phone) phone = (u.searchParams.get('phone') || '').replace(/\D/g, '');
+      const text = u.searchParams.get('text') || '';
+      const params = [];
+      if (phone) params.push('phone=' + phone);
+      if (text) params.push('text=' + encodeURIComponent(text));
+      return 'whatsapp://send' + (params.length ? '?' + params.join('&') : '');
+    }
+  } catch (_) {
+    /* not a parseable URL — fall through */
+  }
+  return null;
+}
+
+// Open a link OUTSIDE the app: WhatsApp links launch the installed WhatsApp app; everything else
+// goes to the system default handler (browser, mail client, phone dialer).
+function routeExternal(rawUrl) {
+  if (!rawUrl) return;
+  shell.openExternal(toWhatsappProtocol(rawUrl) || rawUrl);
+}
+
 // Geolocation: grant the permission when the web app requests it. NOTE: for coordinates to
 // actually be returned in the packaged desktop app, Chromium's geolocation network service needs
 // a Google API key — set it via the GOOGLE_API_KEY environment variable before launching. Without
@@ -58,12 +86,6 @@ function createWindow() {
     mainWindow.show();
   });
 
-  // Open external links in system browser
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
-    return { action: 'deny' };
-  });
-
   mainWindow.on('closed', () => { mainWindow = null; });
 }
 
@@ -104,6 +126,30 @@ function buildMenu() {
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
+
+// Applies to every window, including the child windows the app opens for PDFs and previews.
+app.on('web-contents-created', (_event, contents) => {
+  contents.setWindowOpenHandler(({ url }) => {
+    // Internal windows the app fills itself must open as real Electron windows so Chromium renders
+    // them: the "Export PDF" print window (window.open('','_blank')) and the blob:/data: previews of
+    // attached invoices, bills and TDS sheets. Everything else is a genuine external link.
+    if (url === '' || url === 'about:blank' || url.startsWith('blob:') || url.startsWith('data:')) {
+      return { action: 'allow' };
+    }
+    routeExternal(url);
+    return { action: 'deny' };
+  });
+  // A helper window heading to an http(s) link (e.g. a pre-opened WhatsApp tab navigating to wa.me)
+  // should leave the app too, then close itself. The main app lives on file:// and never navigates.
+  contents.on('will-navigate', (event, url) => {
+    if (/^https?:\/\//i.test(url)) {
+      event.preventDefault();
+      routeExternal(url);
+      const win = BrowserWindow.fromWebContents(contents);
+      if (win && win !== mainWindow) win.close();
+    }
+  });
+});
 
 app.whenReady().then(() => {
   enableGeolocation();
