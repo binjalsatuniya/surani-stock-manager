@@ -3,6 +3,7 @@ import { buildWhatsappLink, deliveryTermsLabel, type Item, type Outward, type Pa
 import { api } from '../lib/apiClient';
 import { shareOnWhatsapp } from '../lib/whatsappShare';
 import { usePermission } from '../hooks/usePermission';
+import { useEscToClose } from '../hooks/useEscToClose';
 import { useDialogs } from '../components/Dialogs';
 import { useAuth } from '../context/AuthContext';
 import { useWhatsappTemplates } from '../hooks/useWhatsappTemplates';
@@ -69,6 +70,9 @@ export function OrderBookPage() {
   const [qrWarnings, setQrWarnings] = useState<string[]>([]);
   // `url` is a blob: URL created on open and revoked on close — see openInvoice/closeInvoice.
   const [invoiceView, setInvoiceView] = useState<{ url: string; name: string; isPdf: boolean } | null>(null);
+  useEscToClose(!!invoiceView, () => closeInvoice());
+  useEscToClose(!!dispatchingId, () => setDispatchingId(null));
+  useEscToClose(!!editing, () => setEditing(null));
   const [dHandlingAgent, setDHandlingAgent] = useState('');
   const [dHandlingRate, setDHandlingRate] = useState('');
 

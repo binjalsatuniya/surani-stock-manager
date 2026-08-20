@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { buildWhatsappLink, type Item, type ItemUnit } from '@surani/shared';
 import { api } from '../lib/apiClient';
 import { usePermission } from '../hooks/usePermission';
+import { useEscToClose } from '../hooks/useEscToClose';
 import { useDialogs } from '../components/Dialogs';
 import { useFieldSettings } from '../hooks/useFieldSettings';
 import { FieldLabel } from '../components/FieldLabel';
@@ -40,6 +41,7 @@ export function ItemsPage() {
   // the existing TDS, so without this an edit would blank it out).
   const [tdsChanged, setTdsChanged] = useState(false);
   const [error, setError] = useState('');
+  useEscToClose(!!tdsView, () => closeTds());
 
   async function reload() {
     setItems(await api.items.list());

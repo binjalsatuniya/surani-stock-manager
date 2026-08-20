@@ -309,22 +309,28 @@ export function ExpensesPage() {
     }
   }
 
-  // Keyboard shortcuts while a dialog is open: Enter saves, Esc cancels.
+  // Keyboard shortcuts while a dialog is open: Enter saves, Esc closes. Covers every Expenses popup.
   useEffect(() => {
-    if (!editTarget && !payTarget) return;
+    if (!editTarget && !payTarget && !tripPayTarget && !tripLedger) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
-        editTarget ? setEditTarget(null) : setPayTarget(null);
+        if (editTarget) setEditTarget(null);
+        else if (payTarget) setPayTarget(null);
+        else if (tripPayTarget) setTripPayTarget(null);
+        else setTripLedger(null);
       } else if (e.key === 'Enter') {
         e.preventDefault();
-        editTarget ? confirmEdit() : confirmPay();
+        if (editTarget) confirmEdit();
+        else if (payTarget) confirmPay();
+        else if (tripPayTarget) confirmTripPay();
+        // the trip ledger has no primary action, so Enter does nothing there
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editTarget, payTarget, ed, edAttachment, payBy, payMode]);
+  }, [editTarget, payTarget, tripPayTarget, tripLedger, ed, edAttachment, payBy, payMode, tripPayBy, tripPayMode]);
 
   // Enter saves the new expense; Esc clears the add form. Scoped to the form so it doesn't fire elsewhere.
   function onAddFormKey(e: React.KeyboardEvent) {
