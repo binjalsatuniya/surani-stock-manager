@@ -1,4 +1,5 @@
 import express from 'express';
+import compression from 'compression';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
@@ -34,6 +35,8 @@ import { pushRouter } from './modules/push/routes';
 
 export const app = express();
 
+// gzip every response — JSON lists compress ~70-90%, so pages (and every tab switch) load faster.
+app.use(compression());
 app.use(helmet());
 // Native Expo Go / mobile requests carry no Origin header and aren't subject to CORS at all —
 // this only matters for browser-based clients: the web app and `expo start --web` during dev.
