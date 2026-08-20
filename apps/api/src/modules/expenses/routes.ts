@@ -87,10 +87,14 @@ expensesRouter.get(
   '/',
   requirePermission('view_expenses'),
   asyncHandler(async (req, res) => {
-    const { salesPersonId } = req.query as Record<string, string | undefined>;
+    const { salesPersonId, tripId } = req.query as Record<string, string | undefined>;
     const validSp = z.string().uuid().safeParse(salesPersonId);
+    const validTrip = z.string().uuid().safeParse(tripId);
     const rows = await prisma.salesPersonExpense.findMany({
-      where: { ...(validSp.success ? { salesPersonId: validSp.data } : {}) },
+      where: {
+        ...(validSp.success ? { salesPersonId: validSp.data } : {}),
+        ...(validTrip.success ? { tripId: validTrip.data } : {}),
+      },
       orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
       include: { trip: { select: { name: true } } },
     });

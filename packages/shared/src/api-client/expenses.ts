@@ -30,9 +30,12 @@ export function createExpensesClient(http: HttpClient) {
   return {
     getRule: () => http.get<ExpenseRule>('/expenses/rule'),
     setRule: (backdateDays: number | null) => http.patch<ExpenseRule>('/expenses/rule', { backdateDays }),
-    list: (params?: { salesPersonId?: string }) => {
-      const qs = params?.salesPersonId ? `?salesPersonId=${encodeURIComponent(params.salesPersonId)}` : '';
-      return http.get<SalesPersonExpense[]>(`/expenses${qs}`);
+    list: (params?: { salesPersonId?: string; tripId?: string }) => {
+      const q = new URLSearchParams();
+      if (params?.salesPersonId) q.set('salesPersonId', params.salesPersonId);
+      if (params?.tripId) q.set('tripId', params.tripId);
+      const qs = q.toString();
+      return http.get<SalesPersonExpense[]>(`/expenses${qs ? `?${qs}` : ''}`);
     },
     create: (input: CreateExpenseInput) => http.post<SalesPersonExpense>('/expenses', input),
     update: (id: string, input: EditExpenseInput) => http.patch<SalesPersonExpense>(`/expenses/${id}`, input),

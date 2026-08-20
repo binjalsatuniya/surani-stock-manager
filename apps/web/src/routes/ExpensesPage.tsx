@@ -43,6 +43,9 @@ export function ExpensesPage() {
   const [newTripName, setNewTripName] = useState('');
   const [tripMsg, setTripMsg] = useState('');
   const loadTrips = () => api.trips.list().then(setTrips).catch(() => {});
+  // Trip ledger being viewed (its expenses + total).
+  const [tripLedger, setTripLedger] = useState<Trip | null>(null);
+  const [tripLedgerRows, setTripLedgerRows] = useState<SalesPersonExpense[]>([]);
 
   function openLedger(id: string) {
     setLedgerSpId(id);
@@ -155,6 +158,21 @@ export function ExpensesPage() {
       setTripMsg(e instanceof Error ? e.message : 'Failed to add trip');
     }
   }
+  async function closeTrip(t: Trip) {
+    setTripMsg('');
+    try {
+      await api.trips.setClosed(t.id, !t.closedAt);
+      loadTrips();
+    } catch (e) {
+      setTripMsg(e instanceof Error ? e.message : 'Failed to update trip');
+    }
+  }
+  function openTripLedger(t: Trip) {
+    setTripLedger(t);
+    setTripLedgerRows([]);
+    api.expenses.list({ tripId: t.id }).then(setTripLedgerRows).catch(() => setTripLedgerRows([]));
+  }
+
   async function deleteTrip(id: string) {
     if (!(await confirm('Delete this trip? Expenses tagged to it just lose the tag; they are not deleted.', { okLabel: 'Delete', danger: true }))) return;
     try {
@@ -364,12 +382,21 @@ export function ExpensesPage() {
               {tripMsg && <span className="muted" style={{ fontSize: 12 }}>{tripMsg}</span>}
             </div>
             {trips.length > 0 && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+              <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column' }}>
                 {trips.map((t) => (
-                  <span key={t.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, background: '#f1f5f9', borderRadius: 999, padding: '3px 10px' }}>
-                    {t.name}
-                    <button onClick={() => deleteTrip(t.id)} title="Delete trip" style={{ border: 'none', background: 'transparent', color: '#dc2626', cursor: 'pointer', fontWeight: 700, padding: 0 }}>✕</button>
-                  </span>
+                  <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, padding: '6px 0', borderTop: '1px solid var(--line)' }}>
+                    <span style={{ flex: 1, fontWeight: 600 }}>
+                      {t.name}
+                      {t.closedAt ? (
+                        <span style={{ marginLeft: 8, color: '#15803d', fontWeight: 700, fontSize: 11 }}>✓ Paid / closed</span>
+                      ) : (
+                        <span style={{ marginLeft: 8, color: '#b45309', fontWeight: 700, fontSize: 11 }}>● Open</span>
+                      )}
+                    </span>
+                    <button className="btn btn-sm" onClick={() => openTripLedger(t)}>Ledger</button>
+                    <button className="btn btn-sm" onClick={() => closeTrip(t)}>{t.closedAt ? 'Reopen' : 'Mark as Paid'}</button>
+                    <button className="btn btn-sm btn-danger" onClick={() => deleteTrip(t.id)}>Delete</button>
+                  </div>
                 ))}
               </div>
             )}
@@ -413,7 +440,7 @@ export function ExpensesPage() {
                 <label>Trip</label>
                 <select value={form.tripId} onChange={(e) => set('tripId', e.target.value)}>
                   <option value="">— none —</option>
-                  {trips.map((t) => (
+                  {trips.filter((t) => !t.closedAt).map((t) => (
                     <option key={t.id} value={t.id}>{t.name}</option>
                   ))}
                 </select>
@@ -750,7 +777,7 @@ export function ExpensesPage() {
               <select value={ed.tripId} onChange={(e) => setEd({ ...ed, tripId: e.target.value })}>
                 <option value="">— none —</option>
                 {trips.map((t) => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
+                  <option key={t.id} value={t.id}>{t.name}{t.closedAt ? ' (closed)' : ''}</option>
                 ))}
               </select>
             </div>
@@ -766,6 +793,71 @@ export function ExpensesPage() {
               <button className="btn btn-primary" style={{ flex: 1 }} onClick={confirmEdit}>Save changes</button>
               <button className="btn" style={{ flex: 1 }} onClick={() => setEditTarget(null)}>Cancel</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {tripLedger && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 20 }}
+          onClick={() => setTripLedger(null)}
+        >
+          <div className="card" style={{ width: 760, maxWidth: '96%', maxHeight: '88vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()}>
+            <div className="toolbar" style={{ alignItems: 'center', marginBottom: 6 }}>
+              <h3 style={{ margin: 0, flex: 1 }}>
+                Trip Ledger — {tripLedger.name}
+                {tripLedger.closedAt ? (
+                  <span style={{ marginLeft: 8, color: '#15803d', fontWeight: 700, fontSize: 12 }}>✓ Paid / closed</span>
+                ) : (
+                  <span style={{ marginLeft: 8, color: '#b45309', fontWeight: 700, fontSize: 12 }}>● Open</span>
+                )}
+              </h3>
+              <button className="btn btn-sm" onClick={() => setTripLedger(null)}>Close</button>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Sales Person</th>
+                  <th>Expense For</th>
+                  <th style={{ textAlign: 'right' }}>Amount (₹)</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tripLedgerRows.map((r) => (
+                  <tr key={r.id}>
+                    <td>{fmtDate(r.date)}</td>
+                    <td>{spName(r.salesPersonId)}</td>
+                    <td>{r.expenseFor}</td>
+                    <td style={{ textAlign: 'right', fontWeight: 600 }}>{inr(r.amount)}</td>
+                    <td>
+                      {r.paid ? (
+                        <span style={{ color: '#15803d', fontWeight: 700, fontSize: 12 }}>✅ Paid</span>
+                      ) : (
+                        <span style={{ color: '#b45309', fontWeight: 700, fontSize: 12 }}>● Unpaid</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+                {tripLedgerRows.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="muted">No expenses tagged to this trip.</td>
+                  </tr>
+                )}
+              </tbody>
+              {tripLedgerRows.length > 0 && (
+                <tfoot>
+                  <tr>
+                    <td colSpan={3} style={{ fontWeight: 700 }}>Trip Total</td>
+                    <td style={{ textAlign: 'right', fontWeight: 800, color: '#ef4444' }}>
+                      {inr(tripLedgerRows.reduce((s, r) => s + r.amount, 0))}
+                    </td>
+                    <td></td>
+                  </tr>
+                </tfoot>
+              )}
+            </table>
           </div>
         </div>
       )}

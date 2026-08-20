@@ -110,6 +110,7 @@ export interface Trip {
   id: string;
   name: string;
   note: string | null;
+  closedAt: string | null; // set when the trip is marked paid / closed; null = open
   createdAt: string;
 }
 

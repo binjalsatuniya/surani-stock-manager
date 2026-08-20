@@ -82,6 +82,8 @@ export function ExpensesScreen() {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [newTripName, setNewTripName] = useState('');
   const loadTrips = () => api.trips.list().then(setTrips).catch(() => {});
+  const [tripLedger, setTripLedger] = useState<Trip | null>(null);
+  const [tripLedgerRows, setTripLedgerRows] = useState<SalesPersonExpense[]>([]);
   // Image attachment being previewed full-screen (data URL).
   const [preview, setPreview] = useState<{ uri: string; name: string } | null>(null);
   // Editing an existing expense (needs edit_expenses).
@@ -323,6 +325,19 @@ export function ExpensesScreen() {
       setError(e instanceof Error ? e.message : 'Failed to add trip');
     }
   }
+  async function closeTrip(t: Trip) {
+    try {
+      await api.trips.setClosed(t.id, !t.closedAt);
+      await loadTrips();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to update trip');
+    }
+  }
+  function openTripLedger(t: Trip) {
+    setTripLedger(t);
+    setTripLedgerRows([]);
+    api.expenses.list({ tripId: t.id }).then(setTripLedgerRows).catch(() => setTripLedgerRows([]));
+  }
   function deleteTrip(id: string) {
     Alert.alert('Delete trip', 'Delete this trip? Tagged expenses just lose the tag — they are not deleted.', [
       { text: 'Cancel', style: 'cancel' },
@@ -542,11 +557,23 @@ export function ExpensesScreen() {
             </TouchableOpacity>
           </View>
           {trips.length > 0 && (
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
+            <View style={{ marginTop: 10 }}>
               {trips.map((t) => (
-                <TouchableOpacity key={t.id} onPress={() => deleteTrip(t.id)} style={styles.tripChip}>
-                  <Text style={styles.tripChipText}>{t.name}  ✕</Text>
-                </TouchableOpacity>
+                <View key={t.id} style={styles.tripRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.tripName}>{t.name}</Text>
+                    <Text style={t.closedAt ? styles.tripClosed : styles.tripOpen}>{t.closedAt ? '✓ Paid / closed' : '● Open'}</Text>
+                  </View>
+                  <TouchableOpacity style={styles.btnSm} onPress={() => openTripLedger(t)}>
+                    <Text style={styles.btnSmText}>Ledger</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.btnSm} onPress={() => closeTrip(t)}>
+                    <Text style={styles.btnSmText}>{t.closedAt ? 'Reopen' : 'Paid'}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.btnSmDanger} onPress={() => deleteTrip(t.id)}>
+                    <Text style={styles.btnSmDangerText}>✕</Text>
+                  </TouchableOpacity>
+                </View>
               ))}
             </View>
           )}
@@ -601,7 +628,7 @@ export function ExpensesScreen() {
           <View style={styles.pickerWrap}>
             <Picker selectedValue={form.tripId} onValueChange={(v) => set('tripId', String(v))} style={styles.picker}>
               <Picker.Item label="— none —" value="" />
-              {trips.map((t) => (
+              {trips.filter((t) => !t.closedAt).map((t) => (
                 <Picker.Item key={t.id} label={t.name} value={t.id} />
               ))}
             </Picker>
@@ -834,7 +861,7 @@ export function ExpensesScreen() {
                 <Picker selectedValue={ed.tripId} onValueChange={(v) => setEd({ ...ed, tripId: String(v) })} style={styles.picker}>
                   <Picker.Item label="— none —" value="" />
                   {trips.map((t) => (
-                    <Picker.Item key={t.id} label={t.name} value={t.id} />
+                    <Picker.Item key={t.id} label={t.closedAt ? `${t.name} (closed)` : t.name} value={t.id} />
                   ))}
                 </Picker>
               </View>
@@ -891,6 +918,37 @@ export function ExpensesScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Trip ledger */}
+      <Modal visible={!!tripLedger} transparent animationType="slide" onRequestClose={() => setTripLedger(null)}>
+        <View style={styles.payBackdrop}>
+          <View style={[styles.payCard, { maxHeight: '85%' }]}>
+            <View style={styles.cardHead}>
+              <Text style={styles.payTitle}>Trip Ledger — {tripLedger?.name}</Text>
+              <TouchableOpacity onPress={() => setTripLedger(null)}>
+                <Text style={styles.closeX}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={tripLedger?.closedAt ? styles.tripClosed : styles.tripOpen}>
+              {tripLedger?.closedAt ? '✓ Paid / closed' : '● Open'}
+            </Text>
+            <Text style={styles.ledgerTotal}>Total: {inr(tripLedgerRows.reduce((s, r) => s + r.amount, 0))}</Text>
+            <ScrollView style={{ marginTop: 6 }}>
+              {tripLedgerRows.map((r) => (
+                <View key={r.id} style={styles.ledgerRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.ledgerFor}>{r.expenseFor}</Text>
+                    <Text style={styles.ledgerMeta}>{fmtDate(r.date)} · {spName(r.salesPersonId)}</Text>
+                    <Text style={[styles.paidTag, r.paid ? styles.paidYes : styles.paidNo]}>{r.paid ? '✅ Paid' : '● Unpaid'}</Text>
+                  </View>
+                  <Text style={styles.ledgerAmt}>{inr(r.amount)}</Text>
+                </View>
+              ))}
+              {tripLedgerRows.length === 0 ? <Text style={styles.empty}>No expenses tagged to this trip.</Text> : null}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -938,6 +996,10 @@ const styles = StyleSheet.create({
   tripTag: { color: '#0f766e', fontSize: 11, fontWeight: '700', marginTop: 2 },
   tripChip: { backgroundColor: '#f1f5f9', borderRadius: 999, paddingVertical: 5, paddingHorizontal: 12 },
   tripChipText: { color: '#0b1220', fontSize: 12, fontWeight: '600' },
+  tripRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#f1f5f9' },
+  tripName: { fontWeight: '700', fontSize: 13, color: '#0b1220' },
+  tripOpen: { color: '#b45309', fontSize: 11, fontWeight: '700', marginTop: 2 },
+  tripClosed: { color: '#15803d', fontSize: 11, fontWeight: '700', marginTop: 2 },
   ledgerAmt: { fontWeight: '700', fontSize: 13, color: '#0b1220' },
   paidTag: { fontSize: 10.5, fontWeight: '700', marginTop: 3 },
   paidYes: { color: '#15803d' },

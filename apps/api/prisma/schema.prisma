@@ -131,6 +131,7 @@ model Trip {
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name        String
   note        String?
+  closedAt    DateTime? @map("closed_at") // set when the trip is marked paid / closed
   createdById String?  @map("created_by") @db.Uuid
   createdBy   User?    @relation("TripCreatedBy", fields: [createdById], references: [id])
   createdAt   DateTime @default(now()) @map("created_at")

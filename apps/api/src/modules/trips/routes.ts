@@ -13,7 +13,13 @@ export const tripsRouter = Router();
 tripsRouter.use(authenticate);
 
 function toTripDTO(t: PrismaTrip): Trip {
-  return { id: t.id, name: t.name, note: t.note, createdAt: t.createdAt.toISOString() };
+  return {
+    id: t.id,
+    name: t.name,
+    note: t.note,
+    closedAt: t.closedAt ? t.closedAt.toISOString() : null,
+    createdAt: t.createdAt.toISOString(),
+  };
 }
 
 // Anyone who can see expenses can read the trip list (to pick one when entering an expense).
@@ -37,6 +43,25 @@ tripsRouter.post(
     });
     await logActivity(prisma, req.user!, 'create', 'trip', created.id, `Trip created: ${created.name}`);
     res.status(201).json(toTripDTO(created));
+  })
+);
+
+// Close (mark paid) or reopen a trip.
+const closeSchema = z.object({ closed: z.boolean() });
+tripsRouter.patch(
+  '/:id',
+  requirePermission('manage_expense_trips'),
+  asyncHandler(async (req, res) => {
+    const { closed } = closeSchema.parse(req.body);
+    const existing = await prisma.trip.findUnique({ where: { id: req.params.id } });
+    if (!existing) throw new NotFoundError('Trip not found');
+    const updated = await prisma.trip.update({
+      where: { id: existing.id },
+      data: { closedAt: closed ? new Date() : null },
+    });
+    await logActivity(prisma, req.user!, closed ? 'close' : 'reopen', 'trip', existing.id,
+      `Trip ${closed ? 'marked paid / closed' : 'reopened'}: ${existing.name}`);
+    res.json(toTripDTO(updated));
   })
 );
 
