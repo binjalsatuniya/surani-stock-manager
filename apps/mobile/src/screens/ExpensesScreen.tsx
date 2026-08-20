@@ -84,6 +84,9 @@ export function ExpensesScreen() {
   const loadTrips = () => api.trips.list().then(setTrips).catch(() => {});
   const [tripLedger, setTripLedger] = useState<Trip | null>(null);
   const [tripLedgerRows, setTripLedgerRows] = useState<SalesPersonExpense[]>([]);
+  const [tripPayTarget, setTripPayTarget] = useState<Trip | null>(null);
+  const [tripPayBy, setTripPayBy] = useState('');
+  const [tripPayMode, setTripPayMode] = useState<string>('Cash');
   // Image attachment being previewed full-screen (data URL).
   const [preview, setPreview] = useState<{ uri: string; name: string } | null>(null);
   // Editing an existing expense (needs edit_expenses).
@@ -325,12 +328,30 @@ export function ExpensesScreen() {
       setError(e instanceof Error ? e.message : 'Failed to add trip');
     }
   }
-  async function closeTrip(t: Trip) {
+  function openTripPay(t: Trip) {
+    setTripPayBy(user?.name || '');
+    setTripPayMode('Cash');
+    setTripPayTarget(t);
+  }
+  async function confirmTripPay() {
+    if (!tripPayTarget) return;
     try {
-      await api.trips.setClosed(t.id, !t.closedAt);
+      await api.trips.pay(tripPayTarget.id, { paidBy: tripPayBy.trim() || null, paidMode: tripPayMode });
+      setTripPayTarget(null);
+      await loadTrips();
+      await reload();
+      if (ledgerSpId) openLedger(ledgerSpId);
+      if (tripLedger) openTripLedger(tripLedger);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to mark trip paid');
+    }
+  }
+  async function reopenTrip(t: Trip) {
+    try {
+      await api.trips.setClosed(t.id, false);
       await loadTrips();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to update trip');
+      setError(e instanceof Error ? e.message : 'Failed to reopen trip');
     }
   }
   function openTripLedger(t: Trip) {
@@ -567,7 +588,7 @@ export function ExpensesScreen() {
                   <TouchableOpacity style={styles.btnSm} onPress={() => openTripLedger(t)}>
                     <Text style={styles.btnSmText}>Ledger</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.btnSm} onPress={() => closeTrip(t)}>
+                  <TouchableOpacity style={styles.btnSm} onPress={() => (t.closedAt ? reopenTrip(t) : openTripPay(t))}>
                     <Text style={styles.btnSmText}>{t.closedAt ? 'Reopen' : 'Paid'}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.btnSmDanger} onPress={() => deleteTrip(t.id)}>
@@ -933,6 +954,11 @@ export function ExpensesScreen() {
               {tripLedger?.closedAt ? '✓ Paid / closed' : '● Open'}
             </Text>
             <Text style={styles.ledgerTotal}>Total: {inr(tripLedgerRows.reduce((s, r) => s + r.amount, 0))}</Text>
+            {tripLedger && !tripLedger.closedAt ? (
+              <TouchableOpacity style={[styles.btn, { marginTop: 8 }]} onPress={() => openTripPay(tripLedger)}>
+                <Text style={styles.btnText}>Mark as Paid</Text>
+              </TouchableOpacity>
+            ) : null}
             <ScrollView style={{ marginTop: 6 }}>
               {tripLedgerRows.map((r) => (
                 <View key={r.id} style={styles.ledgerRow}>
@@ -946,6 +972,37 @@ export function ExpensesScreen() {
               ))}
               {tripLedgerRows.length === 0 ? <Text style={styles.empty}>No expenses tagged to this trip.</Text> : null}
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Mark trip as paid: how + who */}
+      <Modal visible={!!tripPayTarget} transparent animationType="fade" onRequestClose={() => setTripPayTarget(null)}>
+        <View style={styles.payBackdrop}>
+          <View style={styles.payCard}>
+            <Text style={styles.payTitle}>Mark trip as paid</Text>
+            <Text style={styles.paySub}>{tripPayTarget?.name} — this marks every expense on the trip paid and closes it.</Text>
+
+            <Text style={styles.label}>Payment mode</Text>
+            <View style={styles.pickerWrap}>
+              <Picker selectedValue={tripPayMode} onValueChange={(v) => setTripPayMode(String(v))} style={styles.picker}>
+                {PAYMENT_MODES.map((m) => (
+                  <Picker.Item key={m} label={m} value={m} />
+                ))}
+              </Picker>
+            </View>
+
+            <Text style={styles.label}>Paid by</Text>
+            <TextInput style={styles.input} value={tripPayBy} onChangeText={setTripPayBy} placeholder="Who paid it" placeholderTextColor="#94a3b8" />
+
+            <View style={styles.payRow}>
+              <TouchableOpacity style={[styles.btn, { flex: 1, marginTop: 0 }]} onPress={confirmTripPay}>
+                <Text style={styles.btnText}>Confirm paid</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.btnGhost, { flex: 1, marginTop: 0 }]} onPress={() => setTripPayTarget(null)}>
+                <Text style={styles.btnGhostText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>

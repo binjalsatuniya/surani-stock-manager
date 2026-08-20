@@ -65,6 +65,31 @@ tripsRouter.patch(
   })
 );
 
+// Mark a whole trip paid: record HOW it was settled (mode + who paid), mark every unpaid expense
+// on the trip as paid with those details, and close the trip — all in one transaction.
+const paySchema = z.object({ paidBy: z.string().nullable().optional(), paidMode: z.string().nullable().optional() });
+tripsRouter.post(
+  '/:id/pay',
+  requirePermission('manage_expense_trips'),
+  asyncHandler(async (req, res) => {
+    const { paidBy, paidMode } = paySchema.parse(req.body);
+    const existing = await prisma.trip.findUnique({ where: { id: req.params.id } });
+    if (!existing) throw new NotFoundError('Trip not found');
+    const now = new Date();
+    await prisma.$transaction([
+      prisma.salesPersonExpense.updateMany({
+        where: { tripId: existing.id, paid: false },
+        data: { paid: true, paidAt: now, paidBy: paidBy?.trim() || null, paidMode: paidMode || null },
+      }),
+      prisma.trip.update({ where: { id: existing.id }, data: { closedAt: now } }),
+    ]);
+    const updated = await prisma.trip.findUnique({ where: { id: existing.id } });
+    await logActivity(prisma, req.user!, 'close', 'trip', existing.id,
+      `Trip marked paid${paidMode ? ` (${paidMode})` : ''}: ${existing.name}`);
+    res.json(toTripDTO(updated!));
+  })
+);
+
 // Deleting a trip keeps its expenses (their trip tag is cleared via the FK's ON DELETE SET NULL).
 tripsRouter.delete(
   '/:id',

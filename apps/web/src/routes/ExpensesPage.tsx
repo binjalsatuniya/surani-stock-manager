@@ -158,13 +158,37 @@ export function ExpensesPage() {
       setTripMsg(e instanceof Error ? e.message : 'Failed to add trip');
     }
   }
-  async function closeTrip(t: Trip) {
+  // Marking a trip paid asks HOW (mode + who), then settles its expenses and closes it.
+  const [tripPayTarget, setTripPayTarget] = useState<Trip | null>(null);
+  const [tripPayBy, setTripPayBy] = useState('');
+  const [tripPayMode, setTripPayMode] = useState<string>('Cash');
+
+  function openTripPay(t: Trip) {
+    setTripPayBy(user?.name || '');
+    setTripPayMode('Cash');
+    setTripPayTarget(t);
+  }
+  async function confirmTripPay() {
+    if (!tripPayTarget) return;
     setTripMsg('');
     try {
-      await api.trips.setClosed(t.id, !t.closedAt);
+      await api.trips.pay(tripPayTarget.id, { paidBy: tripPayBy.trim() || null, paidMode: tripPayMode });
+      setTripPayTarget(null);
+      loadTrips();
+      reload();
+      if (ledgerSpId) openLedger(ledgerSpId);
+      if (tripLedger) openTripLedger(tripLedger); // refresh the open ledger's paid marks
+    } catch (e) {
+      setTripMsg(e instanceof Error ? e.message : 'Failed to mark trip paid');
+    }
+  }
+  async function reopenTrip(t: Trip) {
+    setTripMsg('');
+    try {
+      await api.trips.setClosed(t.id, false);
       loadTrips();
     } catch (e) {
-      setTripMsg(e instanceof Error ? e.message : 'Failed to update trip');
+      setTripMsg(e instanceof Error ? e.message : 'Failed to reopen trip');
     }
   }
   function openTripLedger(t: Trip) {
@@ -394,7 +418,11 @@ export function ExpensesPage() {
                       )}
                     </span>
                     <button className="btn btn-sm" onClick={() => openTripLedger(t)}>Ledger</button>
-                    <button className="btn btn-sm" onClick={() => closeTrip(t)}>{t.closedAt ? 'Reopen' : 'Mark as Paid'}</button>
+                    {t.closedAt ? (
+                      <button className="btn btn-sm" onClick={() => reopenTrip(t)}>Reopen</button>
+                    ) : (
+                      <button className="btn btn-sm" onClick={() => openTripPay(t)}>Mark as Paid</button>
+                    )}
                     <button className="btn btn-sm btn-danger" onClick={() => deleteTrip(t.id)}>Delete</button>
                   </div>
                 ))}
@@ -812,6 +840,9 @@ export function ExpensesPage() {
                   <span style={{ marginLeft: 8, color: '#b45309', fontWeight: 700, fontSize: 12 }}>● Open</span>
                 )}
               </h3>
+              {!tripLedger.closedAt && (
+                <button className="btn btn-sm btn-primary" onClick={() => openTripPay(tripLedger)}>Mark as Paid</button>
+              )}
               <button className="btn btn-sm" onClick={() => setTripLedger(null)}>Close</button>
             </div>
             <table>
@@ -858,6 +889,36 @@ export function ExpensesPage() {
                 </tfoot>
               )}
             </table>
+          </div>
+        </div>
+      )}
+
+      {tripPayTarget && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60 }}
+          onClick={() => setTripPayTarget(null)}
+        >
+          <div className="card" style={{ width: 360, maxWidth: '90%' }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ marginTop: 0 }}>Mark trip as paid — {tripPayTarget.name}</h3>
+            <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>
+              This marks every expense on this trip as paid and closes the trip.
+            </div>
+            <div className="field" style={{ margin: '0 0 10px' }}>
+              <label>Payment mode</label>
+              <select value={tripPayMode} onChange={(e) => setTripPayMode(e.target.value)}>
+                {PAYMENT_MODES.map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            </div>
+            <div className="field" style={{ margin: '0 0 14px' }}>
+              <label>Paid by</label>
+              <input value={tripPayBy} onChange={(e) => setTripPayBy(e.target.value)} placeholder="Who paid it" />
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-primary" style={{ flex: 1 }} onClick={confirmTripPay}>Confirm paid</button>
+              <button className="btn" style={{ flex: 1 }} onClick={() => setTripPayTarget(null)}>Cancel</button>
+            </div>
           </div>
         </div>
       )}
