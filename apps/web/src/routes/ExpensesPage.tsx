@@ -164,7 +164,7 @@ export function ExpensesPage() {
   const [tripPayMode, setTripPayMode] = useState<string>('Cash');
 
   function openTripPay(t: Trip) {
-    setTripPayBy(user?.name || '');
+    setTripPayBy('Company');
     setTripPayMode('Cash');
     setTripPayTarget(t);
   }
@@ -251,7 +251,7 @@ export function ExpensesPage() {
       reload();
       if (ledgerSpId) openLedger(ledgerSpId);
     } else {
-      setPayBy(user?.name || '');
+      setPayBy('Company');
       setPayMode('Cash');
       setPayTarget(exp);
     }

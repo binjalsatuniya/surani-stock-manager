@@ -299,7 +299,7 @@ export function ExpensesScreen() {
         setError(e instanceof Error ? e.message : 'Failed to update paid status');
       }
     } else {
-      setPayBy(user?.name || '');
+      setPayBy('Company');
       setPayMode('Cash');
       setPayTarget(exp);
     }
@@ -329,7 +329,7 @@ export function ExpensesScreen() {
     }
   }
   function openTripPay(t: Trip) {
-    setTripPayBy(user?.name || '');
+    setTripPayBy('Company');
     setTripPayMode('Cash');
     setTripPayTarget(t);
   }
