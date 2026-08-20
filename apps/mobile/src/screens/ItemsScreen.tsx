@@ -53,6 +53,8 @@ export function ItemsScreen() {
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  // Only send the TDS on edit when a new one was picked (the list no longer carries the existing one).
+  const [tdsChanged, setTdsChanged] = useState(false);
 
   async function reload() {
     setItems(await api.items.list());
@@ -82,7 +84,7 @@ export function ItemsScreen() {
     if (required('item.category') && !form.category.trim()) return setError('Category is required.');
     if (required('item.code') && !form.code.trim()) return setError('Code / HSN is required.');
     if (required('item.reorder') && !(Number(form.reorder) > 0)) return setError('Reorder / low-stock level is required.');
-    const payload = {
+    const base = {
       name: form.name.trim(),
       category: form.category.trim() || null,
       unit: form.unit,
@@ -92,13 +94,12 @@ export function ItemsScreen() {
       opening: Number(form.opening) || 0,
       reorder: Number(form.reorder) || 0,
       rateDate: null,
-      tdsAttachment: form.tdsAttachment || null,
-      tdsAttachmentName: form.tdsAttachmentName || null,
     };
+    const tds = { tdsAttachment: form.tdsAttachment || null, tdsAttachmentName: form.tdsAttachmentName || null };
     setSaving(true);
     try {
-      if (editingId) await api.items.update(editingId, payload);
-      else await api.items.create(payload);
+      if (editingId) await api.items.update(editingId, tdsChanged ? { ...base, ...tds } : base);
+      else await api.items.create({ ...base, ...tds });
       resetForm();
       await reload();
     } catch (e) {
@@ -121,9 +122,10 @@ export function ItemsScreen() {
       rate: String(i.rate ?? 0),
       opening: String(i.opening ?? 0),
       reorder: String(i.reorder ?? 0),
-      tdsAttachment: i.tdsAttachment || '',
+      tdsAttachment: '', // list no longer carries the blob; fetched on demand
       tdsAttachmentName: i.tdsAttachmentName || '',
     });
+    setTdsChanged(false);
   }
 
   async function pickTds() {
@@ -139,6 +141,7 @@ export function ItemsScreen() {
       const base64 = new File(a.uri).base64Sync();
       set('tdsAttachment', `data:${a.mimeType || 'application/pdf'};base64,${base64}`);
       set('tdsAttachmentName', a.name || 'TDS.pdf');
+      setTdsChanged(true);
     } catch {
       setError('Could not read that file. Please try another one.');
     }
@@ -146,8 +149,13 @@ export function ItemsScreen() {
 
   // Share the TDS via the phone's share sheet (pick WhatsApp → pick the party → the file is attached).
   async function shareTds(i: Item) {
-    if (!i.tdsAttachment) return;
-    const { mime, base64 } = splitDataUrl(i.tdsAttachment);
+    // The list omits the TDS blob; fetch it on demand.
+    const fetched = await api.items.getTds(i.id).catch(() => null);
+    if (!fetched?.tdsAttachment) {
+      setError('The attached TDS could not be read.');
+      return;
+    }
+    const { mime, base64 } = splitDataUrl(fetched.tdsAttachment);
     const name = i.tdsAttachmentName || `${i.name}-TDS.${extForMime(mime)}`;
     try {
       const file = new File(Paths.cache, name);
@@ -239,7 +247,7 @@ export function ItemsScreen() {
             <Text style={styles.attachBtnText}>{form.tdsAttachmentName ? `📄 ${form.tdsAttachmentName}` : '📎 Attach PDF / image'}</Text>
           </TouchableOpacity>
           {form.tdsAttachmentName ? (
-            <TouchableOpacity onPress={() => { set('tdsAttachment', ''); set('tdsAttachmentName', ''); }}>
+            <TouchableOpacity onPress={() => { set('tdsAttachment', ''); set('tdsAttachmentName', ''); setTdsChanged(true); }}>
               <Text style={styles.removeLink}>remove</Text>
             </TouchableOpacity>
           ) : null}
@@ -290,10 +298,10 @@ export function ItemsScreen() {
           </View>
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>TDS</Text>
-            <Text style={styles.detailVal}>{i.tdsAttachment ? 'Attached' : '—'}</Text>
+            <Text style={styles.detailVal}>{i.tdsAttachmentName ? 'Attached' : '—'}</Text>
           </View>
 
-          {i.tdsAttachment ? (
+          {i.tdsAttachmentName ? (
             <TouchableOpacity style={styles.btnWhatsapp} onPress={() => shareTds(i)}>
               <Text style={styles.btnWhatsappText}>📤 Send TDS on WhatsApp</Text>
             </TouchableOpacity>

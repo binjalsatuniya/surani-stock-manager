@@ -36,6 +36,9 @@ export function ItemsPage() {
   const [items, setItems] = useState<Item[]>([]);
   const [form, setForm] = useState({ ...EMPTY });
   const [editingId, setEditingId] = useState<string | null>(null);
+  // True once a new TDS file is picked; only then do we send it on save (the list no longer carries
+  // the existing TDS, so without this an edit would blank it out).
+  const [tdsChanged, setTdsChanged] = useState(false);
   const [error, setError] = useState('');
 
   async function reload() {
@@ -60,7 +63,7 @@ export function ItemsPage() {
     if (required('item.category') && !form.category.trim()) return setError('Category is required.');
     if (required('item.code') && !form.code.trim()) return setError('Code / HSN is required.');
     if (required('item.reorder') && !(Number(form.reorder) > 0)) return setError('Reorder / low-stock level is required.');
-    const payload = {
+    const base = {
       name: form.name.trim(),
       category: form.category.trim() || null,
       unit: form.unit,
@@ -70,12 +73,16 @@ export function ItemsPage() {
       opening: Number(form.opening) || 0,
       reorder: Number(form.reorder) || 0,
       rateDate: null,
-      tdsAttachment: form.tdsAttachment || null,
-      tdsAttachmentName: form.tdsAttachmentName || null,
     };
+    const tds = { tdsAttachment: form.tdsAttachment || null, tdsAttachmentName: form.tdsAttachmentName || null };
     try {
-      if (editingId) await api.items.update(editingId, payload);
-      else await api.items.create(payload);
+      if (editingId) {
+        // Only send the TDS on edit when a new one was picked (or it was removed) — otherwise omit
+        // it so the existing file is kept, since the list no longer carries it.
+        await api.items.update(editingId, tdsChanged ? { ...base, ...tds } : base);
+      } else {
+        await api.items.create({ ...base, ...tds });
+      }
       resetForm();
       reload();
     } catch (e) {
@@ -94,9 +101,10 @@ export function ItemsPage() {
       rate: String(i.rate ?? 0),
       opening: String(i.opening ?? 0),
       reorder: String(i.reorder ?? 0),
-      tdsAttachment: i.tdsAttachment || '',
+      tdsAttachment: '', // the list no longer carries the blob; fetched on demand when viewing
       tdsAttachmentName: i.tdsAttachmentName || '',
     });
+    setTdsChanged(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
@@ -111,8 +119,20 @@ export function ItemsPage() {
     reader.onload = () => {
       set('tdsAttachment', String(reader.result));
       set('tdsAttachmentName', file.name);
+      setTdsChanged(true);
     };
     reader.readAsDataURL(file);
+  }
+
+  // Fetch an item's TDS on demand (the list omits it), then show it.
+  async function openTdsById(id: string, name: string) {
+    try {
+      const res = await api.items.getTds(id);
+      if (res.tdsAttachment) openTds(res.tdsAttachment, res.tdsAttachmentName || name);
+      else setError('No TDS is attached to this item.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not open the TDS');
+    }
   }
 
   // Download the TDS, then open WhatsApp so the user can pick the party and attach it (WhatsApp Web
@@ -137,9 +157,14 @@ export function ItemsPage() {
     });
   }
 
-  function shareTds(i: Item) {
-    if (!i.tdsAttachment) return;
-    const blob = dataUrlToBlob(i.tdsAttachment);
+  async function shareTds(i: Item) {
+    const res = await api.items.getTds(i.id).catch(() => null);
+    const attachment = res?.tdsAttachment;
+    if (!attachment) {
+      setError('The attached TDS could not be read.');
+      return;
+    }
+    const blob = dataUrlToBlob(attachment);
     if (!blob) {
       setError('The attached TDS could not be read.');
       return;
@@ -229,7 +254,13 @@ export function ItemsPage() {
                 <span className="muted" style={{ fontSize: 11, marginTop: 3 }}>
                   📄 {form.tdsAttachmentName}{' '}
                   <a
-                    onClick={() => openTds(form.tdsAttachment, form.tdsAttachmentName)}
+                    onClick={() =>
+                      form.tdsAttachment
+                        ? openTds(form.tdsAttachment, form.tdsAttachmentName)
+                        : editingId
+                          ? openTdsById(editingId, form.tdsAttachmentName)
+                          : undefined
+                    }
                     style={{ cursor: 'pointer', color: '#147b8b' }}
                   >
                     view
@@ -238,6 +269,7 @@ export function ItemsPage() {
                     onClick={() => {
                       set('tdsAttachment', '');
                       set('tdsAttachmentName', '');
+                      setTdsChanged(true); // so saving actually removes it
                     }}
                     style={{ cursor: 'pointer', color: '#dc2626' }}
                   >
@@ -286,9 +318,9 @@ export function ItemsPage() {
               <td>{i.opening}</td>
               <td>{i.reorder}</td>
               <td>
-                {i.tdsAttachment ? (
+                {i.tdsAttachmentName ? (
                   <div style={{ display: 'flex', gap: 6 }}>
-                    <button className="btn btn-sm" onClick={() => openTds(i.tdsAttachment, i.tdsAttachmentName || i.name)} title="Open the TDS">
+                    <button className="btn btn-sm" onClick={() => openTdsById(i.id, i.tdsAttachmentName || i.name)} title="Open the TDS">
                       📄 View
                     </button>
                     <button className="btn btn-sm" onClick={() => shareTds(i)} title="Download the TDS and open WhatsApp to send it">

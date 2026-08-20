@@ -212,10 +212,16 @@ export function ExpensesScreen() {
   // Images preview inline; anything else (PDFs attached from the website) is written to the cache
   // and handed to the OS, which is the phone equivalent of the web page's download link.
   async function openAttachment(exp: SalesPersonExpense) {
-    if (!exp.attachment) return;
-    const { mime, base64 } = splitDataUrl(exp.attachment);
+    // The list omits the bill blob; fetch it on demand.
+    const res = await api.expenses.getAttachment(exp.id).catch(() => null);
+    const dataUrl = res?.attachment;
+    if (!dataUrl) {
+      setError('The attached bill could not be read.');
+      return;
+    }
+    const { mime, base64 } = splitDataUrl(dataUrl);
     if (mime.startsWith('image/')) {
-      setPreview({ uri: exp.attachment, name: exp.attachmentName || 'attachment' });
+      setPreview({ uri: dataUrl, name: exp.attachmentName || 'attachment' });
       return;
     }
     await shareBase64(base64, mime, exp.attachmentName || `attachment.${extForMime(mime)}`);
@@ -746,7 +752,7 @@ export function ExpensesScreen() {
                       <Text style={styles.btnSmText}>Edit</Text>
                     </TouchableOpacity>
                   )}
-                  {r.attachment ? (
+                  {r.attachmentName ? (
                     <TouchableOpacity style={styles.btnSm} onPress={() => openAttachment(r)}>
                       <Text style={styles.btnSmText}>📎</Text>
                     </TouchableOpacity>
@@ -818,7 +824,7 @@ export function ExpensesScreen() {
                 <Text style={styles.btnSmText}>Edit</Text>
               </TouchableOpacity>
             )}
-            {r.attachment ? (
+            {r.attachmentName ? (
               <TouchableOpacity style={styles.btnSm} onPress={() => openAttachment(r)}>
                 <Text style={styles.btnSmText}>📎</Text>
               </TouchableOpacity>

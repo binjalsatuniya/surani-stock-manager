@@ -35,7 +35,24 @@ itemsRouter.get(
   requirePermission('view_items'),
   asyncHandler(async (_req, res) => {
     const items = await prisma.item.findMany({ orderBy: { name: 'asc' } });
-    res.json(items.map(toItemDTO));
+    // Drop the (potentially multi-MB) TDS blob — this list is loaded by almost every page for its
+    // item dropdowns, so shipping every TDS file made navigation slow. The name stays so the Items
+    // page still shows a TDS exists; the file is fetched on demand via GET /items/:id/tds.
+    res.json(items.map((i) => toItemDTO({ ...i, tdsAttachment: null })));
+  })
+);
+
+// Fetch one item's TDS file on demand (the list omits it to stay light).
+itemsRouter.get(
+  '/:id/tds',
+  requirePermission('view_items'),
+  asyncHandler(async (req, res) => {
+    const row = await prisma.item.findUnique({
+      where: { id: req.params.id },
+      select: { tdsAttachment: true, tdsAttachmentName: true },
+    });
+    if (!row) throw new NotFoundError('Item not found');
+    res.json({ tdsAttachment: row.tdsAttachment, tdsAttachmentName: row.tdsAttachmentName });
   })
 );
 

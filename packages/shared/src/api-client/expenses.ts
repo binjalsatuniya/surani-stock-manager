@@ -42,5 +42,8 @@ export function createExpensesClient(http: HttpClient) {
     setPaid: (id: string, paid: boolean, details?: { paidBy?: string | null; paidMode?: string | null }) =>
       http.patch<SalesPersonExpense>(`/expenses/${id}/paid`, { paid, ...details }),
     remove: (id: string) => http.delete<void>(`/expenses/${id}`),
+    // The list omits the (large) bill blob; fetch it on demand when viewing.
+    getAttachment: (id: string) =>
+      http.get<{ attachment: string | null; attachmentName: string | null }>(`/expenses/${id}/attachment`),
   };
 }

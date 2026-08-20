@@ -341,9 +341,14 @@ export function ExpensesPage() {
 
   // Opens the bill in a new tab. A data: URL is converted to a blob first — Chromium will not
   // render a PDF from a data: URL, so the old viewer showed an empty frame. See lib/dataUrl.ts.
-  function openAttachment(exp: SalesPersonExpense) {
-    if (!exp.attachment) return;
-    if (!openDataUrlInNewTab(exp.attachment)) {
+  async function openAttachment(exp: SalesPersonExpense) {
+    // The list omits the bill blob; fetch it on demand.
+    const res = await api.expenses.getAttachment(exp.id).catch(() => null);
+    if (!res?.attachment) {
+      setError('The attached bill could not be read — it may have been saved incompletely.');
+      return;
+    }
+    if (!openDataUrlInNewTab(res.attachment)) {
       setError('The attached bill could not be read — it may have been saved incompletely.');
     }
   }
@@ -597,7 +602,7 @@ export function ExpensesPage() {
                         )}
                       </td>
                       <td>
-                        {r.attachment ? (
+                        {r.attachmentName ? (
                           <button className="btn btn-sm" onClick={() => openAttachment(r)} title="View / download the attached invoice">
                             📎 View
                           </button>
@@ -709,7 +714,7 @@ export function ExpensesPage() {
                   )}
                 </td>
                 <td>
-                  {r.attachment ? (
+                  {r.attachmentName ? (
                     <button className="btn btn-sm" onClick={() => openAttachment(r)} title="View / download the attached invoice">
                       📎 View
                     </button>

@@ -16,5 +16,8 @@ export function createItemsClient(http: HttpClient) {
     update: (id: string, input: UpdateItemInput) => http.patch<Item>(`/items/${id}`, input),
     remove: (id: string) => http.delete<void>(`/items/${id}`),
     stock: () => http.get<StockLevel[]>('/items/stock'),
+    // The list omits the (large) TDS blob; fetch it on demand when viewing.
+    getTds: (id: string) =>
+      http.get<{ tdsAttachment: string | null; tdsAttachmentName: string | null }>(`/items/${id}/tds`),
   };
 }

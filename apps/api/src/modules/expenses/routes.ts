@@ -98,7 +98,23 @@ expensesRouter.get(
       orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
       include: { trip: { select: { name: true } } },
     });
-    res.json(rows.map(toExpenseDTO));
+    // Drop the (potentially multi-MB) bill blob from the list so pages load fast; the name stays so
+    // the UI knows a bill exists, and the file is fetched on demand via GET /expenses/:id/attachment.
+    res.json(rows.map((r) => toExpenseDTO({ ...r, attachment: null })));
+  })
+);
+
+// Fetch one expense's attached bill on demand (the list omits it to stay light).
+expensesRouter.get(
+  '/:id/attachment',
+  requirePermission('view_expenses'),
+  asyncHandler(async (req, res) => {
+    const row = await prisma.salesPersonExpense.findUnique({
+      where: { id: req.params.id },
+      select: { attachment: true, attachmentName: true },
+    });
+    if (!row) throw new NotFoundError('Expense not found');
+    res.json({ attachment: row.attachment, attachmentName: row.attachmentName });
   })
 );
 
