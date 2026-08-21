@@ -1,3 +1,4 @@
+import { fmtAmount } from '@surani/shared';
 import { Fragment, useEffect, useState, type ChangeEvent } from 'react';
 import { buildWhatsappLink, deliveryTermsLabel, type Item, type Outward, type Party } from '@surani/shared';
 import { api } from '../lib/apiClient';
@@ -338,8 +339,8 @@ export function OrderBookPage() {
       itemName: item?.name || '',
       qty: String(m.qty),
       unit: item?.unit || '',
-      rate: m.rate.toFixed(2),
-      amount: m.amount.toFixed(2),
+      rate: fmtAmount(m.rate),
+      amount: fmtAmount(m.amount),
       date: fmtDate(m.date),
       invNo: m.invNo || 'N/A',
       deliveryTerms: deliveryTermsLabel(m.deliveryType),
@@ -413,8 +414,8 @@ export function OrderBookPage() {
         <td>{m.partyName || partyName(m.partyId)}</td>
         <td>{m.itemName || itemName(m.itemId)}</td>
         <td>{m.qty}</td>
-        <td>{m.handling || 0}</td>
-        {canRate && <td>₹{Number(m.amount).toFixed(2)}</td>}
+        <td>{fmtAmount(m.handling || 0)}</td>
+        {canRate && <td>₹{fmtAmount(m.amount)}</td>}
         <td>{m.deliveryType || '—'}</td>
         <td>{m.deliveryDate ? fmtDate(m.deliveryDate) : '—'}</td>
         {canRate && <td>{payStatusLabel(m)}</td>}
@@ -743,7 +744,7 @@ export function OrderBookPage() {
         {canRate && (
           <div className="card">
             <div className="muted">Pending value</div>
-            <div style={{ fontSize: 26, fontWeight: 700 }}>₹{pendingValue.toFixed(2)}</div>
+            <div style={{ fontSize: 26, fontWeight: 700 }}>₹{fmtAmount(pendingValue)}</div>
           </div>
         )}
       </div>

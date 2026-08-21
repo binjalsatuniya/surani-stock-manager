@@ -1,3 +1,4 @@
+import { fmtMoney, fmtAmount } from '@surani/shared';
 import { useEffect, useState } from 'react';
 import { Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
@@ -8,7 +9,7 @@ import { useAuth } from '../context/AuthContext';
 import { useWhatsappTemplates } from '../hooks/useWhatsappTemplates';
 
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-const inr = (n: number) => `₹${Number(n).toFixed(2)}`;
+const inr = (n: number) => fmtMoney(n);
 
 function payStatusLabel(m: Outward): string {
   if (m.payStatus === 'received') return 'Received';
@@ -176,8 +177,8 @@ export function OrderBookScreen() {
       itemName: item?.name || '',
       qty: String(m.qty),
       unit: item?.unit || '',
-      rate: m.rate.toFixed(2),
-      amount: m.amount.toFixed(2),
+      rate: fmtAmount(m.rate),
+      amount: fmtAmount(m.amount),
       date: fmtDate(m.date),
       invNo: m.invNo || 'N/A',
       deliveryTerms: deliveryTermsLabel(m.deliveryType),

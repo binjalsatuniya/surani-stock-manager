@@ -3,7 +3,7 @@
     "name": "Surani and Sons",
     "slug": "surani-and-sons-stock-manager",
     "scheme": "suraniandsons",
-    "version": "1.0.8",
+    "version": "1.0.9",
     "orientation": "portrait",
     "newArchEnabled": true,
     "icon": "./assets/icon.png",

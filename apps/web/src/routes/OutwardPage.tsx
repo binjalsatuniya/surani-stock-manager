@@ -1,3 +1,4 @@
+import { fmtAmount } from '@surani/shared';
 import { Fragment, useEffect, useState, type ChangeEvent } from 'react';
 import type { Item, Outward, Party, PayStatus } from '@surani/shared';
 import { fyOfDate } from '@surani/shared';
@@ -631,7 +632,7 @@ export function OutwardPage() {
                   <div className="field" style={{ margin: 0 }}>
                     <label>Amount</label>
                     <div style={{ fontSize: 13, paddingTop: 6, whiteSpace: 'nowrap' }}>
-                      ₹{lineTotals[i].withGst.toFixed(2)}
+                      ₹{fmtAmount(lineTotals[i].withGst)}
                     </div>
                   </div>
                   {lines.length > 1 && (
@@ -672,8 +673,8 @@ export function OutwardPage() {
               Add Outward
             </button>
             <span className="muted">
-              {filledLines.length} item{filledLines.length === 1 ? '' : 's'} · goods ₹{goods.toFixed(2)} · with
-              GST ₹{amountPreview.toFixed(2)}
+              {filledLines.length} item{filledLines.length === 1 ? '' : 's'} · goods ₹{fmtAmount(goods)} · with
+              GST ₹{fmtAmount(amountPreview)}
               {filledLines.length > 1 && ' — saved as one entry per item, sharing this invoice number'}
             </span>
           </div>
@@ -742,7 +743,7 @@ export function OutwardPage() {
               <tr>
                 <td colSpan={showActions ? 12 : 11} style={{ background: '#f1f5f9', fontWeight: 600, fontSize: 12.5 }}>
                   🧾 Invoice {g.invNo || '(no number)'} · {partyName(g.partyId)} · {g.date}
-                  {g.rows.length > 1 && ` · ${g.rows.length} items`} · Total ₹{g.total.toFixed(2)}
+                  {g.rows.length > 1 && ` · ${g.rows.length} items`} · Total ₹{fmtAmount(g.total)}
                 </td>
               </tr>
               {g.rows.map((r) => (
@@ -752,12 +753,12 @@ export function OutwardPage() {
                 <td>{partyName(r.partyId)}</td>
                 <td>{itemName(r.itemId)}</td>
                 <td>{r.qty}</td>
-                <td>{r.rate}</td>
-                <td>{r.gst}</td>
-                <td>{r.freight}</td>
-                <td>{r.handling}</td>
+                <td>{fmtAmount(r.rate)}</td>
+                <td>{fmtAmount(r.gst)}</td>
+                <td>{fmtAmount(r.freight)}</td>
+                <td>{fmtAmount(r.handling)}</td>
                 <td>{r.invNo || '—'}</td>
-                <td>{r.amount}</td>
+                <td>{fmtAmount(r.amount)}</td>
                 <td>{r.payStatus}</td>
                 {showActions && (
                   <td>

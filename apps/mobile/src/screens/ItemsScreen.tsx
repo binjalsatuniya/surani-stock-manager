@@ -1,3 +1,4 @@
+import { fmtMoney } from '@surani/shared';
 import { useEffect, useState } from 'react';
 import { Alert, Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
@@ -286,7 +287,7 @@ export function ItemsScreen() {
           </View>
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Rate</Text>
-            <Text style={styles.detailVal}>₹{Number(i.rate).toFixed(2)}</Text>
+            <Text style={styles.detailVal}>{fmtMoney(i.rate)}</Text>
           </View>
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Opening</Text>

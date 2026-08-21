@@ -1,3 +1,4 @@
+import { fmtMoney, fmtAmount } from '@surani/shared';
 import { useEffect, useState } from 'react';
 import { Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
@@ -10,7 +11,7 @@ import { useAuth } from '../context/AuthContext';
 import { DraggableRows } from '../components/DraggableRows';
 
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-const inr = (n: number) => `₹${n.toFixed(2)}`;
+const inr = (n: number) => fmtMoney(n);
 
 // Order keyed defs by a saved key list; unknown/new keys fall in at the end in default order.
 function applyOrderKeys<T extends { key: string }>(defs: T[], saved?: string[]): T[] {
@@ -146,8 +147,8 @@ export function DashboardScreen() {
       itemName: item?.name || '',
       qty: order.qty,
       unit: item?.unit || '',
-      rate: Number(order.rate).toFixed(2),
-      amount: oTotal.toFixed(2),
+      rate: fmtAmount(order.rate),
+      amount: fmtAmount(oTotal),
       date: fmtDate(order.date),
       invNo: 'N/A',
       deliveryTerms: deliveryTermsLabel(order.deliveryType),
@@ -362,7 +363,7 @@ export function DashboardScreen() {
                   {it.name} <Text style={styles.mutedTd}>({it.unit})</Text>
                 </Text>
                 <Text style={[styles.td, { textAlign: 'right', fontWeight: '700' }]}>{qty}</Text>
-                <Text style={[styles.td, { textAlign: 'right', fontWeight: '700' }]}>{it.rate ? `₹${it.rate}` : '—'}</Text>
+                <Text style={[styles.td, { textAlign: 'right', fontWeight: '700' }]}>{it.rate ? fmtMoney(it.rate) : '—'}</Text>
                 <Text style={[styles.td, { textAlign: 'right', color: low ? '#ef4444' : '#10b981', fontWeight: '700' }]}>{low ? 'Low' : 'OK'}</Text>
               </View>
             );

@@ -1,3 +1,4 @@
+import { fmtAmount } from '@surani/shared';
 import { useEffect, useState } from 'react';
 import { buildWhatsappLink, buildTelLink, PAYMENT_MODES, type DueLedgerGroup, type PayableGroup, type Party, type Payment, type PaymentDirection, type PaymentMode, type SalesPerson } from '@surani/shared';
 import type { UnpaidInvoice } from '@surani/shared';
@@ -75,13 +76,13 @@ export function PaymentsPage() {
     const overdueAmount = overdue.reduce((s, e) => s + e.balance, 0);
     // One line per outstanding invoice: number · date · amount.
     const invoiceList = g.entries
-      .map((e) => `• Invoice ${e.invNo || '—'} · ${fmtDate(e.date)} · ₹${e.balance.toFixed(2)}`)
+      .map((e) => `• Invoice ${e.invNo || '—'} · ${fmtDate(e.date)} · ₹${fmtAmount(e.balance)}`)
       .join('\n');
     const message = fill('paymentReminder', {
       partyName: g.party.name,
-      balance: g.total.toFixed(2),
+      balance: fmtAmount(g.total),
       overdueCount: String(overdue.length),
-      overdueAmount: overdueAmount.toFixed(2),
+      overdueAmount: fmtAmount(overdueAmount),
       invoiceList,
       date: fmtDate(new Date().toISOString()),
     });
@@ -240,15 +241,15 @@ export function PaymentsPage() {
           </div>
           {Number(tds) > 0 && Number(amount) >= 0 && (
             <div className="muted" style={{ marginBottom: 8 }}>
-              Cash {Number(amount || 0).toFixed(2)} + TDS {Number(tds).toFixed(2)} ={' '}
-              <strong>{(Number(amount || 0) + Number(tds)).toFixed(2)}</strong> settled against invoices.
+              Cash {fmtAmount(Number(amount || 0))} + TDS {fmtAmount(Number(tds))} ={' '}
+              <strong>{fmtAmount(Number(amount || 0) + Number(tds))}</strong> settled against invoices.
             </div>
           )}
           {partyId && (() => {
             const p = parties.find((x) => x.id === partyId);
             return p && Number(p.opening) > 0 ? (
               <div style={{ marginBottom: 10, color: '#b45309', fontSize: 13 }}>
-                💡 Opening balance for <strong>{p.name}</strong>: ₹{Number(p.opening).toFixed(2)} — this is also
+                💡 Opening balance for <strong>{p.name}</strong>: ₹{fmtAmount(p.opening)} — this is also
                 pending (it isn’t tied to a specific invoice, so it settles into the party’s general balance).
               </div>
             ) : null;
@@ -261,7 +262,7 @@ export function PaymentsPage() {
                 <>
                   <div className="muted" style={{ marginBottom: 8 }}>
                     Select invoices to allocate this payment against (FIFO within selection). Selected total:{' '}
-                    <strong>{totalSelected.toFixed(2)}</strong>
+                    <strong>{fmtAmount(totalSelected)}</strong>
                   </div>
                   {unpaid.map((u) => (
                     <label key={u.outwardId} style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '6px 0' }}>
@@ -273,7 +274,7 @@ export function PaymentsPage() {
                       <span>
                         {u.invNo || 'No invoice no.'} · {u.date} · Due {u.dueDate} (
                         {u.dueDays !== null && u.dueDays < 0 ? `${-u.dueDays}d overdue` : `${u.dueDays}d left`}) — balance{' '}
-                        {u.balance.toFixed(2)}
+                        {fmtAmount(u.balance)}
                       </span>
                     </label>
                   ))}
@@ -289,7 +290,7 @@ export function PaymentsPage() {
                 <>
                   <div className="muted" style={{ marginBottom: 8 }}>
                     Select purchase invoices this payment settles (FIFO within selection). Selected total:{' '}
-                    <strong>{totalSelectedPurchase.toFixed(2)}</strong>
+                    <strong>{fmtAmount(totalSelectedPurchase)}</strong>
                   </div>
                   {unpaidPurchase.map((u) => (
                     <label key={u.outwardId} style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '6px 0' }}>
@@ -299,7 +300,7 @@ export function PaymentsPage() {
                         onChange={() => togglePurchase(u.outwardId)}
                       />
                       <span>
-                        {u.invNo || 'No invoice no.'} · {u.date} — balance {u.balance.toFixed(2)}
+                        {u.invNo || 'No invoice no.'} · {u.date} — balance {fmtAmount(u.balance)}
                       </span>
                     </label>
                   ))}
@@ -337,7 +338,7 @@ export function PaymentsPage() {
             <div key={g.party.id} style={{ marginBottom: 14 }}>
               <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 10 }}>
                 <span>
-                  {g.party.name} — <span className="num">{g.total.toFixed(2)}</span>
+                  {g.party.name} — <span className="num">{fmtAmount(g.total)}</span>
                 </span>
                 {g.party.phone && (
                   <button className="btn btn-sm" onClick={() => callPhone(g.party.phone)} title={`Call ${g.party.phone}`}>
@@ -370,7 +371,7 @@ export function PaymentsPage() {
                       <td>{e.date}</td>
                       <td>Due {e.dueDate}</td>
                       <td>{e.dueDays !== null && e.dueDays < 0 ? `${-e.dueDays}d overdue` : `${e.dueDays}d left`}</td>
-                      <td>{e.balance.toFixed(2)}</td>
+                      <td>{fmtAmount(e.balance)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -398,7 +399,7 @@ export function PaymentsPage() {
               <td>{p.date}</td>
               <td>{partyName(p.partyId)}</td>
               <td>{p.dir === 'in' ? 'Received' : 'Paid'}</td>
-              <td>{p.amount}</td>
+              <td>{fmtAmount(p.amount)}</td>
               <td>{p.tdsAmount ? p.tdsAmount : '—'}</td>
               <td>{p.mode}</td>
               {canRecord && (
@@ -439,7 +440,7 @@ export function PaymentsPage() {
               <tr key={g.party.id}>
                 <td>{g.party.name}</td>
                 <td>{g.party.phone || '—'}</td>
-                <td style={{ fontWeight: 700, color: '#ef4444' }}>{g.amount.toFixed(2)}</td>
+                <td style={{ fontWeight: 700, color: '#ef4444' }}>{fmtAmount(g.amount)}</td>
                 {canRecord && (
                   <td>
                     <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>

@@ -1,3 +1,4 @@
+import { fmtAmount } from '@surani/shared';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { Item, StockLevel } from '@surani/shared';
@@ -73,7 +74,7 @@ export function LiveStockPage() {
                 <td>{i.unit}</td>
                 <td style={{ fontWeight: 700 }}>{qty}</td>
                 <td>{i.reorder}</td>
-                <td>{i.rate}</td>
+                <td>{fmtAmount(i.rate)}</td>
                 <td className="muted">{i.rateDate ? new Date(i.rateDate).toLocaleDateString('en-IN') : '—'}</td>
                 <td>
                   <Link to={`/items/${i.id}/ledger`}>View Ledger</Link>

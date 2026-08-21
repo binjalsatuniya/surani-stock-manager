@@ -1,3 +1,4 @@
+import { fmtAmount } from '@surani/shared';
 import { Fragment, useEffect, useState } from 'react';
 import type { DeliveryType, Inward, Item, Party } from '@surani/shared';
 import { fyOfDate } from '@surani/shared';
@@ -327,12 +328,12 @@ export function InwardPage() {
         <td>{partyName(r.partyId)}</td>
         <td>{itemName(r.itemId)}</td>
         <td>{r.qty}</td>
-        <td>{r.rate}</td>
-        <td>{r.gst}</td>
-        <td>{r.freight}</td>
-        <td>{r.handling}</td>
+        <td>{fmtAmount(r.rate)}</td>
+        <td>{fmtAmount(r.gst)}</td>
+        <td>{fmtAmount(r.freight)}</td>
+        <td>{fmtAmount(r.handling)}</td>
         <td>{r.invNo || '—'}</td>
-        <td>{r.amount}</td>
+        <td>{fmtAmount(r.amount)}</td>
         {canEdit && (
           <td>
             <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
@@ -619,7 +620,7 @@ export function InwardPage() {
                   <div className="field" style={{ margin: 0 }}>
                     <label>Amount</label>
                     <div style={{ fontSize: 13, paddingTop: 6, whiteSpace: 'nowrap' }}>
-                      ₹{lineTotals[i].withGst.toFixed(2)}
+                      ₹{fmtAmount(lineTotals[i].withGst)}
                     </div>
                   </div>
                   {lines.length > 1 && (
@@ -652,16 +653,16 @@ export function InwardPage() {
                 <span style={{ color: '#475569' }}>
                   Goods value ({filledLines.length} item{filledLines.length === 1 ? '' : 's'})
                 </span>
-                <span>₹{goods.toFixed(2)}</span>
+                <span>₹{fmtAmount(goods)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6 }}>
                 <span style={{ color: '#475569' }}>GST</span>
-                <span>₹{(amountPreview - goods).toFixed(2)}</span>
+                <span>₹{fmtAmount(amountPreview - goods)}</span>
               </div>
               <div style={{ height: 1, background: 'var(--line, #e2e8f0)', margin: '6px 0' }} />
               <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 15 }}>
                 <span>Total payable</span>
-                <span style={{ color: '#ef4444' }}>₹{amountPreview.toFixed(2)}</span>
+                <span style={{ color: '#ef4444' }}>₹{fmtAmount(amountPreview)}</span>
               </div>
               <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed var(--line, #e2e8f0)' }}>
                 <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', color: '#94a3b8', marginBottom: 6 }}>
@@ -669,7 +670,7 @@ export function InwardPage() {
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
                   <span style={{ color: '#475569' }}>Transportation ({totalQty} × ₹{freightN})</span>
-                  <span>₹{freightTotal.toFixed(2)}</span>
+                  <span>₹{fmtAmount(freightTotal)}</span>
                 </div>
                 <div className="muted" style={{ fontSize: 11, marginTop: 8 }}>
                   Handling charges &amp; invoice details are added in the “Mark as Inward” step.

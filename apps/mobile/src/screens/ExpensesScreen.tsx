@@ -1,3 +1,4 @@
+import { fmtMoney } from '@surani/shared';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
@@ -30,7 +31,7 @@ function minusDays(baseYmd: string, days: number): string {
 }
 
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-const inr = (n: number) => `₹${n.toFixed(2)}`;
+const inr = (n: number) => fmtMoney(n);
 const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024; // ~5 MB — matches the web page and the API's 7M base64 cap.
 
 const today = () => new Date().toISOString().slice(0, 10);

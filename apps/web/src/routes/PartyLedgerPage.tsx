@@ -1,3 +1,4 @@
+import { fmtAmount } from '@surani/shared';
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import type { Party, PartyLedgerEntry } from '@surani/shared';
@@ -10,7 +11,7 @@ import { usePermission } from '../hooks/usePermission';
 import { useWhatsappTemplates } from '../hooks/useWhatsappTemplates';
 
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-const balStr = (b: number) => (b >= 0 ? `₹${b.toFixed(2)} Dr` : `₹${Math.abs(b).toFixed(2)} Cr`);
+const balStr = (b: number) => (b >= 0 ? `₹${fmtAmount(b)} Dr` : `₹${fmtAmount(Math.abs(b))} Cr`);
 
 export function PartyLedgerPage() {
   const { id } = useParams<{ id: string }>();
@@ -42,7 +43,7 @@ export function PartyLedgerPage() {
   function onShare() {
     if (!party) return;
     const lines = rows.map((e) => {
-      const amt = e.dr > 0 ? `+₹${e.dr.toFixed(2)}` : `-₹${e.cr.toFixed(2)}`;
+      const amt = e.dr > 0 ? `+₹${fmtAmount(e.dr)}` : `-₹${fmtAmount(e.cr)}`;
       return `${fmtDate(e.date)} — ${e.description}\n   ${amt} → ${balStr(e.balance)}`;
     });
     const message = fill('ledgerStatement', {
@@ -118,10 +119,10 @@ export function PartyLedgerPage() {
               <tr key={idx}>
                 <td>{fmtDate(e.date)}</td>
                 <td>{e.description}</td>
-                <td style={{ textAlign: 'right' }}>{e.taxable != null ? e.taxable.toFixed(2) : ''}</td>
-                <td style={{ textAlign: 'right' }}>{e.tax != null ? e.tax.toFixed(2) : ''}</td>
-                <td style={{ textAlign: 'right' }}>{e.dr ? e.dr.toFixed(2) : ''}</td>
-                <td style={{ textAlign: 'right' }}>{e.cr ? e.cr.toFixed(2) : ''}</td>
+                <td style={{ textAlign: 'right' }}>{e.taxable != null ? fmtAmount(e.taxable) : ''}</td>
+                <td style={{ textAlign: 'right' }}>{e.tax != null ? fmtAmount(e.tax) : ''}</td>
+                <td style={{ textAlign: 'right' }}>{e.dr ? fmtAmount(e.dr) : ''}</td>
+                <td style={{ textAlign: 'right' }}>{e.cr ? fmtAmount(e.cr) : ''}</td>
                 <td style={{ textAlign: 'right', fontWeight: 600 }}>{balStr(e.balance)}</td>
               </tr>
             ))}
@@ -138,10 +139,10 @@ export function PartyLedgerPage() {
           <tfoot>
             <tr>
               <td colSpan={2} style={{ fontWeight: 700 }}>Total</td>
-              <td style={{ textAlign: 'right', fontWeight: 700 }}>{totalTaxable.toFixed(2)}</td>
-              <td style={{ textAlign: 'right', fontWeight: 700 }}>{totalTax.toFixed(2)}</td>
-              <td style={{ textAlign: 'right', fontWeight: 700 }}>{totalDr.toFixed(2)}</td>
-              <td style={{ textAlign: 'right', fontWeight: 700 }}>{totalCr.toFixed(2)}</td>
+              <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmtAmount(totalTaxable)}</td>
+              <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmtAmount(totalTax)}</td>
+              <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmtAmount(totalDr)}</td>
+              <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmtAmount(totalCr)}</td>
               <td style={{ textAlign: 'right', fontWeight: 800 }}>{balStr(closing)}</td>
             </tr>
           </tfoot>

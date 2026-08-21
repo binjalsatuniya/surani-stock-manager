@@ -1,3 +1,4 @@
+import { fmtAmount } from '@surani/shared';
 import { Fragment, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { buildTelLink } from '@surani/shared';
@@ -425,7 +426,7 @@ export function PartiesPage() {
                 </td>
                 <td>{p.gst || '—'}</td>
                 <td>{p.creditDays}</td>
-                <td>{p.opening}</td>
+                <td>{fmtAmount(p.opening)}</td>
                 <td>
                   <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                     <Link to={`/parties/${p.id}/ledger`}>View Ledger</Link>

@@ -10,7 +10,7 @@ import { getPdfLayout } from '../lib/pdfLayout';
 import { openDataUrlInNewTab } from '../lib/dataUrl';
 
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-const inr = (n: number) => `₹${n.toFixed(2)}`;
+const inr = (n: number) => `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024; // ~5 MB
 
 const EMPTY = {

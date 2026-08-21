@@ -7,7 +7,7 @@ import { getPdfLayout } from '../lib/pdfLayout';
 
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 const qtyStr = (n: number) => n.toLocaleString('en-IN', { maximumFractionDigits: 3 });
-const money = (n: number) => n.toFixed(2);
+const money = (n: number) => n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export function ItemLedgerPage() {
   const { id } = useParams<{ id: string }>();

@@ -1,3 +1,4 @@
+import { fmtAmount } from '@surani/shared';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { buildWhatsappLink, type Item, type ItemUnit } from '@surani/shared';
@@ -316,7 +317,7 @@ export function ItemsPage() {
               <td>{i.category || '—'}</td>
               <td>{i.code || '—'}</td>
               <td>{i.unit}</td>
-              <td>{i.rate}</td>
+              <td>{fmtAmount(i.rate)}</td>
               <td>{i.opening}</td>
               <td>{i.reorder}</td>
               <td>

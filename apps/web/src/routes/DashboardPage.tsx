@@ -1,3 +1,4 @@
+import { fmtAmount } from '@surani/shared';
 import { useEffect, useState, type ReactNode } from 'react';
 import {
   buildWhatsappLink,
@@ -61,7 +62,7 @@ import { FieldLabel } from '../components/FieldLabel';
 import { SearchSelect } from '../components/SearchSelect';
 
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-const inr = (n: number) => `₹${n.toFixed(2)}`;
+const inr = (n: number) => `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 interface RecentRow {
   id: string;
@@ -225,7 +226,7 @@ export function DashboardPage() {
     const itemised = filledOrderLines
       .map((l) => {
         const it = nameOf(l.itemId);
-        return `${it?.name ?? ''} — ${l.qty} ${it?.unit ?? ''} @ ₹${Number(l.rate).toFixed(2)}`;
+        return `${it?.name ?? ''} — ${l.qty} ${it?.unit ?? ''} @ ₹${fmtAmount(l.rate)}`;
       })
       .join('\n');
     const message = fill('orderSlip', {
@@ -233,8 +234,8 @@ export function DashboardPage() {
       itemName: single ? first?.name || '' : `\n${itemised}`,
       qty: single ? filledOrderLines[0].qty : String(filledOrderLines.length),
       unit: single ? first?.unit || '' : 'items',
-      rate: single ? Number(filledOrderLines[0].rate).toFixed(2) : 'see above',
-      amount: oTotal.toFixed(2),
+      rate: single ? fmtAmount(filledOrderLines[0].rate) : 'see above',
+      amount: fmtAmount(oTotal),
       date: fmtDate(order.date),
       invNo: 'N/A',
       deliveryTerms: deliveryTermsLabel(order.deliveryType),
@@ -295,9 +296,9 @@ export function DashboardPage() {
     if (!kpis) return;
     const message = fill('dashboardSummary', {
       date: fmtDate(new Date().toISOString()),
-      receivable: kpis.receivable.toFixed(2),
-      payable: kpis.payable.toFixed(2),
-      netPosition: kpis.netPosition.toFixed(2),
+      receivable: fmtAmount(kpis.receivable),
+      payable: fmtAmount(kpis.payable),
+      netPosition: fmtAmount(kpis.netPosition),
       lowStockCount: String(kpis.lowStockCount),
       pendingOrders: String(kpis.pendingOrders),
     });
@@ -567,7 +568,7 @@ export function DashboardPage() {
                   <div className="field" style={{ margin: 0 }}>
                     <label>Amount</label>
                     <div style={{ fontSize: 13, paddingTop: 6, whiteSpace: 'nowrap' }}>
-                      ₹{orderTotals[i].withGst.toFixed(2)}
+                      ₹{fmtAmount(orderTotals[i].withGst)}
                     </div>
                   </div>
                   {orderLines.length > 1 && (

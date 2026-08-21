@@ -1,3 +1,4 @@
+import { fmtMoney } from '@surani/shared';
 import { useEffect, useState } from 'react';
 import { Alert, Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -294,7 +295,7 @@ export function PartiesScreen() {
           </View>
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Opening</Text>
-            <Text style={styles.detailVal}>₹{Number(p.opening).toFixed(2)}</Text>
+            <Text style={styles.detailVal}>{fmtMoney(p.opening)}</Text>
           </View>
 
           <View style={styles.actions}>
