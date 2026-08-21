@@ -238,6 +238,7 @@ export function DashboardPage() {
       date: fmtDate(order.date),
       invNo: 'N/A',
       deliveryTerms: deliveryTermsLabel(order.deliveryType),
+      deliveryDate: order.deliveryDate ? fmtDate(order.deliveryDate) : 'N/A',
       payStatus,
       dueDate: 'N/A',
     });

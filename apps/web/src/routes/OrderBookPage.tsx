@@ -343,6 +343,7 @@ export function OrderBookPage() {
       date: fmtDate(m.date),
       invNo: m.invNo || 'N/A',
       deliveryTerms: deliveryTermsLabel(m.deliveryType),
+      deliveryDate: m.deliveryDate ? fmtDate(m.deliveryDate) : 'N/A',
       payStatus: payStatusLabel(m),
       dueDate: dueDateFor(m),
     });
