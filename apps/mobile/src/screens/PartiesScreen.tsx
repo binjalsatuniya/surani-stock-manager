@@ -46,6 +46,10 @@ export function PartiesScreen() {
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  // GST lookup: the Fetch button only appears when the server has a lookup key configured.
+  const [gstLookupOn, setGstLookupOn] = useState(false);
+  const [gstBusy, setGstBusy] = useState(false);
+  const [gstNote, setGstNote] = useState<{ text: string; bad: boolean } | null>(null);
 
   async function reload() {
     setParties(await api.parties.list());
@@ -54,7 +58,38 @@ export function PartiesScreen() {
   useEffect(() => {
     reload().catch(() => {});
     api.salesPersons.list().then(setSalesPersons).catch(() => {});
+    api.gst.status().then((s) => setGstLookupOn(s.configured)).catch(() => setGstLookupOn(false));
   }, []);
+
+  async function onFetchGst() {
+    // Basic shape check — the server does the real lookup; a typo just gets a friendly note.
+    if (!/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9A-Z]Z[0-9A-Z]$/.test(form.gst.trim().toUpperCase())) {
+      setGstNote({ text: 'Enter a valid 15-character GST number first.', bad: true });
+      return;
+    }
+    setGstBusy(true);
+    setGstNote(null);
+    try {
+      const r = await api.gst.lookup(form.gst.trim().toUpperCase());
+      // Fill only what is empty — never overwrite something already typed.
+      setForm((f) => ({
+        ...f,
+        name: f.name.trim() || r.tradeName || r.legalName || '',
+        address: f.address.trim() || r.address || '',
+      }));
+      const cancelled = r.status && !/^active$/i.test(r.status);
+      setGstNote({
+        text: cancelled
+          ? `⚠ Registration status is "${r.status}" — check before claiming input credit.`
+          : `Fetched: ${r.legalName || r.tradeName || 'details'}${r.status ? ` · ${r.status}` : ''}`,
+        bad: !!cancelled,
+      });
+    } catch (e) {
+      setGstNote({ text: e instanceof Error ? e.message : 'Lookup failed.', bad: true });
+    } finally {
+      setGstBusy(false);
+    }
+  }
 
   function set<K extends keyof typeof form>(key: K, value: string) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -189,7 +224,27 @@ export function PartiesScreen() {
           <TextInput style={styles.input} value={form.email} onChangeText={(v) => set('email', v)} keyboardType="email-address" autoCapitalize="none" />
 
           <Text style={styles.label}>GST No.</Text>
-          <TextInput style={styles.input} value={form.gst} onChangeText={(v) => set('gst', v)} autoCapitalize="characters" />
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <TextInput
+              style={[styles.input, { flex: 1 }]}
+              value={form.gst}
+              onChangeText={(v) => { set('gst', v.toUpperCase()); setGstNote(null); }}
+              autoCapitalize="characters"
+              maxLength={15}
+            />
+            {gstLookupOn && (
+              <TouchableOpacity
+                style={[styles.btn, { marginTop: 0, paddingVertical: 9, paddingHorizontal: 16 }, gstBusy && styles.btnDisabled]}
+                onPress={onFetchGst}
+                disabled={gstBusy}
+              >
+                <Text style={styles.btnText}>{gstBusy ? '…' : 'Fetch'}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          {gstNote && (
+            <Text style={{ fontSize: 11.5, marginTop: 4, color: gstNote.bad ? '#b45309' : '#15803d' }}>{gstNote.text}</Text>
+          )}
 
           <View style={styles.row}>
             <View style={styles.col}>
