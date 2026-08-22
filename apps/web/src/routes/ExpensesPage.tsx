@@ -64,7 +64,8 @@ export function ExpensesPage() {
     let running = 0;
     const lines = ordered.map((e) => {
       running += e.amount;
-      return `${fmtDate(e.date)} — ${e.expenseFor}\n   ${inr(e.amount)}  (Total ${inr(running)})`;
+      const paidBy = e.paid && e.paidBy ? `\n   💵 Paid by: ${e.paidBy}` : '';
+      return `${fmtDate(e.date)} — ${e.expenseFor}\n   ${inr(e.amount)}  (Total ${inr(running)})${paidBy}`;
     });
     const total = ordered.reduce((s, e) => s + e.amount, 0);
     const message = [
@@ -605,6 +606,7 @@ export function ExpensesPage() {
                 <th style={{ textAlign: 'right' }}>Amount (₹)</th>
                 <th style={{ textAlign: 'right' }}>Running Total (₹)</th>
                 <th>Status</th>
+                <th>Paid By</th>
                 <th>Attachment</th>
                 {canEdit && <th></th>}
               </tr>
@@ -640,6 +642,13 @@ export function ExpensesPage() {
                         )}
                       </td>
                       <td>
+                        {r.paid && r.paidBy ? (
+                          <span style={{ fontWeight: 600 }}>{r.paidBy}</span>
+                        ) : (
+                          <span className="muted">—</span>
+                        )}
+                      </td>
+                      <td>
                         {r.attachmentName ? (
                           <button className="btn btn-sm" onClick={() => openAttachment(r)} title="View / download the attached invoice">
                             📎 View
@@ -668,7 +677,7 @@ export function ExpensesPage() {
               })()}
               {ledgerRows.length === 0 && (
                 <tr>
-                  <td colSpan={canEdit ? 7 : 6} className="muted">No expenses for this sales person yet.</td>
+                  <td colSpan={canEdit ? 8 : 7} className="muted">No expenses for this sales person yet.</td>
                 </tr>
               )}
             </tbody>
@@ -680,6 +689,7 @@ export function ExpensesPage() {
                   <td></td>
                   <td></td>
                   <td></td>
+                  <td></td>
                   {canEdit && <td></td>}
                 </tr>
                 <tr>
@@ -687,6 +697,7 @@ export function ExpensesPage() {
                   <td style={{ textAlign: 'right', fontWeight: 800, color: '#b45309' }}>
                     {inr(ledgerRows.filter((r) => !r.paid).reduce((s, r) => s + r.amount, 0))}
                   </td>
+                  <td></td>
                   <td></td>
                   <td></td>
                   <td></td>

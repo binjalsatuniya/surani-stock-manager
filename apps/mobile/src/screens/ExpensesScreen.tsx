@@ -468,7 +468,9 @@ export function ExpensesScreen() {
     const body = orderedLedger
       .map((e) => {
         running += e.amount;
-        return `<tr><td>${fmtDate(e.date)}</td><td>${e.expenseFor}</td><td style="text-align:right">${inr(
+        return `<tr><td>${fmtDate(e.date)}</td><td>${e.expenseFor}</td><td>${
+          e.paid && e.paidBy ? e.paidBy : '—'
+        }</td><td style="text-align:right">${inr(
           e.amount
         )}</td><td style="text-align:right">${inr(running)}</td></tr>`;
       })
@@ -485,15 +487,15 @@ export function ExpensesScreen() {
       <h1>SURANI AND SONS — Sales Person Expense Ledger</h1>
       <div class="sub">${spName(ledgerSpId)} &middot; Generated ${fmtDate(new Date().toISOString())}</div>
       <table>
-        <thead><tr><th>Date</th><th>Expense For</th><th style="text-align:right">Amount (₹)</th><th style="text-align:right">Running Total (₹)</th></tr></thead>
+        <thead><tr><th>Date</th><th>Expense For</th><th>Paid By</th><th style="text-align:right">Amount (₹)</th><th style="text-align:right">Running Total (₹)</th></tr></thead>
         <tbody>
-          <tr><td>—</td><td style="font-style:italic">Opening</td><td></td><td style="text-align:right">${inr(0)}</td></tr>
+          <tr><td>—</td><td style="font-style:italic">Opening</td><td></td><td></td><td style="text-align:right">${inr(0)}</td></tr>
           ${body}
-          <tr style="background:#f5f7fb;font-weight:700"><td>—</td><td>Closing Total</td><td style="text-align:right">${inr(
+          <tr style="background:#f5f7fb;font-weight:700"><td>—</td><td>Closing Total</td><td></td><td style="text-align:right">${inr(
             ledgerTotal
           )}</td><td style="text-align:right">${inr(ledgerTotal)}</td></tr>
         </tbody>
-        <tfoot><tr><td colspan="2">Total Expense</td><td style="text-align:right">${inr(ledgerTotal)}</td><td></td></tr></tfoot>
+        <tfoot><tr><td colspan="3">Total Expense</td><td style="text-align:right">${inr(ledgerTotal)}</td><td></td></tr></tfoot>
       </table>
     </body></html>`;
     try {
@@ -510,7 +512,8 @@ export function ExpensesScreen() {
     let running = 0;
     const lines = orderedLedger.map((e) => {
       running += e.amount;
-      return `${fmtDate(e.date)} — ${e.expenseFor}\n   ${inr(e.amount)}  (Total ${inr(running)})`;
+      const paidBy = e.paid && e.paidBy ? `\n   💵 Paid by: ${e.paidBy}` : '';
+      return `${fmtDate(e.date)} — ${e.expenseFor}\n   ${inr(e.amount)}  (Total ${inr(running)})${paidBy}`;
     });
     const message = [
       '🧾 *EXPENSE LEDGER*',
@@ -809,9 +812,10 @@ export function ExpensesScreen() {
                     {r.tripName ? <Text style={styles.tripTag}>🧭 {r.tripName}</Text> : null}
                     <Text style={[styles.paidTag, r.paid ? styles.paidYes : styles.paidNo]}>
                       {r.paid
-                        ? `✅ Paid${r.paidMode ? ` · ${r.paidMode}` : ''}${r.paidBy ? ` · by ${r.paidBy}` : ''}`
+                        ? `✅ Paid${r.paidMode ? ` · ${r.paidMode}` : ''}`
                         : '● Unpaid'}
                     </Text>
+                    {r.paid && r.paidBy ? <Text style={styles.paidByLine}>💵 Paid by: {r.paidBy}</Text> : null}
                   </View>
                   <Text style={styles.ledgerAmt}>{inr(r.amount)}</Text>
                   {canEdit && (
@@ -1138,6 +1142,7 @@ const styles = StyleSheet.create({
   ledgerRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, borderTopWidth: 1, borderTopColor: '#f1f5f9' },
   ledgerFor: { fontWeight: '600', fontSize: 13, color: '#0b1220' },
   ledgerMeta: { color: '#94a3b8', fontSize: 11, marginTop: 2 },
+  paidByLine: { color: '#0f766e', fontSize: 11, fontWeight: '700', marginTop: 2 },
   tripTag: { color: '#0f766e', fontSize: 11, fontWeight: '700', marginTop: 2 },
   tripChip: { backgroundColor: '#f1f5f9', borderRadius: 999, paddingVertical: 5, paddingHorizontal: 12 },
   tripChipText: { color: '#0b1220', fontSize: 12, fontWeight: '600' },

@@ -211,6 +211,7 @@ export function exportExpenseLedgerPdf(salesPersonName: string, expenses: SalesP
       return `<tr>
       <td>${fmtDate(e.date)}</td>
       <td>${e.expenseFor}</td>
+      <td>${e.paid && e.paidBy ? esc(e.paidBy) : '—'}</td>
       <td style="text-align:right">${inr(e.amount)}</td>
       <td style="text-align:right">${inr(running)}</td>
     </tr>`;
@@ -222,13 +223,13 @@ export function exportExpenseLedgerPdf(salesPersonName: string, expenses: SalesP
 <body>
   ${header(layout, heading, esc(salesPersonName), `Generated ${fmtDate(new Date().toISOString())}`)}
   <table>
-    <thead><tr><th>Date</th><th>Expense For</th><th style="text-align:right">Amount (₹)</th><th style="text-align:right">Running Total (₹)</th></tr></thead>
+    <thead><tr><th>Date</th><th>Expense For</th><th>Paid By</th><th style="text-align:right">Amount (₹)</th><th style="text-align:right">Running Total (₹)</th></tr></thead>
     <tbody>
-      <tr><td>—</td><td style="font-style:italic">Opening</td><td></td><td style="text-align:right">${inr(0)}</td></tr>
+      <tr><td>—</td><td style="font-style:italic">Opening</td><td></td><td></td><td style="text-align:right">${inr(0)}</td></tr>
       ${rows}
-      <tr style="background:#f5f7fb;font-weight:700"><td>—</td><td>Closing Total</td><td style="text-align:right">${inr(total)}</td><td style="text-align:right">${inr(total)}</td></tr>
+      <tr style="background:#f5f7fb;font-weight:700"><td>—</td><td>Closing Total</td><td></td><td style="text-align:right">${inr(total)}</td><td style="text-align:right">${inr(total)}</td></tr>
     </tbody>
-    <tfoot><tr><td colspan="2">Total Expense</td><td style="text-align:right">${inr(total)}</td><td></td></tr></tfoot>
+    <tfoot><tr><td colspan="3">Total Expense</td><td style="text-align:right">${inr(total)}</td><td></td></tr></tfoot>
   </table>
   ${footer(layout)}
   <script>window.onload = function(){ setTimeout(function(){ window.print(); }, 200); };</script>
