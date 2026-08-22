@@ -315,7 +315,7 @@ export function DashboardScreen() {
             <View style={styles.breakdown}>
               <Text style={styles.breakdownTitle}>AMOUNT BREAKDOWN</Text>
               <View style={styles.bdRow}>
-                <Text style={styles.bdLabel}>Goods value ({oQty} × ₹{oRate})</Text>
+                <Text style={styles.bdLabel}>Goods value ({oQty} × ₹{fmtAmount(oRate)})</Text>
                 <Text style={styles.bdVal}>{inr(oGoods)}</Text>
               </View>
               <View style={styles.bdRow}>

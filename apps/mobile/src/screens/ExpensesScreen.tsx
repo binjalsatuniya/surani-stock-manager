@@ -529,6 +529,77 @@ export function ExpensesScreen() {
     Linking.openURL(buildWhatsappLink(sp?.phone, message)).catch(() => setError('Could not open WhatsApp.'));
   }
 
+  // Oldest-first so the running total reads correctly on both the PDF and the WhatsApp message.
+  const orderedTrip = [...tripLedgerRows].sort((a, b) => (a.date + a.id).localeCompare(b.date + b.id));
+  const tripTotal = orderedTrip.reduce((s, r) => s + r.amount, 0);
+
+  async function onExportTripPdf() {
+    if (!tripLedger) return;
+    let running = 0;
+    const body = orderedTrip
+      .map((e) => {
+        running += e.amount;
+        return `<tr><td>${fmtDate(e.date)}</td><td>${e.expenseFor}</td><td style="text-align:right">${inr(
+          e.amount
+        )}</td><td style="text-align:right">${inr(running)}</td></tr>`;
+      })
+      .join('');
+    const html = `<html><head><meta charset="utf-8"><style>
+      body{font-family:-apple-system,Roboto,sans-serif;padding:24px;color:#0b1220}
+      h1{font-size:18px;margin:0 0 4px}
+      .sub{color:#64748b;font-size:12px;margin-bottom:16px}
+      table{width:100%;border-collapse:collapse;font-size:12px}
+      th,td{border-bottom:1px solid #e2e8f0;padding:7px 6px;text-align:left}
+      th{background:#f5f7fb}
+      tfoot td{font-weight:700}
+    </style></head><body>
+      <h1>SURANI AND SONS — Trip Expense Ledger</h1>
+      <div class="sub">${tripLedger.name}${tripLedger.closedAt ? ' · Paid / closed' : ' · Open'} &middot; Generated ${fmtDate(new Date().toISOString())}</div>
+      <table>
+        <thead><tr><th>Date</th><th>Expense For</th><th style="text-align:right">Amount (₹)</th><th style="text-align:right">Running Total (₹)</th></tr></thead>
+        <tbody>
+          <tr><td>—</td><td style="font-style:italic">Opening</td><td></td><td style="text-align:right">${inr(0)}</td></tr>
+          ${body}
+          <tr style="background:#f5f7fb;font-weight:700"><td>—</td><td>Closing Total</td><td style="text-align:right">${inr(
+            tripTotal
+          )}</td><td style="text-align:right">${inr(tripTotal)}</td></tr>
+        </tbody>
+        <tfoot><tr><td colspan="2">Trip Total</td><td style="text-align:right">${inr(tripTotal)}</td><td></td></tr></tfoot>
+      </table>
+    </body></html>`;
+    try {
+      const { uri } = await Print.printToFileAsync({ html });
+      if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri, { mimeType: 'application/pdf' });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not create the PDF.');
+    }
+  }
+
+  function onShareTripLedger() {
+    if (!tripLedger) return;
+    let running = 0;
+    const lines = orderedTrip.map((e) => {
+      running += e.amount;
+      return `${fmtDate(e.date)} — ${e.expenseFor}\n   ${inr(e.amount)}  (Total ${inr(running)})`;
+    });
+    const message = [
+      '🧾 *TRIP EXPENSE LEDGER*',
+      '',
+      '*Surani and Sons*',
+      '',
+      `🚚 *${tripLedger.name}*`,
+      tripLedger.closedAt ? '✅ Paid / closed' : '● Open',
+      `📅 As on: ${fmtDate(new Date().toISOString())}`,
+      '',
+      lines.length ? lines.join('\n\n') : 'No expenses tagged to this trip.',
+      '',
+      `*Trip Total: ${inr(tripTotal)}*`,
+      '',
+      'Thank you 🙏',
+    ].join('\n');
+    Linking.openURL(buildWhatsappLink(undefined, message)).catch(() => setError('Could not open WhatsApp.'));
+  }
+
   /* ---------- derived ---------- */
 
   const perSalesPerson = useMemo(() => {
@@ -961,6 +1032,16 @@ export function ExpensesScreen() {
               {tripLedger?.closedAt ? '✓ Paid / closed' : '● Open'}
             </Text>
             <Text style={styles.ledgerTotal}>Total: {inr(tripLedgerRows.reduce((s, r) => s + r.amount, 0))}</Text>
+            <View style={[styles.row, { marginTop: 8 }]}>
+              {can('send_whatsapp') && (
+                <TouchableOpacity style={[styles.btnWa, styles.col]} onPress={onShareTripLedger}>
+                  <Text style={styles.btnText}>WhatsApp</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity style={[styles.btn, styles.col]} onPress={onExportTripPdf}>
+                <Text style={styles.btnText}>Export PDF</Text>
+              </TouchableOpacity>
+            </View>
             {tripLedger && !tripLedger.closedAt ? (
               <TouchableOpacity style={[styles.btn, { marginTop: 8 }]} onPress={() => openTripPay(tripLedger)}>
                 <Text style={styles.btnText}>Mark as Paid</Text>
