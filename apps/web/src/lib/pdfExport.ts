@@ -199,7 +199,7 @@ export function exportItemLedgerPdf(
   openPrintWindow(html);
 }
 
-export function exportExpenseLedgerPdf(salesPersonName: string, expenses: SalesPersonExpense[], layout: PdfLayout = defaultPdfLayout()) {
+export function exportExpenseLedgerPdf(salesPersonName: string, expenses: SalesPersonExpense[], layout: PdfLayout = defaultPdfLayout(), heading = 'Sales Person Expense Ledger') {
   // Oldest-first so the running balance accumulates correctly.
   const ordered = [...expenses].sort((a, b) => (a.date + a.id).localeCompare(b.date + b.id));
   const total = ordered.reduce((s, e) => s + e.amount, 0);
@@ -220,7 +220,7 @@ export function exportExpenseLedgerPdf(salesPersonName: string, expenses: SalesP
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Expense Ledger — ${salesPersonName}</title>
 <style>${styles(layout.accent_color)}</style></head>
 <body>
-  ${header(layout, 'Sales Person Expense Ledger', esc(salesPersonName), `Generated ${fmtDate(new Date().toISOString())}`)}
+  ${header(layout, heading, esc(salesPersonName), `Generated ${fmtDate(new Date().toISOString())}`)}
   <table>
     <thead><tr><th>Date</th><th>Expense For</th><th style="text-align:right">Amount (₹)</th><th style="text-align:right">Running Total (₹)</th></tr></thead>
     <tbody>

@@ -84,6 +84,38 @@ export function ExpensesPage() {
     shareOnWhatsapp(sp?.phone, message);
   }
 
+  async function onExportTripPdf() {
+    if (!tripLedger) return;
+    exportExpenseLedgerPdf(tripLedger.name, tripLedgerRows, await getPdfLayout(), 'Trip Expense Ledger');
+  }
+
+  function onShareTripLedger() {
+    if (!tripLedger) return;
+    const ordered = [...tripLedgerRows].sort((a, b) => (a.date + a.id).localeCompare(b.date + b.id));
+    let running = 0;
+    const lines = ordered.map((e) => {
+      running += e.amount;
+      return `${fmtDate(e.date)} — ${e.expenseFor}\n   ${inr(e.amount)}  (Total ${inr(running)})`;
+    });
+    const total = ordered.reduce((s, e) => s + e.amount, 0);
+    const message = [
+      '🧾 *TRIP EXPENSE LEDGER*',
+      '',
+      '*Surani and Sons*',
+      '',
+      `🚚 *${tripLedger.name}*`,
+      tripLedger.closedAt ? '✅ Paid / closed' : '● Open',
+      `📅 As on: ${fmtDate(new Date().toISOString())}`,
+      '',
+      lines.length ? lines.join('\n\n') : 'No expenses tagged to this trip.',
+      '',
+      `*Trip Total: ${inr(total)}*`,
+      '',
+      'Thank you 🙏',
+    ].join('\n');
+    shareOnWhatsapp(undefined, message);
+  }
+
   async function reload() {
     setRows(await api.expenses.list({ salesPersonId: filterSp || undefined }));
   }
@@ -851,6 +883,12 @@ export function ExpensesPage() {
                   <span style={{ marginLeft: 8, color: '#b45309', fontWeight: 700, fontSize: 12 }}>● Open</span>
                 )}
               </h3>
+              {can('send_whatsapp') && (
+                <button className="btn btn-sm btn-whatsapp" onClick={onShareTripLedger} title="Share this trip ledger on WhatsApp">
+                  Share on WhatsApp
+                </button>
+              )}
+              <button className="btn btn-sm btn-primary" onClick={onExportTripPdf}>Export PDF</button>
               {!tripLedger.closedAt && (
                 <button className="btn btn-sm btn-primary" onClick={() => openTripPay(tripLedger)}>Mark as Paid</button>
               )}
