@@ -1,6 +1,6 @@
 import { fmtAmount } from '@surani/shared';
 import { Fragment, useEffect, useState, type ChangeEvent } from 'react';
-import { buildWhatsappLink, deliveryTermsLabel, type Item, type Outward, type Party } from '@surani/shared';
+import { deliveryTermsLabel, type Item, type Outward, type Party } from '@surani/shared';
 import { api } from '../lib/apiClient';
 import { shareOnWhatsapp } from '../lib/whatsappShare';
 import { usePermission } from '../hooks/usePermission';
@@ -344,7 +344,9 @@ export function OrderBookPage() {
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 10000); // let the download start first
       const party = partyById(m.partyId);
-      window.open(buildWhatsappLink(party?.phone, `Invoice — ${partyName(m.partyId)}`), '_blank');
+      // Same path as every other share: copy the caption and just open the chat (empty), so the user
+      // attaches the invoice that was just downloaded — and it opens the WhatsApp app on desktop.
+      shareOnWhatsapp(party?.phone, `Invoice — ${partyName(m.partyId)}`);
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not share the invoice'); }
   }
   async function onRestore(id: string) {

@@ -1,7 +1,8 @@
 import { fmtAmount } from '@surani/shared';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { buildWhatsappLink, type Item, type ItemUnit } from '@surani/shared';
+import { type Item, type ItemUnit } from '@surani/shared';
+import { shareOnWhatsapp } from '../lib/whatsappShare';
 import { api } from '../lib/apiClient';
 import { usePermission } from '../hooks/usePermission';
 import { useEscToClose } from '../hooks/useEscToClose';
@@ -181,7 +182,9 @@ export function ItemsPage() {
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 10000); // let the download start first
-    window.open(buildWhatsappLink(null, `TDS — ${i.name}`), '_blank');
+    // Same path as every other share: copy the caption and just open the chat (empty), so the user
+    // attaches the file that was just downloaded — and it opens the WhatsApp app on desktop.
+    shareOnWhatsapp(null, `TDS — ${i.name}`);
   }
 
   async function onDelete(id: string) {
