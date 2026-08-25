@@ -39,6 +39,9 @@ export function createOrderbookClient(http: HttpClient) {
       return http.get<Outward[]>(`/orderbook${qs ? `?${qs}` : ''}`);
     },
     dispatch: (id: string, input: DispatchInput) => http.post<Outward>(`/orderbook/${id}/dispatch`, input),
+    // Split a still-pending order into several deliveries. `parts` are the quantities and must add up
+    // to the order's quantity; the first part stays on this order, the rest become new orders.
+    split: (id: string, parts: number[]) => http.post<Outward[]>(`/orderbook/${id}/split`, { parts }),
     deliver: (id: string) => http.post<Outward>(`/orderbook/${id}/deliver`),
     cancel: (id: string, note?: string) => http.post<Outward>(`/orderbook/${id}/cancel`, { note }),
     getInvoice: (id: string) => http.get<{ invoiceFile: string | null; invoiceFileName: string | null }>(`/orderbook/${id}/invoice`),

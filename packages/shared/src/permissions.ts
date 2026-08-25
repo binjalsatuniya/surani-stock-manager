@@ -21,6 +21,7 @@ export const PERMS = [
   { id: 'view_orderbook', label: 'View Order Book', group: 'Sales' },
   { id: 'view_order_rate', label: 'See Sale Rate & Amount (Order Book)', group: 'Sales' },
   { id: 'dispatch_order', label: 'Dispatch / Deliver Orders', group: 'Sales' },
+  { id: 'split_order', label: 'Split an order into multiple deliveries', group: 'Sales' },
   { id: 'view_invoice', label: 'See attached Invoice PDF', group: 'Sales' },
 
   { id: 'view_items', label: 'View Items & Live Stock', group: 'Item Master' },

@@ -77,6 +77,53 @@ export function OrderBookPage() {
   const [dHandlingAgent, setDHandlingAgent] = useState('');
   const [dHandlingRate, setDHandlingRate] = useState('');
 
+  // Split a pending order into several deliveries. `splitParts` holds each part's quantity (as text
+  // inputs); they must add up to the order's quantity.
+  const [splitting, setSplitting] = useState<Outward | null>(null);
+  const [splitParts, setSplitParts] = useState<string[]>([]);
+  const [splitError, setSplitError] = useState('');
+  useEscToClose(!!splitting, () => setSplitting(null));
+
+  function openSplit(m: Outward) {
+    setSplitError('');
+    setSplitting(m);
+    // Default to two even halves; the user can change the count and each amount.
+    const half = Math.round((Number(m.qty) / 2) * 1000) / 1000;
+    setSplitParts([String(half), String(Math.round((Number(m.qty) - half) * 1000) / 1000)]);
+  }
+
+  function setSplitCount(n: number) {
+    if (!splitting) return;
+    const total = Number(splitting.qty);
+    const each = Math.floor((total / n) * 1000) / 1000;
+    const parts = Array.from({ length: n }, () => String(each));
+    // Put the rounding remainder on the last part so the sum stays exact.
+    parts[n - 1] = String(Math.round((total - each * (n - 1)) * 1000) / 1000);
+    setSplitParts(parts);
+    setSplitError('');
+  }
+
+  function setSplitPart(i: number, value: string) {
+    setSplitParts((ps) => ps.map((p, j) => (j === i ? value : p)));
+    setSplitError('');
+  }
+
+  async function confirmSplit() {
+    if (!splitting) return;
+    const nums = splitParts.map((p) => Number(p));
+    if (nums.some((n) => !(n > 0))) return setSplitError('Every part must be a quantity greater than zero.');
+    const sum = Math.round(nums.reduce((s, n) => s + n, 0) * 1000) / 1000;
+    const total = Math.round(Number(splitting.qty) * 1000) / 1000;
+    if (sum !== total) return setSplitError(`The parts add up to ${sum}, but the order is ${total}. They must match.`);
+    try {
+      await api.orderbook.split(splitting.id, nums);
+      setSplitting(null);
+      reload();
+    } catch (e) {
+      setSplitError(e instanceof Error ? e.message : 'Failed to split the order');
+    }
+  }
+
   async function reload() {
     setRows(await api.orderbook.list({ fy: selectedFy || undefined }));
   }
@@ -445,6 +492,15 @@ export function OrderBookPage() {
                 }
               >
                 {m.fulfil === 'pending' ? 'Dispatch' : 'Edit Dispatch'}
+              </button>
+            )}
+            {m.fulfil === 'pending' && can('split_order') && (
+              <button
+                className="btn btn-sm"
+                onClick={() => openSplit(m)}
+                title="Split this order into separate deliveries (e.g. 2000 → 1000 + 1000), each with its own invoice"
+              >
+                Split
               </button>
             )}
             {m.fulfil === 'dispatched' && can('dispatch_order') && (
@@ -842,6 +898,59 @@ export function OrderBookPage() {
             ) : (
               <img src={invoiceView.url} alt={invoiceView.name} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', margin: 'auto' }} />
             )}
+          </div>
+        </div>
+      )}
+
+      {splitting && (
+        <div
+          onClick={() => setSplitting(null)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}
+        >
+          <div className="card" onClick={(e) => e.stopPropagation()} style={{ width: '92%', maxWidth: 460 }}>
+            <h3 style={{ marginTop: 0 }}>Split order into deliveries</h3>
+            <p className="muted" style={{ marginTop: 0 }}>
+              {itemName(splitting.itemId)} — total <strong>{Number(splitting.qty)}</strong>. Each part becomes its own
+              order you dispatch separately (own invoice, vehicle & transporter). The parts must add up to the total.
+            </p>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <label style={{ fontSize: 13 }}>Number of deliveries</label>
+              <select
+                value={splitParts.length}
+                onChange={(e) => setSplitCount(Number(e.target.value))}
+                style={{ padding: '4px 8px' }}
+              >
+                {[2, 3, 4, 5].map((n) => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+            </div>
+
+            {splitParts.map((p, i) => (
+              <div key={i} className="field" style={{ margin: '0 0 8px' }}>
+                <label>Delivery {i + 1} quantity</label>
+                <input type="number" min="0" step="0.001" value={p} onChange={(e) => setSplitPart(i, e.target.value)} />
+              </div>
+            ))}
+
+            {(() => {
+              const sum = Math.round(splitParts.reduce((s, p) => s + (Number(p) || 0), 0) * 1000) / 1000;
+              const total = Math.round(Number(splitting.qty) * 1000) / 1000;
+              const ok = sum === total;
+              return (
+                <div style={{ fontSize: 12.5, marginBottom: 8, color: ok ? '#15803d' : '#b45309', fontWeight: 600 }}>
+                  Parts total: {sum} / {total} {ok ? '✓' : '— must match'}
+                </div>
+              );
+            })()}
+
+            {splitError && <div style={{ color: '#dc2626', fontSize: 12.5, marginBottom: 8 }}>{splitError}</div>}
+
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button className="btn btn-sm" onClick={() => setSplitting(null)}>Cancel</button>
+              <button className="btn btn-sm btn-primary" onClick={confirmSplit}>Split order</button>
+            </div>
           </div>
         </div>
       )}

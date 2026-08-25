@@ -112,6 +112,88 @@ orderbookRouter.get(
   })
 );
 
+// Split a still-pending order into several deliveries — e.g. 2000 kg that will go out on two
+// vehicles as 1000 + 1000, each with its own invoice. The first part stays on this order; the rest
+// become new pending orders sharing party, item, rate, GST slab and terms. Freight/handling are not
+// touched here (they are posted per delivery at dispatch, from the same rate), and the invoice
+// number, date, vehicle, transporter and PDF are all entered per part when it is dispatched.
+const splitSchema = z.object({
+  parts: z.array(z.coerce.number().positive()).min(2),
+});
+
+orderbookRouter.post(
+  '/:id/split',
+  requirePermission('split_order'),
+  asyncHandler(async (req, res) => {
+    const { parts } = splitSchema.parse(req.body);
+    const order = await prisma.outward.findUnique({ where: { id: req.params.id } });
+    if (!order) throw new NotFoundError('Order not found');
+    if (order.fulfil !== 'pending') {
+      throw new HttpError(400, 'Only a pending (not yet dispatched) order can be split.');
+    }
+    // The parts must add up to the order's quantity, to 3 decimals (the column's precision).
+    const round3 = (n: number) => Math.round(n * 1000) / 1000;
+    const sum = round3(parts.reduce((s, p) => s + p, 0));
+    const total = round3(Number(order.qty));
+    if (sum !== total) {
+      throw new HttpError(400, `The parts add up to ${sum}, but the order is ${total}. They must match.`);
+    }
+
+    const rate = Number(order.rate);
+    const gstPct = Number(order.gstPct);
+    const money = (qty: number) => {
+      const gst = Math.round(qty * rate * (gstPct / 100) * 100) / 100;
+      const amount = Math.round((qty * rate + gst) * 100) / 100;
+      return { gst, amount };
+    };
+    const baseNote = (order.note || '').replace(/\s*\[Split \d+\/\d+\]\s*$/, '').trim();
+    const noteFor = (k: number) => `${baseNote ? baseNote + ' ' : ''}[Split ${k}/${parts.length}]`;
+
+    const result = await prisma.$transaction(async (tx) => {
+      // First part stays on the original order.
+      const first = money(parts[0]);
+      const updated = await tx.outward.update({
+        where: { id: order.id },
+        data: { qty: parts[0], gst: first.gst, amount: first.amount, note: noteFor(1) },
+      });
+      // Remaining parts become new pending orders that copy everything else.
+      const created = [updated];
+      for (let k = 1; k < parts.length; k++) {
+        const m = money(parts[k]);
+        const row = await tx.outward.create({
+          data: {
+            date: order.date,
+            partyId: order.partyId,
+            itemId: order.itemId,
+            qty: parts[k],
+            rate: order.rate,
+            gstPct: order.gstPct,
+            gst: m.gst,
+            amount: m.amount,
+            payStatus: order.payStatus,
+            creditDays: order.creditDays,
+            deliveryType: order.deliveryType,
+            deliveryDate: order.deliveryDate,
+            fulfil: 'pending',
+            note: noteFor(k + 1),
+            createdById: req.user!.id,
+          },
+        });
+        created.push(row);
+      }
+      return created;
+    });
+
+    const [dp, di] = await Promise.all([
+      prisma.party.findUnique({ where: { id: order.partyId }, select: { name: true } }),
+      prisma.item.findUnique({ where: { id: order.itemId }, select: { name: true } }),
+    ]);
+    await logActivity(prisma, req.user!, 'split', 'outward', order.id,
+      `Order split: ${dp?.name ?? 'party'} · ${di?.name ?? 'item'} · ${total} → ${parts.join(' + ')}`);
+    res.json(result.map((r) => toOutwardDTO({ ...r, invoiceFile: null })));
+  })
+);
+
 const dispatchSchema = z.object({
   invNo: z.string().min(1),
   invDate: z.string().min(1),

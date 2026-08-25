@@ -62,6 +62,40 @@ export function OrderBookScreen() {
   const [dHandlingAgent, setDHandlingAgent] = useState('');
   const [dHandlingRate, setDHandlingRate] = useState('');
 
+  // Split a pending order into several deliveries; each part's quantity is a text input and they
+  // must add up to the order's quantity.
+  const [splitting, setSplitting] = useState<Outward | null>(null);
+  const [splitParts, setSplitParts] = useState<string[]>([]);
+
+  function openSplit(m: Outward) {
+    setError('');
+    setSplitting(m);
+    const half = Math.round((Number(m.qty) / 2) * 1000) / 1000;
+    setSplitParts([String(half), String(Math.round((Number(m.qty) - half) * 1000) / 1000)]);
+  }
+  function setSplitCount(n: number) {
+    if (!splitting) return;
+    const total = Number(splitting.qty);
+    const each = Math.floor((total / n) * 1000) / 1000;
+    const parts = Array.from({ length: n }, () => String(each));
+    parts[n - 1] = String(Math.round((total - each * (n - 1)) * 1000) / 1000);
+    setSplitParts(parts);
+  }
+  function setSplitPart(i: number, value: string) {
+    setSplitParts((ps) => ps.map((p, j) => (j === i ? value : p)));
+  }
+  function confirmSplit() {
+    if (!splitting) return;
+    const nums = splitParts.map((p) => Number(p));
+    if (nums.some((n) => !(n > 0))) { setError('Every part must be a quantity greater than zero.'); return; }
+    const sum = Math.round(nums.reduce((s, n) => s + n, 0) * 1000) / 1000;
+    const total = Math.round(Number(splitting.qty) * 1000) / 1000;
+    if (sum !== total) { setError(`The parts add up to ${sum}, but the order is ${total}. They must match.`); return; }
+    const id = splitting.id;
+    setSplitting(null);
+    act(() => api.orderbook.split(id, nums), 'Failed to split the order');
+  }
+
   async function reload() {
     setRows(await api.orderbook.list());
   }
@@ -308,6 +342,11 @@ export function OrderBookScreen() {
               <Text style={styles.btnSmPrimaryText}>Dispatch</Text>
             </TouchableOpacity>
           )}
+          {m.fulfil === 'pending' && can('split_order') && (
+            <TouchableOpacity style={styles.btnSm} onPress={() => openSplit(m)}>
+              <Text style={styles.btnSmText}>Split</Text>
+            </TouchableOpacity>
+          )}
           {m.fulfil === 'dispatched' && can('dispatch_order') && (
             <TouchableOpacity style={styles.btnSmPrimary} onPress={() => act(() => api.orderbook.deliver(m.id), 'Failed to mark delivered')}>
               <Text style={styles.btnSmPrimaryText}>Delivered</Text>
@@ -438,6 +477,52 @@ export function OrderBookScreen() {
             </TouchableOpacity>
             <TouchableOpacity style={[styles.btnGhost, styles.col]} onPress={() => setCancellingId(null)}>
               <Text style={styles.btnGhostText}>Keep Order</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : null}
+
+      {/* Split-into-deliveries form */}
+      {splitting ? (
+        <View style={[styles.card, styles.formCard]}>
+          <Text style={styles.cardTitle}>Split Order</Text>
+          <Text style={styles.label}>
+            {itemName(splitting.itemId)} — total {Number(splitting.qty)}. Each part becomes its own order to dispatch
+            separately. The parts must add up to the total.
+          </Text>
+
+          <Text style={styles.label}>Number of deliveries</Text>
+          <View style={styles.pickerWrap}>
+            <Picker selectedValue={splitParts.length} onValueChange={(v) => setSplitCount(Number(v))} style={styles.picker}>
+              {[2, 3, 4, 5].map((n) => (
+                <Picker.Item key={n} label={String(n)} value={n} />
+              ))}
+            </Picker>
+          </View>
+
+          {splitParts.map((p, i) => (
+            <View key={i}>
+              <Text style={styles.label}>Delivery {i + 1} quantity</Text>
+              <TextInput style={styles.input} value={p} onChangeText={(v) => setSplitPart(i, v)} keyboardType="numeric" />
+            </View>
+          ))}
+
+          {(() => {
+            const sum = Math.round(splitParts.reduce((s, p) => s + (Number(p) || 0), 0) * 1000) / 1000;
+            const total = Math.round(Number(splitting.qty) * 1000) / 1000;
+            return (
+              <Text style={[styles.label, { color: sum === total ? '#15803d' : '#b45309', fontWeight: '700' }]}>
+                Parts total: {sum} / {total} {sum === total ? '✓' : '— must match'}
+              </Text>
+            );
+          })()}
+
+          <View style={styles.row}>
+            <TouchableOpacity style={[styles.btnSmPrimary, styles.col]} onPress={confirmSplit}>
+              <Text style={styles.btnSmPrimaryText}>Split Order</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.btnGhost, styles.col]} onPress={() => setSplitting(null)}>
+              <Text style={styles.btnGhostText}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </View>
