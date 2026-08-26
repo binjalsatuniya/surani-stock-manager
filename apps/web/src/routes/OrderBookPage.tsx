@@ -832,51 +832,59 @@ export function OrderBookPage() {
 
       <div className="card">
         <h3 style={{ marginTop: 0 }}>📋 Orders Pending Dispatch</h3>
-        <table>
-          <thead>{headerCells}</thead>
-          <tbody>
-            {pending.map(orderRow)}
-            {pending.length === 0 && (
-              <tr>
-                <td colSpan={12} className="muted">No orders pending dispatch.</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+        <div style={{ overflowX: 'auto' }}>
+          <table>
+            <thead>{headerCells}</thead>
+            <tbody>
+              {pending.map(orderRow)}
+              {pending.length === 0 && (
+                <tr>
+                  <td colSpan={12} className="muted">No orders pending dispatch.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div className="card">
         <h3 style={{ marginTop: 0 }}>🚚 Dispatched Orders</h3>
-        <table>
-          <thead>{headerCells}</thead>
-          <tbody>
-            {dispatched.map(orderRow)}
-            {dispatched.length === 0 && (
-              <tr>
-                <td colSpan={12} className="muted">No dispatched orders.</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+        <div style={{ overflowX: 'auto' }}>
+          <table>
+            <thead>{headerCells}</thead>
+            <tbody>
+              {dispatched.map(orderRow)}
+              {dispatched.length === 0 && (
+                <tr>
+                  <td colSpan={12} className="muted">No dispatched orders.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {delivered.length > 0 && (
         <div className="card">
           <h3 style={{ marginTop: 0 }}>✅ Delivered</h3>
-          <table>
-            <thead>{headerCells}</thead>
-            <tbody>{delivered.map(orderRow)}</tbody>
-          </table>
+          <div style={{ overflowX: 'auto' }}>
+            <table>
+              <thead>{headerCells}</thead>
+              <tbody>{delivered.map(orderRow)}</tbody>
+            </table>
+          </div>
         </div>
       )}
 
       {cancelled.length > 0 && (
         <div className="card">
           <h3 style={{ marginTop: 0 }}>🚫 Cancelled</h3>
-          <table>
-            <thead>{headerCells}</thead>
-            <tbody>{cancelled.map(orderRow)}</tbody>
-          </table>
+          <div style={{ overflowX: 'auto' }}>
+            <table>
+              <thead>{headerCells}</thead>
+              <tbody>{cancelled.map(orderRow)}</tbody>
+            </table>
+          </div>
         </div>
       )}
 
