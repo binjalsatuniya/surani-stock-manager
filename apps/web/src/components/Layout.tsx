@@ -26,6 +26,7 @@ export const NAV_DEFS: NavDef[] = [
   { key: 'payments', to: '/payments', label: 'Payment Due', perm: 'view_payments' },
   { key: 'expenses', to: '/expenses', label: 'Expenses', perm: 'view_expenses' },
   { key: 'parties', to: '/parties', label: 'Parties', perm: 'view_parties' },
+  { key: 'followup', to: '/follow-up', label: 'Follow-up', perm: 'manage_followup' },
   { key: 'items', to: '/items', label: 'Items', perm: 'view_items' },
   { key: 'livestock', to: '/live-stock', label: 'Live Stock & Rate', perm: 'view_live_stock' },
   { key: 'users', to: '/users', label: 'Users', perm: 'manage_users' },

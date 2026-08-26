@@ -36,7 +36,6 @@ const EMPTY = {
   address: '',
   locationUrl: '',
   vehicle: '',
-  followUpDays: '',
 };
 
 export function PartiesPage() {
@@ -48,7 +47,6 @@ export function PartiesPage() {
   const canEditRow = can('edit_parties') || can('edit_transporters');
   const canDelete = can('delete_parties') || can('edit_transporters');
   const canEdit = can('add_parties') || canEditRow || canDelete;
-  const canFollowUp = can('manage_followup'); // JAYNIL-only for now: see & set the Follow-up column
   const [parties, setParties] = useState<Party[]>([]);
   const [query, setQuery] = useState('');
   const [spFilter, setSpFilter] = useState('');
@@ -148,8 +146,6 @@ export function PartiesPage() {
       address: form.address.trim() || null,
       locationUrl: form.locationUrl.trim() || null,
       vehicle: form.vehicle.trim() || null,
-      // Only send Follow-up when this user may set it, so ordinary edits by others aren't rejected.
-      ...(canFollowUp ? { followUpDays: form.followUpDays.trim() === '' ? null : Number(form.followUpDays) } : {}),
     };
     try {
       if (editingId) await api.parties.update(editingId, payload);
@@ -176,7 +172,6 @@ export function PartiesPage() {
       address: p.address || '',
       locationUrl: p.locationUrl || '',
       vehicle: p.vehicle || '',
-      followUpDays: p.followUpDays != null ? String(p.followUpDays) : '',
     });
   }
 
@@ -340,20 +335,6 @@ export function PartiesPage() {
         <FieldLabel required={required('party.vehicle')}>Vehicle (transporters)</FieldLabel>
         <input value={form.vehicle} onChange={(e) => set('vehicle', e.target.value)} />
       </div>
-      {canFollowUp && (
-        <div className="field" style={{ margin: 0 }}>
-          <label>Follow-up (days)</label>
-          <input
-            type="number"
-            min="0"
-            value={form.followUpDays}
-            onChange={(e) => set('followUpDays', e.target.value)}
-            style={{ width: 120 }}
-            placeholder="e.g. 15"
-            title="After how many days the sales person should follow up with this company"
-          />
-        </div>
-      )}
       <div className="field" style={{ margin: 0, flex: 1, minWidth: 220 }}>
         <FieldLabel required={required('party.address')}>Address</FieldLabel>
         <input value={form.address} onChange={(e) => set('address', e.target.value)} />
@@ -411,7 +392,6 @@ export function PartiesPage() {
               <th>Phone</th>
               <th>GST</th>
               <th>Credit Days</th>
-              {canFollowUp && <th>Follow-up</th>}
               <th>Opening</th>
               <th></th>
               {canEdit && <th></th>}
@@ -446,7 +426,6 @@ export function PartiesPage() {
                 </td>
                 <td>{p.gst || '—'}</td>
                 <td>{p.creditDays}</td>
-                {canFollowUp && <td>{p.followUpDays != null ? `${p.followUpDays} days` : '—'}</td>}
                 <td>{fmtAmount(p.opening)}</td>
                 <td>
                   <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
@@ -477,7 +456,7 @@ export function PartiesPage() {
               </tr>
               {editingId === p.id && (
                 <tr>
-                  <td colSpan={(canEdit ? 9 : 8) + (canFollowUp ? 1 : 0)} style={{ background: '#f8fafc' }}>
+                  <td colSpan={canEdit ? 9 : 8} style={{ background: '#f8fafc' }}>
                     <div style={{ fontWeight: 600, margin: '4px 0 8px' }}>Edit {p.name}</div>
                     {partyFields}
                     {error && <div className="login-err show" style={{ marginTop: 6 }}>{error}</div>}
@@ -496,7 +475,7 @@ export function PartiesPage() {
             ))}
             {parties.length === 0 && (
               <tr>
-                <td colSpan={9 + (canFollowUp ? 1 : 0)} className="muted">
+                <td colSpan={9} className="muted">
                   No parties yet.
                 </td>
               </tr>

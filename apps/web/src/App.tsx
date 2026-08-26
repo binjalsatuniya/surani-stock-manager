@@ -27,6 +27,7 @@ import { WhatsappSettingsPage } from './routes/WhatsappSettingsPage';
 import { FieldRulesPage } from './routes/FieldRulesPage';
 import { PdfLayoutPage } from './routes/PdfLayoutPage';
 import { ExpensesPage } from './routes/ExpensesPage';
+import { FollowUpPage } from './routes/FollowUpPage';
 import { LoginLocationsPage } from './routes/LoginLocationsPage';
 import { ShortcutsPage } from './routes/ShortcutsPage';
 import { FinancialYearsPage } from './routes/FinancialYearsPage';
@@ -79,6 +80,7 @@ export function App() {
         <Route path="/orderbook" element={<OrderBookPage />} />
         <Route path="/payments" element={<PaymentsPage />} />
         <Route path="/parties" element={<PartiesPage />} />
+        <Route path="/follow-up" element={<FollowUpPage />} />
         <Route path="/parties/:id/ledger" element={<PartyLedgerPage />} />
         <Route path="/items" element={<ItemsPage />} />
         <Route path="/import-scans" element={<ImportScansPage />} />
