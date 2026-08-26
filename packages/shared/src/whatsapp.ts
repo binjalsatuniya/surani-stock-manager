@@ -39,7 +39,8 @@ export const WHATSAPP_TEMPLATES: WhatsappTemplateDef[] = [
       { token: '{deliveryTerms}', description: 'Delivery terms (Ex-Works / FOR)' },
       { token: '{deliveryDate}', description: 'Delivery date (or N/A)' },
       { token: '{payStatus}', description: 'Payment status (Pending / Received / Credit)' },
-      { token: '{dueDate}', description: 'Payment due date (or N/A)' },
+      { token: '{dueDays}', description: 'Credit period in days, e.g. "10 days" (or N/A)' },
+      { token: '{dueDate}', description: 'Payment due date (or N/A) — kept for older templates' },
     ],
     default: [
       '📦 *ORDER CONFIRMATION*',
@@ -59,7 +60,7 @@ export const WHATSAPP_TEMPLATES: WhatsappTemplateDef[] = [
       '*Delivery Date:* {deliveryDate}',
       '',
       '*Payment Status:* {payStatus}',
-      '*Due Date:* {dueDate}',
+      '*Due Days:* {dueDays}',
       '',
       'Thank you for your valued business 🙏',
     ].join('\n'),

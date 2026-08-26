@@ -154,6 +154,7 @@ export function DashboardScreen() {
       deliveryTerms: deliveryTermsLabel(order.deliveryType),
       deliveryDate: order.deliveryDate ? fmtDate(order.deliveryDate) : 'N/A',
       payStatus,
+      dueDays: party && party.creditDays > 0 ? `${party.creditDays} days` : 'N/A',
       dueDate: 'N/A',
     });
 

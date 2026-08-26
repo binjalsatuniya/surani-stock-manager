@@ -30,6 +30,12 @@ function dueDateFor(m: Outward): string {
   return fmtDate(addDays(basis, m.creditDays));
 }
 
+// Credit period as days (e.g. "10 days") for the WhatsApp slip — shown instead of the due date.
+function dueDaysFor(m: Outward): string {
+  if (m.payStatus !== 'credit' || !m.creditDays) return 'N/A';
+  return `${m.creditDays} days`;
+}
+
 export function OrderBookScreen() {
   const can = usePermission();
   const canRate = can('view_order_rate'); // whether this user may see the sale rate/amount
@@ -218,6 +224,7 @@ export function OrderBookScreen() {
       deliveryTerms: deliveryTermsLabel(m.deliveryType),
       deliveryDate: m.deliveryDate ? fmtDate(m.deliveryDate) : 'N/A',
       payStatus: payStatusLabel(m),
+      dueDays: dueDaysFor(m),
       dueDate: dueDateFor(m),
     });
     if (message) openWa(party.phone, message);
