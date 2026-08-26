@@ -81,9 +81,22 @@ function createWindow() {
     mainWindow.loadFile(webDistIndex);
   }
 
+  // Lock the zoom so a stray touchpad pinch can't stretch the page (the usual cause of "the screen
+  // stretches, I have to refresh"). Applied on every load so it survives navigations/reloads.
+  mainWindow.webContents.on('did-finish-load', () => {
+    mainWindow.webContents.setZoomFactor(1);
+    mainWindow.webContents.setVisualZoomLevelLimits(1, 1).catch(() => {});
+  });
+
   // Show only when fully loaded (avoids white flash)
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
+    // On some Windows / high-DPI setups the first paint lands at the wrong size (looks stretched)
+    // until a manual refresh; nudging the window size by a pixel forces Chromium to re-lay-out
+    // straight away, without a visible reload.
+    const [w, h] = mainWindow.getSize();
+    mainWindow.setSize(w, h + 1);
+    mainWindow.setSize(w, h);
   });
 
   mainWindow.on('closed', () => { mainWindow = null; });
