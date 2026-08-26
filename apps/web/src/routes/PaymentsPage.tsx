@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { buildWhatsappLink, buildTelLink, PAYMENT_MODES, type DueLedgerGroup, type PayableGroup, type Party, type Payment, type PaymentDirection, type PaymentMode, type SalesPerson } from '@surani/shared';
 import type { UnpaidInvoice } from '@surani/shared';
 import { api } from '../lib/apiClient';
-import { shareOnWhatsapp } from '../lib/whatsappShare';
+import { shareViaWindow } from '../lib/whatsappShare';
 import { usePermission } from '../hooks/usePermission';
 import { useDialogs } from '../components/Dialogs';
 import { useWhatsappTemplates } from '../hooks/useWhatsappTemplates';
@@ -72,6 +72,9 @@ export function PaymentsPage() {
   }, [spFilter]);
 
   function onRemind(g: DueLedgerGroup) {
+    // Open the WhatsApp tab NOW, inside the click, so it isn't blocked as a pop-up after the
+    // clipboard copy (which is async). shareViaWindow then fills or closes this window.
+    const waWin = window.open('', '_blank');
     const overdue = g.entries.filter((e) => e.dueDays !== null && e.dueDays <= 0);
     const overdueAmount = overdue.reduce((s, e) => s + e.balance, 0);
     // One line per outstanding invoice: number · date · amount.
@@ -86,7 +89,11 @@ export function PaymentsPage() {
       invoiceList,
       date: fmtDate(new Date().toISOString()),
     });
-    if (message) shareOnWhatsapp(g.party.phone, message);
+    if (message) {
+      shareViaWindow(waWin, g.party.phone, message);
+    } else {
+      waWin?.close();
+    }
   }
 
   function openWhatsapp(phone?: string | null) {
