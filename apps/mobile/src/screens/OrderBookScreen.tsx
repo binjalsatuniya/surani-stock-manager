@@ -336,6 +336,13 @@ export function OrderBookScreen() {
           <Text style={styles.detailLabel}>Transporter</Text>
           <Text style={styles.detailVal}>{m.transporterName || transporterName(m.transporterId)}</Text>
         </View>
+        {/* Freight only applies to FOR orders; Ex-Works leaves transport to the buyer. */}
+        {m.deliveryType === 'FOR' ? (
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Freight</Text>
+            <Text style={styles.detailVal}>{inr(m.freightRate || 0)}</Text>
+          </View>
+        ) : null}
         {m.fulfil === 'cancelled' && m.cancelNote ? (
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>🚫 Reason</Text>

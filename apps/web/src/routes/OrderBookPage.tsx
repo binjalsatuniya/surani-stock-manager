@@ -471,6 +471,8 @@ export function OrderBookPage() {
         <td>{m.itemName || itemName(m.itemId)}</td>
         <td>{m.qty}</td>
         <td>{fmtAmount(m.handling || 0)}</td>
+        {/* Freight only applies to FOR orders; Ex-Works leaves transport to the buyer, so show a dash. */}
+        <td>{m.deliveryType === 'FOR' ? fmtAmount(m.freightRate || 0) : '—'}</td>
         {canRate && <td>₹{fmtAmount(m.amount)}</td>}
         <td>{m.deliveryType || '—'}</td>
         <td>{m.deliveryDate ? fmtDate(m.deliveryDate) : '—'}</td>
@@ -779,6 +781,7 @@ export function OrderBookPage() {
       <th>Item</th>
       <th>Qty</th>
       <th>Handling</th>
+      <th>Freight</th>
       {canRate && <th>Total</th>}
       <th>Delivery</th>
       <th>Delivery Date</th>
@@ -846,7 +849,7 @@ export function OrderBookPage() {
               {pending.map(orderRow)}
               {pending.length === 0 && (
                 <tr>
-                  <td colSpan={12} className="muted">No orders pending dispatch.</td>
+                  <td colSpan={13} className="muted">No orders pending dispatch.</td>
                 </tr>
               )}
             </tbody>
@@ -863,7 +866,7 @@ export function OrderBookPage() {
               {dispatched.map(orderRow)}
               {dispatched.length === 0 && (
                 <tr>
-                  <td colSpan={12} className="muted">No dispatched orders.</td>
+                  <td colSpan={13} className="muted">No dispatched orders.</td>
                 </tr>
               )}
             </tbody>
