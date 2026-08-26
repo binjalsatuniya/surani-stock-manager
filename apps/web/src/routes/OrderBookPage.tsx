@@ -47,6 +47,8 @@ export function OrderBookPage() {
   const canRate = can('view_order_rate'); // whether this user may see the sale rate/amount
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
+  // Free-text search over company name, invoice number and item — applies to every section below.
+  const [search, setSearch] = useState('');
   const { user } = useAuth();
   const isSuper = user?.role === 'superadmin';
   const { fill } = useWhatsappTemplates();
@@ -422,11 +424,21 @@ export function OrderBookPage() {
     if (message) shareOnWhatsapp(transporter.phone, message);
   }
 
-  // Date-range filter (by order date) so you can view orders for a specific period.
+  // Date-range + search filter (by order date, and company / invoice / item) so you can view or find
+  // specific orders. Both apply to every section below (pending, dispatched, delivered, cancelled).
+  const q = search.trim().toLowerCase();
   const dateRows = rows.filter((m) => {
     const d = (m.date || '').slice(0, 10);
     if (fromDate && d < fromDate) return false;
     if (toDate && d > toDate) return false;
+    if (q) {
+      const hay = [
+        m.partyName || partyName(m.partyId),
+        m.invNo || '',
+        m.itemName || itemName(m.itemId),
+      ].join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
     return true;
   });
   const pending = dateRows.filter((m) => m.fulfil === 'pending');
@@ -822,8 +834,16 @@ export function OrderBookPage() {
       {/* While an inline panel is open its own copy of the error is shown beside its buttons. */}
       {error && !dispatchingId && !editing && <div className="login-err show">{error}</div>}
 
-      {/* Date-range filter — view orders for a specific period. */}
+      {/* Search + date-range filter — find an order by company, or view a specific period. */}
       <div className="card" style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+        <div className="field" style={{ margin: 0, flex: 1, minWidth: 220 }}>
+          <label>Search</label>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="🔍 Company name, invoice no. or item…"
+          />
+        </div>
         <div className="field" style={{ margin: 0 }}>
           <label>From date</label>
           <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
@@ -832,8 +852,8 @@ export function OrderBookPage() {
           <label>To date</label>
           <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
         </div>
-        {(fromDate || toDate) && (
-          <button className="btn btn-sm" onClick={() => { setFromDate(''); setToDate(''); }}>Clear</button>
+        {(fromDate || toDate || search) && (
+          <button className="btn btn-sm" onClick={() => { setFromDate(''); setToDate(''); setSearch(''); }}>Clear</button>
         )}
         <span className="muted" style={{ fontSize: 12 }}>Showing {dateRows.length} order(s)</span>
       </div>
@@ -876,7 +896,7 @@ export function OrderBookPage() {
 
       {delivered.length > 0 && (
         <div className="card">
-          <h3 style={{ marginTop: 0 }}>✅ Delivered</h3>
+          <h3 style={{ marginTop: 0 }}>✅ Delivered <span className="muted" style={{ fontSize: 13, fontWeight: 500 }}>({delivered.length})</span></h3>
           <div style={{ overflowX: 'auto' }}>
             <table>
               <thead>{headerCells}</thead>
