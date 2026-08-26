@@ -152,6 +152,9 @@ app.on('web-contents-created', (_event, contents) => {
 });
 
 app.whenReady().then(() => {
+  // Windows needs a stable App User Model ID for the web page's Notifications to appear as toasts
+  // (and to group the app on the taskbar). Must match the electron-builder appId.
+  if (process.platform === 'win32') app.setAppUserModelId('com.suraniandsons.stockmanager');
   enableGeolocation();
   buildMenu();
   createWindow();

@@ -1,9 +1,54 @@
 import { readFileSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import type { Prisma, PrismaClient } from '@prisma/client';
 import admin from 'firebase-admin';
 import { wantsNotification, type NotifyActivityKey } from '@surani/shared';
 
 type DbClient = PrismaClient | Prisma.TransactionClient;
+
+// ---------------------------------------------------------------------------
+// In-memory feed of recent notifiable events, so the web/desktop app can show
+// native notifications while it is open (the phone gets a real FCM push; the
+// desktop has no push channel, so it polls this instead). It is deliberately
+// in-memory — a short-lived convenience, not durable history (the Audit Log is
+// the durable record). Events older than the window, or beyond the cap, drop.
+// ---------------------------------------------------------------------------
+export interface NotifyEvent {
+  id: string;
+  key: NotifyActivityKey;
+  title: string;
+  body: string;
+  actorId: string | null;
+  timestamp: string; // ISO
+}
+
+const EVENT_WINDOW_MS = 2 * 60 * 60 * 1000; // keep ~2 hours
+const EVENT_CAP = 300;
+const recentEvents: NotifyEvent[] = [];
+
+function recordEvent(key: NotifyActivityKey, title: string, body: string, actorId: string | null): void {
+  recentEvents.push({ id: randomUUID(), key, title, body, actorId, timestamp: new Date().toISOString() });
+  const cutoff = Date.now() - EVENT_WINDOW_MS;
+  while (recentEvents.length && (recentEvents.length > EVENT_CAP || Date.parse(recentEvents[0].timestamp) < cutoff)) {
+    recentEvents.shift();
+  }
+}
+
+/**
+ * Events after `sinceIso` that `user` should see: opted in via their notify prefs and NOT caused by
+ * themselves. Newest last. Capped so a long absence can't flood the client.
+ */
+export function getRecentEventsFor(userId: string, preferences: unknown, sinceIso?: string): NotifyEvent[] {
+  const sinceMs = sinceIso ? Date.parse(sinceIso) : 0;
+  return recentEvents
+    .filter(
+      (e) =>
+        e.actorId !== userId &&
+        Date.parse(e.timestamp) > sinceMs &&
+        wantsNotification(preferences, e.key)
+    )
+    .slice(-25);
+}
 
 // Firebase is optional: if no service-account credentials are configured, push notifications are
 // simply disabled and every send is a no-op (the app keeps working normally). The credentials path
@@ -44,6 +89,9 @@ export async function notifyActivity(
   title: string,
   body: string
 ): Promise<void> {
+  // Always record the event for the in-app (web/desktop) feed, even when Firebase push is off.
+  recordEvent(key, title, body, actor.id);
+
   try {
     const fcm = getMessaging();
     if (!fcm) return;

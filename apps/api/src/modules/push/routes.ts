@@ -3,9 +3,23 @@ import { z } from 'zod';
 import { prisma } from '../../db/prisma';
 import { asyncHandler } from '../../lib/asyncHandler';
 import { authenticate } from '../../middleware/auth';
+import { getRecentEventsFor } from '../../lib/notify';
 
 export const pushRouter = Router();
 pushRouter.use(authenticate);
+
+// Recent notifiable events for the signed-in user, for the web/desktop app to show as native
+// notifications while it is open (the phone gets a real push instead). Pass `since` (the timestamp
+// of the last event already seen) to get only newer ones. Respects the user's notify opt-in and
+// never returns their own actions.
+pushRouter.get(
+  '/recent',
+  asyncHandler(async (req, res) => {
+    const since = typeof req.query.since === 'string' ? req.query.since : undefined;
+    const me = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { preferences: true } });
+    res.json(getRecentEventsFor(req.user!.id, me?.preferences ?? null, since));
+  })
+);
 
 const registerSchema = z.object({
   token: z.string().min(1),
