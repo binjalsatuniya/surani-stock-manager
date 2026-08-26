@@ -38,6 +38,7 @@ export const PERMS = [
   { id: 'delete_parties', label: 'Delete Parties', group: 'Party Master' },
   { id: 'edit_transporters', label: 'Add / Edit / Delete Transporters', group: 'Party Master' },
   { id: 'edit_salespersons', label: 'Add / Edit / Delete Sales Persons', group: 'Party Master' },
+  { id: 'manage_followup', label: 'See & set the Follow-up (days) column', group: 'Party Master' },
 
   { id: 'view_expenses', label: 'View Expenses', group: 'Expenses' },
   { id: 'add_expenses', label: 'Add Expenses', group: 'Expenses' },

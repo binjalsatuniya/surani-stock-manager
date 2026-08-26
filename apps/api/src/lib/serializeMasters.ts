@@ -16,6 +16,7 @@ export function toPartyDTO(p: PrismaParty): Party {
     address: p.address,
     locationUrl: p.locationUrl,
     vehicle: p.vehicle,
+    followUpDays: p.followUpDays ?? null,
     createdAt: p.createdAt.toISOString(),
     updatedAt: p.updatedAt.toISOString(),
   };

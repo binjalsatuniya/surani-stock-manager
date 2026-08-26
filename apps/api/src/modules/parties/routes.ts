@@ -27,7 +27,17 @@ const partySchema = z.object({
   address: z.string().nullable().optional(),
   locationUrl: z.string().nullable().optional(),
   vehicle: z.string().nullable().optional(),
+  followUpDays: z.coerce.number().int().min(0).nullable().optional(),
 });
+
+// Only users with manage_followup may set the Follow-up (days) field. Called from create/update when
+// the request actually carries the field, so ordinary party edits by others are unaffected.
+function guardFollowUp(req: { user?: { role: string; permissions: unknown } }, input: { followUpDays?: unknown }) {
+  if (input.followUpDays === undefined) return;
+  if (!hasPermission(req.user!.role as never, req.user!.permissions as never, 'manage_followup')) {
+    throw new ForbiddenError('Missing permission: manage_followup');
+  }
+}
 
 /**
  * Legacy app had a separate `edit_transporters` permission distinct from `edit_parties`
@@ -97,6 +107,7 @@ partiesRouter.post(
       throw new ForbiddenError(`Missing permission: ${requiredPermFor(input.type, 'add')}`);
     }
     guardImporterType(req, input.type);
+    guardFollowUp(req, input);
     // No duplicate party names (case-insensitive) — prevents two "Ambica" etc.
     const dup = await prisma.party.findFirst({ where: { name: { equals: input.name, mode: 'insensitive' } } });
     if (dup) throw new HttpError(409, `A party named "${dup.name}" already exists`);
@@ -123,6 +134,7 @@ partiesRouter.patch(
       throw new ForbiddenError(`Missing permission: ${requiredPerm}`);
     }
     guardImporterType(req, input.type, existing.type);
+    guardFollowUp(req, input);
     const party = await prisma.party.update({ where: { id: req.params.id }, data: input });
     res.json(toPartyDTO(party));
   })

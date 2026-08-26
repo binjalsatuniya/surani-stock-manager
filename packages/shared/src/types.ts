@@ -66,6 +66,8 @@ export interface Party {
   address: string | null;
   locationUrl: string | null;
   vehicle: string | null;
+  /** After how many days the sales person should follow up with this company (null = not set). */
+  followUpDays?: number | null;
   createdAt: string;
   updatedAt: string;
 }
