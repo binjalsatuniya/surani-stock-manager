@@ -147,6 +147,8 @@ const updateSchema = z.object({
   permissionOverrides: z.record(z.boolean()).optional(),
   // Which activities notify this user (merged into preferences.notify).
   notifyPrefs: z.record(z.boolean()).optional(),
+  // Which sales person this login IS, for the Follow-up tab (merged into preferences.salesPersonId).
+  salesPersonId: z.string().uuid().nullable().optional(),
 });
 
 usersRouter.patch(
@@ -203,9 +205,12 @@ usersRouter.patch(
       }
     }
     if (input.password) data.passwordHash = await bcrypt.hash(input.password, 12);
-    if (input.notifyPrefs !== undefined) {
+    if (input.notifyPrefs !== undefined || input.salesPersonId !== undefined) {
       const prev = (existing.preferences as Record<string, unknown>) ?? {};
-      data.preferences = { ...prev, notify: input.notifyPrefs };
+      const merged = { ...prev };
+      if (input.notifyPrefs !== undefined) merged.notify = input.notifyPrefs;
+      if (input.salesPersonId !== undefined) merged.salesPersonId = input.salesPersonId;
+      data.preferences = merged;
     }
 
     const user = await prisma.user.update({ where: { id: req.params.id }, data });

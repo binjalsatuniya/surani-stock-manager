@@ -16,6 +16,8 @@ export type UpdateUserInput = Partial<Omit<CreateUserInput, 'password'>> & {
   permissionOverrides?: Partial<PermissionMap>;
   // Which activities notify this user (admin-managed, merged into preferences.notify server-side).
   notifyPrefs?: Record<string, boolean>;
+  // Which sales person this login represents (admin-managed, for the Follow-up tab).
+  salesPersonId?: string | null;
 };
 
 export function createUsersClient(http: HttpClient) {

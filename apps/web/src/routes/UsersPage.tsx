@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { PERMS, defaultPermsForRole, diffFromRole, hasPermission, roleLabel, NOTIFY_ACTIVITIES, readNotifyPrefs, type PermissionMap, type Role, type RoleTemplate, type User } from '@surani/shared';
+import { PERMS, defaultPermsForRole, diffFromRole, hasPermission, roleLabel, NOTIFY_ACTIVITIES, readNotifyPrefs, type PermissionMap, type Role, type RoleTemplate, type SalesPerson, type User } from '@surani/shared';
 import { api } from '../lib/apiClient';
 import { useAuth } from '../context/AuthContext';
 import { usePermission } from '../hooks/usePermission';
@@ -36,6 +36,8 @@ export function UsersPage() {
   const [editRolePerms, setEditRolePerms] = useState<Partial<PermissionMap>>({});
   const [editIsLive, setEditIsLive] = useState(false);
   const [editNotify, setEditNotify] = useState<Record<string, boolean>>({});
+  const [editSalesPersonId, setEditSalesPersonId] = useState('');
+  const [salesPersons, setSalesPersons] = useState<SalesPerson[]>([]);
   const [saving, setSaving] = useState(false);
 
   // Built-in roles first, then anything defined in Role Master.
@@ -53,6 +55,7 @@ export function UsersPage() {
   useEffect(() => {
     reload();
     api.roles.list().then(setCustomRoles).catch(() => setCustomRoles([]));
+    api.salesPersons.list().then(setSalesPersons).catch(() => setSalesPersons([]));
   }, []);
 
   async function onAdd() {
@@ -133,6 +136,7 @@ export function UsersPage() {
     setEditRolePerms(customRoles.find((c) => c.name.toLowerCase() === (u.role || '').toLowerCase())?.permissions ?? {});
     const notify = readNotifyPrefs(u.preferences);
     setEditNotify(Object.fromEntries(NOTIFY_ACTIVITIES.map((a) => [a.key, notify[a.key] === true])));
+    setEditSalesPersonId(u.preferences?.salesPersonId ?? '');
   }
 
   function toggleNotify(key: string, value: boolean) {
@@ -167,8 +171,8 @@ export function UsersPage() {
         editUser.id,
         editIsLive
           ? // Only what differs from the role, so future role edits still reach this person.
-            { role: editRole, permissionOverrides: diffFromRole(editRolePerms, editPerms), notifyPrefs: editNotify }
-          : { role: editRole, permissions: editPerms, notifyPrefs: editNotify }
+            { role: editRole, permissionOverrides: diffFromRole(editRolePerms, editPerms), notifyPrefs: editNotify, salesPersonId: editSalesPersonId || null }
+          : { role: editRole, permissions: editPerms, notifyPrefs: editNotify, salesPersonId: editSalesPersonId || null }
       );
       setEditUser(null);
       reload();
@@ -363,6 +367,21 @@ export function UsersPage() {
                 </label>
               ))}
             </div>
+          </div>
+          <div style={{ marginTop: 20, borderTop: '1px solid #e2e8f0', paddingTop: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', color: '#64748b', marginBottom: 4 }}>
+              Follow-up
+            </div>
+            <p className="muted" style={{ marginTop: 0, marginBottom: 8, fontSize: 12 }}>
+              Which sales person <strong>{editUser.name}</strong> is. When you give them the "Follow-up" permission,
+              their Follow-up tab shows only this sales person's companies.
+            </p>
+            <select value={editSalesPersonId} onChange={(e) => setEditSalesPersonId(e.target.value)} style={{ minWidth: 240 }}>
+              <option value="">— Not a sales person —</option>
+              {salesPersons.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
           </div>
           <div className="toolbar" style={{ marginTop: 16 }}>
             <button className="btn btn-primary" disabled={saving} onClick={onSaveEditor}>

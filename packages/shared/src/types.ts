@@ -27,6 +27,9 @@ export interface UserPreferences {
   };
   // Which business activities send this user a phone push notification (admin-managed).
   notify?: NotifyPrefs;
+  // Which sales person this login represents (admin-managed) — scopes the Follow-up tab to that
+  // person's own companies. Null/absent = not linked (a non-super user then sees no follow-ups).
+  salesPersonId?: string | null;
 }
 
 export interface User {

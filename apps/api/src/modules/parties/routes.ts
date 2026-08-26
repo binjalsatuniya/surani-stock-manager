@@ -99,6 +99,59 @@ partiesRouter.get(
   })
 );
 
+// ---- Follow-up list ---------------------------------------------------------
+// Which sales person this login IS, from their preferences (set by an admin in User Master). Used to
+// scope the Follow-up list so a sales person only sees their own companies.
+async function callerSalesPersonId(userId: string): Promise<string | null> {
+  const u = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });
+  const prefs = (u?.preferences as Record<string, unknown>) ?? {};
+  const id = prefs.salesPersonId;
+  return typeof id === 'string' ? id : null;
+}
+
+// The Follow-up tab. Gated by manage_followup (not view_parties), so a sales person who only manages
+// follow-ups still loads it. Super Admin sees every company; anyone else sees only the companies
+// assigned to the sales person they are linked to.
+partiesRouter.get(
+  '/followup',
+  asyncHandler(async (req, res) => {
+    if (!hasPermission(req.user!.role, req.user!.permissions, 'manage_followup')) {
+      throw new ForbiddenError('Missing permission: manage_followup');
+    }
+    const where: { type: { in: string[] }; salesPersonId?: string | null } = {
+      type: { in: ['debtor', 'creditor', 'both'] },
+    };
+    if (req.user!.role !== 'superadmin') {
+      // A linked sales person sees only theirs; an unlinked non-super user sees nothing.
+      where.salesPersonId = (await callerSalesPersonId(req.user!.id)) ?? '__none__';
+    }
+    const parties = await prisma.party.findMany({ where, orderBy: { name: 'asc' } });
+    res.json(parties.map(toPartyDTO));
+  })
+);
+
+// Set the follow-up days on one company. Super Admin may set any; a linked sales person may set it
+// only on their own companies. Kept separate from the general party edit so it needs no edit_parties.
+partiesRouter.patch(
+  '/:id/followup',
+  asyncHandler(async (req, res) => {
+    if (!hasPermission(req.user!.role, req.user!.permissions, 'manage_followup')) {
+      throw new ForbiddenError('Missing permission: manage_followup');
+    }
+    const { followUpDays } = z.object({ followUpDays: z.coerce.number().int().min(0).nullable() }).parse(req.body);
+    const party = await prisma.party.findUnique({ where: { id: req.params.id } });
+    if (!party) throw new NotFoundError('Party not found');
+    if (req.user!.role !== 'superadmin') {
+      const mine = await callerSalesPersonId(req.user!.id);
+      if (!mine || party.salesPersonId !== mine) {
+        throw new ForbiddenError('You can only set follow-ups for your own companies.');
+      }
+    }
+    const updated = await prisma.party.update({ where: { id: party.id }, data: { followUpDays } });
+    res.json(toPartyDTO(updated));
+  })
+);
+
 partiesRouter.post(
   '/',
   asyncHandler(async (req, res) => {

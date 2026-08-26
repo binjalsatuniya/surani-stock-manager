@@ -2,12 +2,15 @@ import { useEffect, useMemo, useState } from 'react';
 import type { Party, SalesPerson } from '@surani/shared';
 import { api } from '../lib/apiClient';
 import { usePermission } from '../hooks/usePermission';
+import { useAuth } from '../context/AuthContext';
 
 // A dedicated tab for follow-ups: for each company, how many days after which the sales person
 // should follow up. Editable inline and saved as you go. Gated by `manage_followup` (JAYNIL only for
 // now); grant that permission to a sales person and they get their own Follow-up tab.
 export function FollowUpPage() {
   const can = usePermission();
+  const { user } = useAuth();
+  const isSuper = user?.role === 'superadmin';
   const allowed = can('manage_followup');
 
   const [parties, setParties] = useState<Party[]>([]);
@@ -19,7 +22,8 @@ export function FollowUpPage() {
   const [status, setStatus] = useState<Record<string, 'saved' | 'saving' | 'error'>>({});
 
   async function reload() {
-    const rows = await api.parties.list();
+    // Scoped server-side: Super Admin gets every company, a linked sales person only their own.
+    const rows = await api.parties.followupList();
     setParties(rows);
     setDraft(Object.fromEntries(rows.map((p) => [p.id, p.followUpDays != null ? String(p.followUpDays) : ''])));
   }
@@ -27,7 +31,8 @@ export function FollowUpPage() {
   useEffect(() => {
     if (!allowed) return;
     reload().catch(() => {});
-    api.salesPersons.list().then(setSalesPersons).catch(() => {});
+    // Only the Super Admin needs the sales-person names/filter (everyone else sees only their own).
+    if (isSuper) api.salesPersons.list().then(setSalesPersons).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allowed]);
 
@@ -57,7 +62,7 @@ export function FollowUpPage() {
     if ((p.followUpDays ?? null) === value) return;
     setStatus((s) => ({ ...s, [p.id]: 'saving' }));
     try {
-      await api.parties.update(p.id, { followUpDays: value });
+      await api.parties.setFollowUp(p.id, value);
       setParties((ps) => ps.map((x) => (x.id === p.id ? { ...x, followUpDays: value } : x)));
       setStatus((s) => ({ ...s, [p.id]: 'saved' }));
       setTimeout(() => setStatus((s) => ({ ...s, [p.id]: undefined as never })), 1500);
@@ -86,16 +91,18 @@ export function FollowUpPage() {
           <label>Search</label>
           <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Company name or phone…" />
         </div>
-        <div className="field" style={{ margin: 0, minWidth: 200 }}>
-          <label>Sales Person</label>
-          <select value={spFilter} onChange={(e) => setSpFilter(e.target.value)}>
-            <option value="">All</option>
-            <option value="none">— None assigned —</option>
-            {salesPersons.map((s) => (
-              <option key={s.id} value={s.id}>{s.name}</option>
-            ))}
-          </select>
-        </div>
+        {isSuper && (
+          <div className="field" style={{ margin: 0, minWidth: 200 }}>
+            <label>Sales Person</label>
+            <select value={spFilter} onChange={(e) => setSpFilter(e.target.value)}>
+              <option value="">All</option>
+              <option value="none">— None assigned —</option>
+              {salesPersons.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       <div className="card">
