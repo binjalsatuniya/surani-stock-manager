@@ -18,6 +18,7 @@ function Kbd({ children }: { children: React.ReactNode }) {
 
 const FIXED: { key: string; what: string }[] = [
   { key: 'Enter', what: 'Move to the next field; on the last field it saves (clicks Save / Add).' },
+  { key: 'Shift + Enter', what: 'Move back to the previous field.' },
   { key: 'Esc', what: 'In an edit form, asks whether to save your unsaved changes.' },
   { key: 'Ctrl + S', what: 'Save the form you are in (clicks Save / Add).' },
   { key: 'Enter', what: 'In a pop-up box, confirms it (OK / Save / Delete).' },
