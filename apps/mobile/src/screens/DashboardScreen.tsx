@@ -47,6 +47,7 @@ const EMPTY_ORDER = {
   deliveryType: 'ExWorks' as DeliveryType,
   note: '',
   deliveryDate: new Date().toISOString().slice(0, 10),
+  creditDays: '0', // pre-filled from the party when picked, editable per order
 };
 
 function Kpi({ label, value, color, hint }: { label: string; value: string | number; color?: string; hint?: string }) {
@@ -138,10 +139,11 @@ export function DashboardScreen() {
     }
     const party = selectedParty;
     const item = items.find((i) => i.id === order.itemId);
+    const creditDays = Math.max(0, Math.floor(Number(order.creditDays) || 0));
 
     // Build the WhatsApp order-slip message now, from the current form values, exactly like the web
     // "New Order" card does — so placing an order can hand you a confirmation to send straightaway.
-    const payStatus = party && party.creditDays > 0 ? `Credit (${party.creditDays} days)` : 'Pending';
+    const payStatus = creditDays > 0 ? `Credit (${creditDays} days)` : 'Pending';
     const message = fill('orderSlip', {
       partyName: party?.name || '',
       itemName: item?.name || '',
@@ -154,7 +156,7 @@ export function DashboardScreen() {
       deliveryTerms: deliveryTermsLabel(order.deliveryType),
       deliveryDate: order.deliveryDate ? fmtDate(order.deliveryDate) : 'N/A',
       payStatus,
-      dueDays: party && party.creditDays > 0 ? `${party.creditDays} days` : 'N/A',
+      dueDays: creditDays > 0 ? `${creditDays} days` : '100% against delivery',
       dueDate: 'N/A',
     });
 
@@ -168,6 +170,7 @@ export function DashboardScreen() {
         rate: Number(order.rate),
         gstPct: Number(order.gstPct) || 0,
         deliveryType: order.deliveryType,
+        creditDays,
         note: order.note.trim() || null,
         deliveryDate: order.deliveryDate || null,
       });
@@ -250,9 +253,22 @@ export function DashboardScreen() {
           <Text style={styles.label}>Party (debtor)</Text>
           <SearchSelect
             value={order.partyId}
-            onChange={(v) => setOrder((o) => ({ ...o, partyId: v }))}
+            onChange={(v) => {
+              // Pre-fill Credit Days from the chosen party's default; still editable per order.
+              const p = debtors.find((d) => d.id === v);
+              setOrder((o) => ({ ...o, partyId: v, creditDays: p ? String(p.creditDays ?? 0) : o.creditDays }));
+            }}
             options={(orderSp ? debtors.filter((p) => p.salesPersonId === orderSp) : debtors).map((p) => ({ id: p.id, label: p.name }))}
             placeholder={orderSp ? 'Party for this sales person…' : 'Select party…'}
+          />
+
+          <Text style={styles.label}>Credit Days</Text>
+          <TextInput
+            style={styles.input}
+            value={order.creditDays}
+            onChangeText={(v) => setOrder((o) => ({ ...o, creditDays: v }))}
+            keyboardType="numeric"
+            placeholder="e.g. 30 (0 = 100% against delivery)"
           />
 
           <Text style={styles.label}>Item</Text>

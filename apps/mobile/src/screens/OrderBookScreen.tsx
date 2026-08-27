@@ -30,10 +30,10 @@ function dueDateFor(m: Outward): string {
   return fmtDate(addDays(basis, m.creditDays));
 }
 
-// Credit period as days (e.g. "10 days") for the WhatsApp slip — shown instead of the due date.
+// Credit period for the WhatsApp slip — the order's own credit days; 0 (no credit) means payment is
+// due in full at delivery.
 function dueDaysFor(m: Outward): string {
-  if (m.payStatus !== 'credit' || !m.creditDays) return 'N/A';
-  return `${m.creditDays} days`;
+  return m.creditDays && m.creditDays > 0 ? `${m.creditDays} days` : '100% against delivery';
 }
 
 export function OrderBookScreen() {
