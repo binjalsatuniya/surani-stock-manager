@@ -42,11 +42,18 @@ export function UsersPage() {
   const [salesPersons, setSalesPersons] = useState<SalesPerson[]>([]);
   const [saving, setSaving] = useState(false);
 
-  // Built-in roles first, then anything defined in Role Master.
-  const roleOptions: Role[] = useMemo(
-    () => [...CREATABLE_ROLES, ...customRoles.map((r) => r.name)].filter((r) => rankOf(r) < myRank),
-    [customRoles, myRank]
-  );
+  // Built-in roles first, then anything defined in Role Master — de-duplicated by name (the built-in
+  // admin/account/staff also exist as Role Master rows once live roles are on, so without this each
+  // shows twice in the dropdown).
+  const roleOptions: Role[] = useMemo(() => {
+    const seen = new Set<string>();
+    return [...CREATABLE_ROLES, ...customRoles.map((r) => r.name)].filter((r) => {
+      const key = r.trim().toLowerCase();
+      if (seen.has(key) || rankOf(r) >= myRank) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [customRoles, myRank]);
 
   const groups = useMemo(() => Array.from(new Set(PERMS.map((p) => p.group))), []);
 
