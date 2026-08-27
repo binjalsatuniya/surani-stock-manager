@@ -34,7 +34,16 @@ export function RolesPage() {
   const groups = useMemo(() => Array.from(new Set(PERMS.map((p) => p.group))), []);
 
   async function reload() {
-    setRoles(await api.roles.list());
+    // Defensive de-duplication by name (case-insensitive): older data could contain duplicate role
+    // rows (the live-roles conversion once created built-ins non-atomically). Keep the first of each.
+    const list = await api.roles.list();
+    const seen = new Set<string>();
+    setRoles(list.filter((r) => {
+      const key = r.name.trim().toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }));
   }
   useEffect(() => {
     reload().catch(() => setError('Could not load roles.'));

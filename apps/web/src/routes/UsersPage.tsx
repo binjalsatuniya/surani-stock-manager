@@ -3,6 +3,7 @@ import { PERMS, defaultPermsForRole, diffFromRole, hasPermission, roleLabel, NOT
 import { api } from '../lib/apiClient';
 import { useAuth } from '../context/AuthContext';
 import { usePermission } from '../hooks/usePermission';
+import { useDialogs } from '../components/Dialogs';
 
 // Superadmin is the protected default and can't be assigned to others — nobody can be made as
 // powerful as the Super Admin.
@@ -10,6 +11,7 @@ const CREATABLE_ROLES: Role[] = ['admin', 'account', 'staff'];
 
 export function UsersPage() {
   const { user: me } = useAuth();
+  const { promptText } = useDialogs();
   const isSuper = me?.role === 'superadmin';
   const isPrimary = !!me?.isPrimary; // the main Super Admin
   // Mirrors the server: you may only create/assign/manage roles ranked below your own.
@@ -78,7 +80,7 @@ export function UsersPage() {
     try {
       if (isPrimary) {
         // JAYNIL re-enters their login password to confirm this destructive action.
-        const password = prompt('Enter YOUR login password to delete this user:');
+        const password = await promptText('Enter YOUR login password to delete this user:');
         if (!password) return;
         await api.users.remove(id, password);
         reload();
@@ -94,9 +96,11 @@ export function UsersPage() {
   }
 
   async function onEditLogin(u: User) {
-    const newUsername = prompt(`Username for ${u.name}:`, u.username);
+    // Use the app dialog, not window.prompt — the latter is unsupported in the desktop (Electron) app,
+    // so the old code silently did nothing there and passwords couldn't be changed.
+    const newUsername = await promptText(`Username for ${u.name}:`, { defaultValue: u.username });
     if (newUsername === null) return; // cancelled
-    const newPassword = prompt('New password (leave blank to keep the current one):', '');
+    const newPassword = await promptText('New password (leave blank to keep the current one):', { defaultValue: '' });
     if (newPassword === null) return; // cancelled
     const payload: { username?: string; password?: string } = {};
     if (newUsername.trim() && newUsername.trim() !== u.username) payload.username = newUsername.trim();
