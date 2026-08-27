@@ -1,4 +1,4 @@
-import { fmtAmount } from '@surani/shared';
+import { fmtAmount, SALES_SEE_ALL_PARTIES } from '@surani/shared';
 import { useEffect, useState, type ReactNode } from 'react';
 import {
   buildWhatsappLink,
@@ -92,7 +92,12 @@ export function DashboardPage() {
   const { user, updateUser } = useAuth();
   const { fill } = useWhatsappTemplates();
   const { selectedFy, setSelectedFy } = useFinancialYear();
-  const { required } = useFieldSettings();
+  const { required, settings } = useFieldSettings();
+  // When "sales persons see all parties" is OFF, a sales-person login is limited to their own parties
+  // for order-taking. Super Admin and non-sales logins (no linked sales person) are unrestricted.
+  const mySalesPersonId = user?.preferences?.salesPersonId ?? null;
+  const restrictToOwnParties =
+    user?.role !== 'superadmin' && !settings[SALES_SEE_ALL_PARTIES] && !!mySalesPersonId;
 
   // Drag-to-reorder layout — saved per user (server-side) so it follows them across devices.
   const [arranging, setArranging] = useState(false);
@@ -456,28 +461,30 @@ export function DashboardPage() {
               <label>Date</label>
               <input type="date" value={order.date} onChange={(e) => setOrd('date', e.target.value)} />
             </div>
-            <div className="field" style={{ margin: 0, minWidth: 170 }}>
-              <label>Sales Person</label>
-              <select
-                value={orderSp}
-                onChange={(e) => {
-                  const sp = e.target.value;
-                  setOrderSp(sp);
-                  // If the chosen party isn't this sales person's, clear it.
-                  if (sp && order.partyId) {
-                    const p = debtors.find((d) => d.id === order.partyId);
-                    if (!p || p.salesPersonId !== sp) setOrd('partyId', '');
-                  }
-                }}
-              >
-                <option value="">All sales persons</option>
-                {salesPersons.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {!restrictToOwnParties && (
+              <div className="field" style={{ margin: 0, minWidth: 170 }}>
+                <label>Sales Person</label>
+                <select
+                  value={orderSp}
+                  onChange={(e) => {
+                    const sp = e.target.value;
+                    setOrderSp(sp);
+                    // If the chosen party isn't this sales person's, clear it.
+                    if (sp && order.partyId) {
+                      const p = debtors.find((d) => d.id === order.partyId);
+                      if (!p || p.salesPersonId !== sp) setOrd('partyId', '');
+                    }
+                  }}
+                >
+                  <option value="">All sales persons</option>
+                  {salesPersons.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="field" style={{ margin: 0, flex: 1, minWidth: 240 }}>
               <label>Party (debtor)</label>
               <SearchSelect
@@ -487,8 +494,13 @@ export function DashboardPage() {
                   const p = debtors.find((d) => d.id === id);
                   setOrder((o) => ({ ...o, partyId: id, creditDays: p ? String(p.creditDays ?? 0) : o.creditDays }));
                 }}
-                options={(orderSp ? debtors.filter((p) => p.salesPersonId === orderSp) : debtors).map((p) => ({ id: p.id, label: p.name }))}
-                placeholder={orderSp ? 'Type a party for this sales person…' : 'Type party name…'}
+                options={(restrictToOwnParties
+                  ? debtors.filter((p) => p.salesPersonId === mySalesPersonId)
+                  : orderSp
+                    ? debtors.filter((p) => p.salesPersonId === orderSp)
+                    : debtors
+                ).map((p) => ({ id: p.id, label: p.name }))}
+                placeholder={restrictToOwnParties ? 'Type one of your parties…' : orderSp ? 'Type a party for this sales person…' : 'Type party name…'}
               />
             </div>
             <div className="field" style={{ margin: 0, width: 110 }}>

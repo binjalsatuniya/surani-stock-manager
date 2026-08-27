@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { FIELD_SETTINGS, effectiveFieldSettings, type FieldSettingsMap } from '@surani/shared';
+import { FIELD_SETTINGS, SALES_SEE_ALL_PARTIES, effectiveFieldSettings, type FieldSettingsMap } from '@surani/shared';
 import { api } from '../lib/apiClient';
 import { useAuth } from '../context/AuthContext';
 
@@ -27,8 +27,10 @@ export function FieldRulesPage() {
     }
   }
 
-  // Group the fields by their section for display.
-  const groups = Array.from(new Set(FIELD_SETTINGS.map((f) => f.group)));
+  // The access toggle is rendered separately (below) with On/Off wording, not as a mandatory-field
+  // rule, so keep it out of the generic grouped list.
+  const fieldRules = FIELD_SETTINGS.filter((f) => f.key !== SALES_SEE_ALL_PARTIES);
+  const groups = Array.from(new Set(fieldRules.map((f) => f.group)));
 
   return (
     <div className="card">
@@ -39,6 +41,24 @@ export function FieldRulesPage() {
       </p>
       {!isSuper && <div className="muted" style={{ marginBottom: 12 }}>View only — ask the Super Admin to change these.</div>}
       {error && <div className="login-err show">{error}</div>}
+
+      <div style={{ marginBottom: 22, padding: '12px 14px', border: '1px solid var(--line)', borderRadius: 10 }}>
+        <h3 style={{ marginTop: 0, marginBottom: 6 }}>Order taking</h3>
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+          <input
+            type="checkbox"
+            disabled={!isSuper || busyKey === SALES_SEE_ALL_PARTIES}
+            checked={!!settings[SALES_SEE_ALL_PARTIES]}
+            onChange={(e) => onToggle(SALES_SEE_ALL_PARTIES, e.target.checked)}
+          />
+          <span>Every sales person can see &amp; take orders for <strong>every</strong> party</span>
+        </label>
+        <p className="muted" style={{ margin: '6px 0 0', fontSize: 12.5 }}>
+          {settings[SALES_SEE_ALL_PARTIES]
+            ? 'ON — a sales person can pick any party when placing an order.'
+            : 'OFF — a sales person can only see and order for their own assigned parties (set which sales person a login is in User Master).'}
+        </p>
+      </div>
 
       {groups.map((group) => (
         <div key={group} style={{ marginBottom: 18 }}>
@@ -51,7 +71,7 @@ export function FieldRulesPage() {
               </tr>
             </thead>
             <tbody>
-              {FIELD_SETTINGS.filter((f) => f.group === group).map((f) => (
+              {fieldRules.filter((f) => f.group === group).map((f) => (
                 <tr key={f.key}>
                   <td>{f.label}</td>
                   <td>

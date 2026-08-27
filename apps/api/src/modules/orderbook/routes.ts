@@ -1,12 +1,13 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { SALES_SEE_ALL_PARTIES, effectiveFieldSettings, type FieldSettingsMap } from '@surani/shared';
 import { prisma } from '../../db/prisma';
 import { toOutwardDTO } from '../../lib/serializeTransactions';
 import { asyncHandler } from '../../lib/asyncHandler';
 import { authenticate } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/requirePermission';
 import { requireRole } from '../../middleware/requireRole';
-import { HttpError, NotFoundError } from '../../middleware/errorHandler';
+import { ForbiddenError, HttpError, NotFoundError } from '../../middleware/errorHandler';
 import { writeAuditLog, logActivity } from '../../lib/audit';
 import { notifyActivity } from '../../lib/notify';
 import { fyDateWhere } from '../../lib/fyFilter';
@@ -19,6 +20,27 @@ ordersRouter.use(authenticate);
 
 export const orderbookRouter = Router();
 orderbookRouter.use(authenticate);
+
+// When "every sales person can see every party" is OFF, a sales-person login (one linked to a
+// SalesPerson in User Master) may only place orders for their own parties. Super Admin and non-sales
+// logins (no linked sales person) are unrestricted. Enforced here so it can't be bypassed via the API.
+async function guardSalesPartyScope(
+  user: { id: string; role: string },
+  party: { salesPersonId: string | null }
+): Promise<void> {
+  if (user.role === 'superadmin') return;
+  const rows = await prisma.fieldSetting.findMany();
+  const overrides: FieldSettingsMap = {};
+  for (const r of rows) overrides[r.key] = r.required;
+  if (effectiveFieldSettings(overrides)[SALES_SEE_ALL_PARTIES]) return; // toggle ON — no scoping
+
+  const me = await prisma.user.findUnique({ where: { id: user.id }, select: { preferences: true } });
+  const mySp = (me?.preferences as Record<string, unknown> | null)?.salesPersonId;
+  if (typeof mySp !== 'string' || !mySp) return; // not a sales person → unrestricted
+  if (party.salesPersonId !== mySp) {
+    throw new ForbiddenError('You can only take orders for your own parties.');
+  }
+}
 
 const orderSchema = z.object({
   date: z.string().min(1),
@@ -43,6 +65,7 @@ ordersRouter.post(
     const input = orderSchema.parse(req.body);
     const party = await prisma.party.findUnique({ where: { id: input.partyId } });
     if (!party) throw new NotFoundError('Party not found');
+    await guardSalesPartyScope(req.user!, party);
 
     // Per-order override when the form sent one, else the party's saved default.
     const creditDays = input.creditDays ?? party.creditDays;

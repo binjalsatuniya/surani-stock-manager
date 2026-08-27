@@ -12,6 +12,10 @@ export interface FieldSettingDef {
   defaultRequired: boolean;
 }
 
+// A behavioural toggle (not a mandatory-field rule): whether every sales person may see and take
+// orders for every party. Default OFF = each sales person is limited to their own assigned parties.
+export const SALES_SEE_ALL_PARTIES = 'order.salesSeeAllParties';
+
 export const FIELD_SETTINGS: FieldSettingDef[] = [
   // ---- Parties ----
   { key: 'party.salesPerson', label: 'Sales person', group: 'Parties', defaultRequired: false },
@@ -44,6 +48,11 @@ export const FIELD_SETTINGS: FieldSettingDef[] = [
 
   // ---- Payments ----
   { key: 'payment.note', label: 'Note', group: 'Payments', defaultRequired: false },
+
+  // ---- Order taking (behavioural toggle, not a "required field") ----
+  // ON  = every sales person can see & take orders for every party.
+  // OFF (default) = a sales person is limited to their own assigned parties.
+  { key: SALES_SEE_ALL_PARTIES, label: 'Every sales person can see & take orders for every party', group: 'Order taking', defaultRequired: false },
 ];
 
 export type FieldSettingsMap = Record<string, boolean>;

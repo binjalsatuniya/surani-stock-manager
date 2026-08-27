@@ -1,4 +1,4 @@
-import { fmtMoney, fmtAmount } from '@surani/shared';
+import { fmtMoney, fmtAmount, SALES_SEE_ALL_PARTIES } from '@surani/shared';
 import { useEffect, useState } from 'react';
 import { Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
@@ -6,6 +6,7 @@ import { buildWhatsappLink, deliveryTermsLabel, type DashboardKpis, type Deliver
 import { api } from '../lib/apiClient';
 import { SearchSelect } from '../components/SearchSelect';
 import { usePermission } from '../hooks/usePermission';
+import { useFieldSettings } from '../hooks/useFieldSettings';
 import { useWhatsappTemplates } from '../hooks/useWhatsappTemplates';
 import { useAuth } from '../context/AuthContext';
 import { DraggableRows } from '../components/DraggableRows';
@@ -64,6 +65,11 @@ export function DashboardScreen() {
   const can = usePermission();
   const { fill } = useWhatsappTemplates();
   const { user, updateUser } = useAuth();
+  const { settings } = useFieldSettings();
+  // When "sales persons see all parties" is OFF, a sales-person login is limited to their own parties.
+  const mySalesPersonId = user?.preferences?.salesPersonId ?? null;
+  const restrictToOwnParties =
+    user?.role !== 'superadmin' && !settings[SALES_SEE_ALL_PARTIES] && !!mySalesPersonId;
   const [arranging, setArranging] = useState(false);
   const [kpis, setKpis] = useState<DashboardKpis | null>(null);
   const [items, setItems] = useState<Item[]>([]);
@@ -230,25 +236,29 @@ export function DashboardScreen() {
           <Text style={styles.orderTitle}>＋ New Order</Text>
           <Text style={styles.muted}>Records an outward sale</Text>
 
-          <Text style={styles.label}>Sales Person</Text>
-          <View style={styles.pickerWrap}>
-            <Picker
-              selectedValue={orderSp}
-              onValueChange={(v) => {
-                setOrderSp(v);
-                if (v && order.partyId) {
-                  const p = debtors.find((d) => d.id === order.partyId);
-                  if (!p || p.salesPersonId !== v) setOrder((o) => ({ ...o, partyId: '' }));
-                }
-              }}
-              style={styles.picker}
-            >
-              <Picker.Item label="All sales persons" value="" />
-              {salesPersons.map((s) => (
-                <Picker.Item key={s.id} label={s.name} value={s.id} />
-              ))}
-            </Picker>
-          </View>
+          {!restrictToOwnParties && (
+            <>
+              <Text style={styles.label}>Sales Person</Text>
+              <View style={styles.pickerWrap}>
+                <Picker
+                  selectedValue={orderSp}
+                  onValueChange={(v) => {
+                    setOrderSp(v);
+                    if (v && order.partyId) {
+                      const p = debtors.find((d) => d.id === order.partyId);
+                      if (!p || p.salesPersonId !== v) setOrder((o) => ({ ...o, partyId: '' }));
+                    }
+                  }}
+                  style={styles.picker}
+                >
+                  <Picker.Item label="All sales persons" value="" />
+                  {salesPersons.map((s) => (
+                    <Picker.Item key={s.id} label={s.name} value={s.id} />
+                  ))}
+                </Picker>
+              </View>
+            </>
+          )}
 
           <Text style={styles.label}>Party (debtor)</Text>
           <SearchSelect
@@ -258,8 +268,13 @@ export function DashboardScreen() {
               const p = debtors.find((d) => d.id === v);
               setOrder((o) => ({ ...o, partyId: v, creditDays: p ? String(p.creditDays ?? 0) : o.creditDays }));
             }}
-            options={(orderSp ? debtors.filter((p) => p.salesPersonId === orderSp) : debtors).map((p) => ({ id: p.id, label: p.name }))}
-            placeholder={orderSp ? 'Party for this sales person…' : 'Select party…'}
+            options={(restrictToOwnParties
+              ? debtors.filter((p) => p.salesPersonId === mySalesPersonId)
+              : orderSp
+                ? debtors.filter((p) => p.salesPersonId === orderSp)
+                : debtors
+            ).map((p) => ({ id: p.id, label: p.name }))}
+            placeholder={restrictToOwnParties ? 'One of your parties…' : orderSp ? 'Party for this sales person…' : 'Select party…'}
           />
 
           <Text style={styles.label}>Credit Days</Text>
