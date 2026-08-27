@@ -84,6 +84,7 @@ const EMPTY_ORDER = {
   deliveryType: 'ExWorks' as DeliveryType,
   note: '',
   deliveryDate: new Date().toISOString().slice(0, 10), // defaults to today, editable
+  creditDays: '0', // pre-filled from the party when one is picked, editable per order
 };
 
 export function DashboardPage() {
@@ -214,6 +215,7 @@ export function DashboardPage() {
     if (required('outward.note') && !order.note.trim()) return setOrderError('Note is required.');
 
     const party = selectedParty;
+    const creditDays = Math.max(0, Math.floor(Number(order.creditDays) || 0));
     const nameOf = (id: string) => items.find((i) => i.id === id);
     const first = nameOf(filledOrderLines[0].itemId);
     const single = filledOrderLines.length === 1;
@@ -222,7 +224,7 @@ export function DashboardPage() {
     // order reads exactly as before; several items become an itemised list in place of the name,
     // since the template has one slot for the item and inventing extra ones would break anyone's
     // customised wording.
-    const payStatus = party && party.creditDays > 0 ? `Credit (${party.creditDays} days)` : 'Pending';
+    const payStatus = creditDays > 0 ? `Credit (${creditDays} days)` : 'Pending';
     const itemised = filledOrderLines
       .map((l) => {
         const it = nameOf(l.itemId);
@@ -241,7 +243,7 @@ export function DashboardPage() {
       deliveryTerms: deliveryTermsLabel(order.deliveryType),
       deliveryDate: order.deliveryDate ? fmtDate(order.deliveryDate) : 'N/A',
       payStatus,
-      dueDays: party && party.creditDays > 0 ? `${party.creditDays} days` : 'N/A',
+      dueDays: creditDays > 0 ? `${creditDays} days` : 'N/A',
       dueDate: 'N/A',
     });
 
@@ -260,6 +262,7 @@ export function DashboardPage() {
           rate: Number(l.rate),
           gstPct: Number(l.gstPct) || 0,
           deliveryType: order.deliveryType,
+          creditDays,
           note: order.note.trim() || null,
           deliveryDate: order.deliveryDate || null,
         });
@@ -479,9 +482,24 @@ export function DashboardPage() {
               <label>Party (debtor)</label>
               <SearchSelect
                 value={order.partyId}
-                onChange={(id) => setOrd('partyId', id)}
+                onChange={(id) => {
+                  // Pre-fill Credit Days from the chosen party's default; the user can still change it.
+                  const p = debtors.find((d) => d.id === id);
+                  setOrder((o) => ({ ...o, partyId: id, creditDays: p ? String(p.creditDays ?? 0) : o.creditDays }));
+                }}
                 options={(orderSp ? debtors.filter((p) => p.salesPersonId === orderSp) : debtors).map((p) => ({ id: p.id, label: p.name }))}
                 placeholder={orderSp ? 'Type a party for this sales person…' : 'Type party name…'}
+              />
+            </div>
+            <div className="field" style={{ margin: 0, width: 110 }}>
+              <label>Credit Days</label>
+              <input
+                type="number"
+                min="0"
+                value={order.creditDays}
+                onChange={(e) => setOrd('creditDays', e.target.value)}
+                style={{ width: '100%' }}
+                title="Credit period for this order. Pre-filled from the party; change it per order (e.g. 0 for cash)."
               />
             </div>
             <div className="field" style={{ margin: 0 }}>

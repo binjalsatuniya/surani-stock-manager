@@ -9,6 +9,8 @@ export interface CreateOrderInput {
   rate: number;
   gstPct?: number;
   deliveryType: 'ExWorks' | 'FOR';
+  /** Credit period in days for this order; overrides the party's default. Omit to use the party's. */
+  creditDays?: number;
   invNo?: string | null;
   note?: string | null;
   deliveryDate?: string | null;

@@ -28,6 +28,8 @@ const orderSchema = z.object({
   rate: z.coerce.number(),
   gstPct: z.coerce.number().default(0),
   deliveryType: z.enum(['ExWorks', 'FOR']),
+  // Optional per-order credit override; falls back to the party's saved credit days when omitted.
+  creditDays: z.coerce.number().int().min(0).optional(),
   invNo: z.string().nullable().optional(),
   note: z.string().nullable().optional(),
   deliveryDate: z.string().nullable().optional(),
@@ -42,7 +44,8 @@ ordersRouter.post(
     const party = await prisma.party.findUnique({ where: { id: input.partyId } });
     if (!party) throw new NotFoundError('Party not found');
 
-    const creditDays = party.creditDays;
+    // Per-order override when the form sent one, else the party's saved default.
+    const creditDays = input.creditDays ?? party.creditDays;
     const payStatus = creditDays > 0 ? 'credit' : 'pending';
     const gst = Math.round(input.qty * input.rate * (input.gstPct / 100) * 100) / 100;
     const amount = Math.round((input.qty * input.rate + gst) * 100) / 100;
