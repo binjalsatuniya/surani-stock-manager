@@ -51,6 +51,20 @@ export async function shareOnWhatsapp(phone: string | null | undefined, message:
 }
 
 /**
+ * Whether this is a phone/tablet browser. On mobile, wa.me pre-fills the message text correctly in
+ * the WhatsApp app, so we send it straight through instead of the desktop copy-to-clipboard dance
+ * (which only exists because WhatsApp Desktop on Windows mangles emoji passed in the URL).
+ */
+function isMobileWeb(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  if (/Android|iPhone|iPod|Windows Phone|Mobile/i.test(ua)) return true;
+  // iPadOS 13+ reports a desktop Safari UA but is really a touch device.
+  if (/Macintosh/.test(ua) && (navigator.maxTouchPoints || 0) > 1) return true;
+  return false;
+}
+
+/**
  * Last-resort share: the message on screen, already selected, with the chat one click away.
  * Nothing here depends on clipboard permission — worst case the user presses Ctrl+C themselves.
  */
@@ -136,6 +150,13 @@ export async function shareViaWindow(
   if (!message) {
     win?.close();
     notice(false, 'There was no message to share — the template may be empty.');
+    return;
+  }
+  // Phone browser: hand the whole message to WhatsApp directly (it pre-fills it, ready to send).
+  if (isMobileWeb()) {
+    const link = buildWhatsappLink(phone, message);
+    if (win) win.location.href = link;
+    else window.open(link, '_blank');
     return;
   }
   const copied = await copyText(message);
