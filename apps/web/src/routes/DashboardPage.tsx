@@ -243,7 +243,7 @@ export function DashboardPage() {
       deliveryTerms: deliveryTermsLabel(order.deliveryType),
       deliveryDate: order.deliveryDate ? fmtDate(order.deliveryDate) : 'N/A',
       payStatus,
-      dueDays: creditDays > 0 ? `${creditDays} days` : 'N/A',
+      dueDays: creditDays > 0 ? `${creditDays} days` : '100% against delivery',
       dueDate: 'N/A',
     });
 
