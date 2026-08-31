@@ -500,9 +500,10 @@ export function OrderBookPage() {
           )}
         </td>
         <td>
-          {/* A fixed 3-column grid keeps the action buttons in tidy, aligned columns and uses the
-              width available, instead of a flex-wrap that crammed two per row with a gap beside them. */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 5, minWidth: 236 }}>
+          {/* A fixed 2-column grid keeps the action buttons tidy and narrow enough to stay on screen
+              (a 3-column layout pushed the last button — Slip — off the right edge once the table
+              grew the Freight column). */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 5, minWidth: 150 }}>
             {/* Re-opening the panel on a dispatched order is how its invoice, transporter,
                 vehicle and freight/handling get corrected — the API deletes and re-posts the
                 freight/handling entries, which a plain field edit would not do. */}
