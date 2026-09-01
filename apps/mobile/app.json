@@ -3,7 +3,7 @@
     "name": "Surani and Sons",
     "slug": "surani-and-sons-stock-manager",
     "scheme": "suraniandsons",
-    "version": "1.1.3",
+    "version": "1.1.4",
     "orientation": "portrait",
     "newArchEnabled": true,
     "icon": "./assets/icon.png",
@@ -48,7 +48,14 @@
       [
         "expo-location",
         {
+          "locationWhenInUsePermission": "Allow Surani and Sons to record your location when you sign in.",
           "locationAlwaysAndWhenInUsePermission": "Allow Surani and Sons to record your location when you sign in."
+        }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow Surani and Sons to unlock with Face ID."
         }
       ],
       "expo-secure-store",
