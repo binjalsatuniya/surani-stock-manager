@@ -236,11 +236,13 @@ export function DashboardPage() {
         return `${it?.name ?? ''} — ${l.qty} ${it?.unit ?? ''} @ ₹${fmtAmount(l.rate)}`;
       })
       .join('\n');
-    const message = fill('orderSlip', {
+    // Multi-item: total quantity (the sum), in the item's unit — not the number of lines.
+    const totalQty = filledOrderLines.reduce((s, l) => s + (Number(l.qty) || 0), 0);
+    let message = fill('orderSlip', {
       partyName: party?.name || '',
       itemName: single ? first?.name || '' : `\n${itemised}`,
-      qty: single ? filledOrderLines[0].qty : String(filledOrderLines.length),
-      unit: single ? first?.unit || '' : 'items',
+      qty: single ? filledOrderLines[0].qty : String(totalQty),
+      unit: single ? first?.unit || '' : first?.unit || '',
       rate: single ? fmtAmount(filledOrderLines[0].rate) : 'see above',
       amount: fmtAmount(oTotal),
       date: fmtDate(order.date),
@@ -251,6 +253,15 @@ export function DashboardPage() {
       dueDays: creditDays > 0 ? `${creditDays} days` : '100% against delivery',
       dueDate: 'N/A',
     });
+
+    // Multi-item: the per-item rates are already in the item list, so drop the now-redundant single
+    // "Rate:" line ("see above"). Single-item orders keep their Rate line.
+    if (!single && message) {
+      message = message
+        .split('\n')
+        .filter((l) => !/^\s*\*?Rate:/i.test(l))
+        .join('\n');
+    }
 
     // Open the WhatsApp tab synchronously (inside the click) so the browser never blocks it;
     // we point it at the real wa.me link once the order is saved.
