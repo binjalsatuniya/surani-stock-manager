@@ -62,7 +62,11 @@ gstRouter.get(
       throw new HttpError(400, 'That is not a valid GST number.');
     }
 
-    const url = `https://sheet.gstincheck.co.in/check/${encodeURIComponent(key)}/${encodeURIComponent(gstin)}`;
+    // Appyflow GST verification API — the key in APPYFLOW_KEY is an Appyflow key. Appyflow returns
+    // the taxpayer under `taxpayerInfo` (handled below), errors as { error: true, message }, and the
+    // mismatched-GSTIN safeguard below rejects any sample/wrong record so a demo response can't be
+    // written into a party.
+    const url = `https://appyflow.in/api/verifyGST?gstNo=${encodeURIComponent(gstin)}&key_secret=${encodeURIComponent(key)}`;
 
     let payload: Record<string, unknown>;
     try {
