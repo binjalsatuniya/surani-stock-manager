@@ -482,10 +482,9 @@ export function OrderBookPage() {
         <td>{m.partyName || partyName(m.partyId)}</td>
         <td>{m.itemName || itemName(m.itemId)}</td>
         <td>{m.qty}</td>
-        <td>{fmtAmount(m.handling || 0)}</td>
+        {canRate && <td>₹{fmtAmount(m.rate)}</td>}
         {/* Freight only applies to FOR orders; Ex-Works leaves transport to the buyer, so show a dash. */}
         <td>{m.deliveryType === 'FOR' ? fmtAmount(m.freightRate || 0) : '—'}</td>
-        {canRate && <td>₹{fmtAmount(m.rate)}</td>}
         {canRate && <td>₹{fmtAmount(m.amount)}</td>}
         <td>{m.deliveryType || '—'}</td>
         <td>{m.deliveryDate ? fmtDate(m.deliveryDate) : '—'}</td>
@@ -794,9 +793,8 @@ export function OrderBookPage() {
       <th>Debtor</th>
       <th>Item</th>
       <th>Qty</th>
-      <th>Handling</th>
-      <th>Freight</th>
       {canRate && <th>Rate</th>}
+      <th>Freight</th>
       {canRate && <th>Total</th>}
       <th>Delivery</th>
       <th>Delivery Date</th>
