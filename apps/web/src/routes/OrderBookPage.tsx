@@ -447,7 +447,7 @@ export function OrderBookPage() {
   const cancelled = dateRows.filter((m) => m.fulfil === 'cancelled');
   const pendingValue = pending.reduce((s, m) => s + Number(m.amount || 0), 0);
 
-  const colCount = canRate ? 14 : 12;
+  const colCount = canRate ? 15 : 12;
 
   // The row, plus the Edit or Dispatch panel rendered directly beneath it when this is the
   // row being acted on — so the form opens where you clicked (same as Party Master).
@@ -485,6 +485,7 @@ export function OrderBookPage() {
         <td>{fmtAmount(m.handling || 0)}</td>
         {/* Freight only applies to FOR orders; Ex-Works leaves transport to the buyer, so show a dash. */}
         <td>{m.deliveryType === 'FOR' ? fmtAmount(m.freightRate || 0) : '—'}</td>
+        {canRate && <td>₹{fmtAmount(m.rate)}</td>}
         {canRate && <td>₹{fmtAmount(m.amount)}</td>}
         <td>{m.deliveryType || '—'}</td>
         <td>{m.deliveryDate ? fmtDate(m.deliveryDate) : '—'}</td>
@@ -795,6 +796,7 @@ export function OrderBookPage() {
       <th>Qty</th>
       <th>Handling</th>
       <th>Freight</th>
+      {canRate && <th>Rate</th>}
       {canRate && <th>Total</th>}
       <th>Delivery</th>
       <th>Delivery Date</th>
