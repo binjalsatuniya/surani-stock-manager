@@ -1,5 +1,5 @@
 import type { HttpClient } from './http';
-import type { Outward, PayStatus } from '../types';
+import type { DeliveryType, Outward, PayStatus } from '../types';
 
 export interface CreateOutwardInput {
   date: string;
@@ -35,6 +35,7 @@ export interface EditOutwardInput {
   gstPct?: number;
   payStatus?: PayStatus;
   creditDays?: number;
+  deliveryType?: DeliveryType;
   note?: string | null;
   /** Needs edit_outward_freight — changing these re-posts the transporter's and agent's entries. */
   freightRate?: number;

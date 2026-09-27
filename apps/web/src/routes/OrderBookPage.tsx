@@ -62,7 +62,7 @@ export function OrderBookPage() {
 
   // Super Admin order editor
   const [editing, setEditing] = useState<Outward | null>(null);
-  const [ed, setEd] = useState({ date: '', invNo: '', invDate: '', qty: '', rate: '', gstPct: '', payStatus: 'pending', creditDays: '', note: '' });
+  const [ed, setEd] = useState({ date: '', invNo: '', invDate: '', qty: '', rate: '', gstPct: '', payStatus: 'pending', creditDays: '', deliveryType: 'ExWorks', note: '' });
 
   const [dispatchingId, setDispatchingId] = useState<string | null>(null);
   const [dInvNo, setDInvNo] = useState('');
@@ -204,6 +204,7 @@ export function OrderBookPage() {
       gstPct: String(m.gstPct),
       payStatus: m.payStatus,
       creditDays: String(m.creditDays),
+      deliveryType: m.deliveryType || 'ExWorks',
       note: m.note || '',
     });
   }
@@ -219,6 +220,7 @@ export function OrderBookPage() {
         gstPct: Number(ed.gstPct) || 0,
         payStatus: ed.payStatus as Outward['payStatus'],
         creditDays: Number(ed.creditDays) || 0,
+        deliveryType: ed.deliveryType as 'ExWorks' | 'FOR',
         note: ed.note.trim() || null,
       });
       setEditing(null);
@@ -771,6 +773,13 @@ export function OrderBookPage() {
           <div className="field" style={{ margin: 0 }}>
             <label>Credit Days</label>
             <input value={ed.creditDays} onChange={(e) => setEd({ ...ed, creditDays: e.target.value })} style={{ width: 90 }} />
+          </div>
+          <div className="field" style={{ margin: 0 }}>
+            <label>Delivery</label>
+            <select value={ed.deliveryType} onChange={(e) => setEd({ ...ed, deliveryType: e.target.value })}>
+              <option value="ExWorks">Ex Works</option>
+              <option value="FOR">FOR (we deliver)</option>
+            </select>
           </div>
           <div className="field" style={{ margin: 0, flex: 1, minWidth: 160 }}>
             <label>Note</label>

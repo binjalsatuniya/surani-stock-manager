@@ -176,6 +176,7 @@ const editOutwardSchema = z.object({
   gstPct: z.coerce.number().optional(),
   payStatus: z.enum(['pending', 'received', 'credit']).optional(),
   creditDays: z.coerce.number().int().optional(),
+  deliveryType: z.enum(['ExWorks', 'FOR']).optional(),
   note: z.string().nullable().optional(),
   // Omit to keep the current invoice; send null to remove it, or a data URL to replace it.
   invoiceFile: z.string().nullable().optional(),
