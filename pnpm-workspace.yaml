@@ -3,14 +3,16 @@ packages:
   - "apps/*"
   - "desktop-app"
 virtualStoreDir: C:/ps-store/.pnpm
-# The mobile app pulls in @types/react 19 (Expo 57 / React 19), but the web app is React 18. Without
-# this, react-router's types get bound to the hoisted @types/react 19 (whose ReactNode includes
-# bigint), which clashes with web's React 18 and makes every <Route>/<Link> fail `tsc -b`. Force
-# react-router (a web-only dependency — mobile uses react-navigation) onto @types/react 18. Mobile's
-# own React 19 types are untouched.
+# The web app is React 18, but the mobile app (Expo 57) pulls in @types/react 19, whose ReactNode
+# includes bigint. When both versions exist, react-router's types bind to 19 and clash with web's
+# React 18, making every <Route>/<Link> fail `tsc -b`. A scoped override didn't hold on the server's
+# hoisting, so pin @types/react to 18 for the ENTIRE workspace — there is then no 19 for anything to
+# bind to. The web + api builds (the only ones built here / on the server) are React 18, so this is
+# correct for them. The mobile app runs on React 19 at RUNTIME regardless (Metro/Babel don't
+# typecheck); only its editor type-hints see 18. Revisit if mobile needs its own 19 types back.
 overrides:
-  "react-router>@types/react": "^18.3.5"
-  "react-router-dom>@types/react": "^18.3.5"
+  "@types/react": "18.3.31"
+  "@types/react-dom": "18.3.7"
 packageExtensions:
   react-router-dom@6.30.4:
     peerDependencies:
