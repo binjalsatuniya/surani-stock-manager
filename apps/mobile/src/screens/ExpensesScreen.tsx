@@ -20,6 +20,7 @@ import * as Sharing from 'expo-sharing';
 import { File, Paths } from 'expo-file-system';
 import { buildWhatsappLink, PAYMENT_MODES, type SalesPerson, type SalesPersonExpense, type Trip } from '@surani/shared';
 import { api } from '../lib/apiClient';
+import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import { useAuth } from '../context/AuthContext';
 import { usePermission } from '../hooks/usePermission';
 
@@ -126,6 +127,7 @@ export function ExpensesScreen() {
     reload().catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterSp]);
+  useLiveRefresh(reload);
 
   function set<K extends keyof typeof form>(key: K, value: string) {
     setForm((f) => ({ ...f, [key]: value }));

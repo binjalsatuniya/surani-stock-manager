@@ -18,6 +18,7 @@ import {
   type UnpaidInvoice,
 } from '@surani/shared';
 import { api } from '../lib/apiClient';
+import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import { SearchSelect } from '../components/SearchSelect';
 import { usePermission } from '../hooks/usePermission';
 import { useFieldSettings } from '../hooks/useFieldSettings';
@@ -72,6 +73,7 @@ export function PaymentsScreen() {
     api.salesPersons.list().then(setSalesPersons).catch(() => {});
     reload().catch(() => {});
   }, []);
+  useLiveRefresh(reload);
 
   useEffect(() => {
     api.ledger.due(spFilter || undefined).then(setDueGroups).catch(() => {});

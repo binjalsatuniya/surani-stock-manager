@@ -4,6 +4,7 @@ import { Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, Vie
 import { Picker } from '@react-native-picker/picker';
 import { buildWhatsappLink, deliveryTermsLabel, type Item, type Outward, type Party } from '@surani/shared';
 import { api } from '../lib/apiClient';
+import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import { usePermission } from '../hooks/usePermission';
 import { useAuth } from '../context/AuthContext';
 import { useWhatsappTemplates } from '../hooks/useWhatsappTemplates';
@@ -113,6 +114,7 @@ export function OrderBookScreen() {
     api.parties.list('transporter').then(setTransporters).catch(() => {});
     api.parties.list('handling').then(setHandlers).catch(() => {});
   }, []);
+  useLiveRefresh(reload);
 
   const partyById = (id: string) => parties.find((p) => p.id === id);
   const partyName = (id: string) => partyById(id)?.name || id;

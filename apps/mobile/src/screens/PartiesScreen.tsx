@@ -6,6 +6,7 @@ import { Picker } from '@react-native-picker/picker';
 import { buildTelLink } from '@surani/shared';
 import type { Party, PartyType, SalesPerson } from '@surani/shared';
 import { api } from '../lib/apiClient';
+import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import { usePermission } from '../hooks/usePermission';
 
 const TYPES: { value: PartyType; label: string }[] = [
@@ -60,6 +61,9 @@ export function PartiesScreen() {
     api.salesPersons.list().then(setSalesPersons).catch(() => {});
     api.gst.status().then((s) => setGstLookupOn(s.configured)).catch(() => setGstLookupOn(false));
   }, []);
+  useLiveRefresh(() => {
+    reload().catch(() => {});
+  });
 
   async function onFetchGst() {
     // Basic shape check — the server does the real lookup; a typo just gets a friendly note.

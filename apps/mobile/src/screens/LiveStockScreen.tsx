@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import type { Item, StockLevel } from '@surani/shared';
 import { api } from '../lib/apiClient';
+import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import { usePermission } from '../hooks/usePermission';
 
 export function LiveStockScreen() {
@@ -23,6 +24,7 @@ export function LiveStockScreen() {
   useEffect(() => {
     reload().catch(() => {});
   }, []);
+  useLiveRefresh(reload);
 
   // Saving a rate also stamps rateDate, so Live Stock doubles as the rate-of-the-day screen.
   async function onUpdateRate(id: string) {

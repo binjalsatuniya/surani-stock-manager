@@ -7,6 +7,7 @@ import * as Sharing from 'expo-sharing';
 import { File, Paths } from 'expo-file-system';
 import type { Item, ItemUnit } from '@surani/shared';
 import { api } from '../lib/apiClient';
+import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import { usePermission } from '../hooks/usePermission';
 import { useFieldSettings } from '../hooks/useFieldSettings';
 
@@ -64,6 +65,7 @@ export function ItemsScreen() {
   useEffect(() => {
     reload().catch(() => {});
   }, []);
+  useLiveRefresh(reload);
 
   function set<K extends keyof typeof form>(key: K, value: string) {
     setForm((f) => ({ ...f, [key]: value }));
