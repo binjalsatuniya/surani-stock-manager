@@ -2,6 +2,9 @@ generator client {
   provider      = "prisma-client-js"
   // "native" = your local machine (Windows); the debian targets are for Linux hosts like Render.
   binaryTargets = ["native", "debian-openssl-3.0.x", "debian-openssl-1.1.x"]
+  // omitApi lets list queries skip the large attachment/invoice blobs at the DB level, so they are
+  // never read from Postgres — see the list endpoints (items/outward/orderbook/expenses).
+  previewFeatures = ["omitApi"]
 }
 
 datasource db {

@@ -34,10 +34,11 @@ itemsRouter.get(
   '/',
   requirePermission('view_items'),
   asyncHandler(async (_req, res) => {
-    const items = await prisma.item.findMany({ orderBy: { name: 'asc' } });
-    // Drop the (potentially multi-MB) TDS blob — this list is loaded by almost every page for its
-    // item dropdowns, so shipping every TDS file made navigation slow. The name stays so the Items
-    // page still shows a TDS exists; the file is fetched on demand via GET /items/:id/tds.
+    // Skip the (potentially multi-MB) TDS blob at the DB level (omit) — this list is loaded by almost
+    // every page for its item dropdowns, so reading every TDS file from Postgres made navigation slow.
+    // The name stays so the Items page still shows a TDS exists; the file is fetched on demand via
+    // GET /items/:id/tds.
+    const items = await prisma.item.findMany({ orderBy: { name: 'asc' }, omit: { tdsAttachment: true } });
     res.json(items.map((i) => toItemDTO({ ...i, tdsAttachment: null })));
   })
 );

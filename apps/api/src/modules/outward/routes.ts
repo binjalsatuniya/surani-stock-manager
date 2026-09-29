@@ -52,9 +52,11 @@ outwardRouter.get(
         ...(fulfil ? { fulfil } : {}),
       },
       orderBy: { date: 'desc' },
+      // Skip the (potentially large) invoice blob at the DB level so the list query stays light.
+      omit: { invoiceFile: true },
     });
-    // Drop the (potentially large) invoice blob from the list — the name stays so the UI knows an
-    // invoice exists; the file itself is fetched on demand via GET /outward/:id/invoice.
+    // The name stays so the UI knows an invoice exists; the file is fetched on demand via
+    // GET /outward/:id/invoice.
     res.json(rows.map((r) => toOutwardDTO({ ...r, invoiceFile: null })));
   })
 );

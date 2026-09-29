@@ -97,9 +97,11 @@ expensesRouter.get(
       },
       orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
       include: { trip: { select: { name: true } } },
+      // Skip the (potentially multi-MB) bill blob at the DB level so the list query stays light.
+      omit: { attachment: true },
     });
-    // Drop the (potentially multi-MB) bill blob from the list so pages load fast; the name stays so
-    // the UI knows a bill exists, and the file is fetched on demand via GET /expenses/:id/attachment.
+    // The name stays so the UI knows a bill exists; the file is fetched on demand via
+    // GET /expenses/:id/attachment.
     res.json(rows.map((r) => toExpenseDTO({ ...r, attachment: null })));
   })
 );
