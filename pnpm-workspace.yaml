@@ -3,6 +3,14 @@ packages:
   - "apps/*"
   - "desktop-app"
 virtualStoreDir: C:/ps-store/.pnpm
+# The mobile app pulls in @types/react 19 (Expo 57 / React 19), but the web app is React 18. Without
+# this, react-router's types get bound to the hoisted @types/react 19 (whose ReactNode includes
+# bigint), which clashes with web's React 18 and makes every <Route>/<Link> fail `tsc -b`. Force
+# react-router (a web-only dependency — mobile uses react-navigation) onto @types/react 18. Mobile's
+# own React 19 types are untouched.
+overrides:
+  "react-router>@types/react": "^18.3.5"
+  "react-router-dom>@types/react": "^18.3.5"
 packageExtensions:
   react-router-dom@6.30.4:
     peerDependencies:
@@ -24,7 +32,8 @@ allowBuilds:
   esbuild: true
   prisma: true
   protobufjs: true
-  # Only install script is a donation notice; nothing is compiled.
+  # Its only install script is opencollective-postinstall, which prints a donation notice.
+  # Nothing is compiled, so skipping it changes nothing about how OCR works.
   tesseract.js: false
 minimumReleaseAgeExclude:
   - '@expo/cli@57.0.6'
@@ -39,3 +48,6 @@ minimumReleaseAgeExclude:
   - expo-modules-core@57.0.3
   - expo-modules-jsi@57.0.1
   - expo@57.0.4
+  - expo-image-picker@57.0.5
+  - expo-sharing@57.0.6
+  - expo-location@57.0.5
