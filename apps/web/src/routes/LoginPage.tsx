@@ -30,7 +30,10 @@ function getLocationOrThrow(): Promise<Coords> {
       (pos) =>
         resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude, accuracy: pos.coords.accuracy }),
       (err) => reject(new Error(err.code === err.PERMISSION_DENIED ? 'LOCATION_DENIED' : 'LOCATION_UNAVAILABLE')),
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      // Login-location tracking only needs a rough position, so don't wait for a GPS-grade fix:
+      // coarse accuracy resolves in ~1s on a laptop, and maximumAge lets a fix from the last 5 min
+      // be reused so repeat logins are instant. Cap the wait at 10s.
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
     );
   });
 }
@@ -56,7 +59,7 @@ async function resolveLoginCoords(): Promise<Coords> {
       // Give it a brief chance (in case a key IS configured), but never hang the login.
       return await Promise.race([
         getLocationOrThrow(),
-        new Promise<Coords>((resolve) => setTimeout(() => resolve(NO_COORDS), 4000)),
+        new Promise<Coords>((resolve) => setTimeout(() => resolve(NO_COORDS), 1500)),
       ]);
     } catch {
       return NO_COORDS;
