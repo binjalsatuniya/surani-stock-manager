@@ -12,8 +12,10 @@
     "concurrently": "^8.2.2",
     "typescript": "^5.5.0"
   },
-  "engines": {
-    "node": "20.x"
-  },
-  "packageManager": "pnpm@9.15.4"
+  "pnpm": {
+    "overrides": {
+      "@types/react": "18.3.31",
+      "@types/react-dom": "18.3.7"
+    }
+  }
 }
