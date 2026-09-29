@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { Party, SalesPerson } from '@surani/shared';
 import { api } from '../lib/apiClient';
 import { usePermission } from '../hooks/usePermission';
+import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import { useAuth } from '../context/AuthContext';
 
 // A dedicated tab for follow-ups: for each company, how many days after which the sales person
@@ -35,6 +36,9 @@ export function FollowUpPage() {
     if (isSuper) api.salesPersons.list().then(setSalesPersons).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allowed]);
+  useLiveRefresh(() => {
+    if (allowed) reload().catch(() => {});
+  });
 
   const salesPersonName = (id: string | null) => (id ? salesPersons.find((s) => s.id === id)?.name || '—' : '—');
 

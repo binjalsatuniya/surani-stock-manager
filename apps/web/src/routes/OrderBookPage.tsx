@@ -1,5 +1,6 @@
 import { fmtAmount } from '@surani/shared';
 import { Fragment, useEffect, useState, type ChangeEvent } from 'react';
+import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import { deliveryTermsLabel, type Item, type Outward, type Party } from '@surani/shared';
 import { api } from '../lib/apiClient';
 import { shareOnWhatsapp } from '../lib/whatsappShare';
@@ -147,6 +148,7 @@ export function OrderBookPage() {
     reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedFy]);
+  useLiveRefresh(reload);
 
   function openDispatch(m: Outward) {
     setEditing(null); // only one inline panel open at a time

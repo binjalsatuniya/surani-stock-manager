@@ -1,5 +1,6 @@
 import { fmtAmount } from '@surani/shared';
 import { Fragment, useEffect, useState } from 'react';
+import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import { Link } from 'react-router-dom';
 import { buildTelLink } from '@surani/shared';
 import type { Party, PartyType, SalesPerson } from '@surani/shared';
@@ -111,6 +112,10 @@ export function PartiesPage() {
       api.gst.status().then((s) => setGstLookupOn(s.configured)).catch(() => setGstLookupOn(false));
     }
   }, []);
+  useLiveRefresh(() => {
+    reload();
+    reloadSalesPersons();
+  });
 
   function set<K extends keyof typeof form>(key: K, value: string) {
     setForm((f) => ({ ...f, [key]: value }));

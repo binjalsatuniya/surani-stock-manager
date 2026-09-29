@@ -1,5 +1,6 @@
 import { fmtAmount } from '@surani/shared';
 import { useEffect, useState } from 'react';
+import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import { Link } from 'react-router-dom';
 import { type Item, type ItemUnit } from '@surani/shared';
 import { shareOnWhatsapp } from '../lib/whatsappShare';
@@ -52,6 +53,7 @@ export function ItemsPage() {
   useEffect(() => {
     reload();
   }, []);
+  useLiveRefresh(reload);
 
   function set<K extends keyof typeof form>(key: K, value: string) {
     setForm((f) => ({ ...f, [key]: value }));

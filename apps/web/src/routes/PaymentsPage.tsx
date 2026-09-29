@@ -1,5 +1,6 @@
 import { fmtAmount } from '@surani/shared';
 import { useEffect, useState } from 'react';
+import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import { buildWhatsappLink, buildTelLink, PAYMENT_MODES, type DueLedgerGroup, type PayableGroup, type Party, type Payment, type PaymentDirection, type PaymentMode, type SalesPerson } from '@surani/shared';
 import type { UnpaidInvoice } from '@surani/shared';
 import { api } from '../lib/apiClient';
@@ -61,6 +62,7 @@ export function PaymentsPage() {
     reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedFy]);
+  useLiveRefresh(reload);
 
   async function reloadDueLedger() {
     setDueGroups(await api.ledger.due(spFilter || undefined));

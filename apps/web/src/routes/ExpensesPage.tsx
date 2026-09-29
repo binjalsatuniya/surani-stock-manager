@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import { buildWhatsappLink, PAYMENT_MODES, type SalesPerson, type SalesPersonExpense, type Trip } from '@surani/shared';
 import { api } from '../lib/apiClient';
 import { shareOnWhatsapp } from '../lib/whatsappShare';
@@ -158,6 +159,7 @@ export function ExpensesPage() {
     reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterSp]);
+  useLiveRefresh(reload);
 
   function set<K extends keyof typeof form>(key: K, value: string) {
     setForm((f) => ({ ...f, [key]: value }));

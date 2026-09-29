@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import type { Item, StockLevel } from '@surani/shared';
 import { api } from '../lib/apiClient';
 import { usePermission } from '../hooks/usePermission';
+import { useLiveRefresh } from '../hooks/useLiveRefresh';
 
 export function LiveStockPage() {
   const can = usePermission();
@@ -22,6 +23,7 @@ export function LiveStockPage() {
   useEffect(() => {
     reload();
   }, []);
+  useLiveRefresh(reload);
 
   async function onUpdateRate(id: string) {
     const raw = rateEdits[id];

@@ -1,6 +1,7 @@
 import { fmtAmount } from '@surani/shared';
 import { Fragment, useEffect, useState } from 'react';
 import type { DeliveryType, Inward, Item, Party } from '@surani/shared';
+import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import { fyOfDate } from '@surani/shared';
 import { api } from '../lib/apiClient';
 import { usePermission } from '../hooks/usePermission';
@@ -124,6 +125,7 @@ export function InwardPage() {
     reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedFy]);
+  useLiveRefresh(reload);
 
   function set<K extends keyof typeof form>(key: K, value: string) {
     setForm((f) => ({ ...f, [key]: value }));
