@@ -41,15 +41,21 @@ interface RecentRow {
 const EMPTY_ORDER = {
   date: new Date().toISOString().slice(0, 10),
   partyId: '',
-  itemId: '',
-  qty: '',
-  rate: '',
-  gstPct: '18',
   deliveryType: 'ExWorks' as DeliveryType,
   note: '',
   deliveryDate: new Date().toISOString().slice(0, 10),
   creditDays: '0', // pre-filled from the party when picked, editable per order
 };
+
+// One material row. An order can have several — placed as one outward per row, all sharing the
+// order's party / date / delivery / credit / note. Mirrors the web "New Order" card's "Add item".
+interface OrderLine {
+  itemId: string;
+  qty: string;
+  rate: string;
+  gstPct: string;
+}
+const BLANK_LINE: OrderLine = { itemId: '', qty: '', rate: '', gstPct: '18' };
 
 function Kpi({ label, value, color, hint }: { label: string; value: string | number; color?: string; hint?: string }) {
   return (
@@ -81,6 +87,7 @@ export function DashboardScreen() {
   const [recent, setRecent] = useState<RecentRow[]>([]);
 
   const [order, setOrder] = useState({ ...EMPTY_ORDER });
+  const [orderLines, setOrderLines] = useState<OrderLine[]>([{ ...BLANK_LINE }]);
   const [orderError, setOrderError] = useState('');
   const [orderMsg, setOrderMsg] = useState('');
   const [saving, setSaving] = useState(false);
@@ -119,43 +126,77 @@ export function DashboardScreen() {
   const partyName = (id: string) => parties.find((p) => p.id === id)?.name || id;
   const itemName = (id: string) => items.find((i) => i.id === id)?.name || id;
 
-  function onOrderItemChange(id: string) {
+  function setLine(idx: number, patch: Partial<OrderLine>) {
+    setOrderLines((ls) => ls.map((l, i) => (i === idx ? { ...l, ...patch } : l)));
+  }
+  function onLineItemChange(idx: number, id: string) {
+    // Picking an item pre-fills its rate (if the row's rate is still empty) and locks GST to the
+    // item's slab, exactly like the single-item form used to.
     const it = items.find((i) => i.id === id);
-    setOrder((o) => ({
-      ...o,
-      itemId: id,
-      rate: o.rate || (it ? String(it.rate) : ''),
-      gstPct: it ? String(it.gstPct ?? 0) : o.gstPct,
-    }));
+    setOrderLines((ls) =>
+      ls.map((l, i) =>
+        i === idx
+          ? { ...l, itemId: id, rate: l.rate || (it ? String(it.rate) : ''), gstPct: it ? String(it.gstPct ?? 0) : l.gstPct }
+          : l
+      )
+    );
+  }
+  function addLine() {
+    setOrderLines((ls) => [...ls, { ...BLANK_LINE }]);
+  }
+  function removeLine(idx: number) {
+    setOrderLines((ls) => (ls.length > 1 ? ls.filter((_, i) => i !== idx) : ls));
   }
 
   const selectedParty = debtors.find((p) => p.id === order.partyId);
-  const oQty = Number(order.qty) || 0;
-  const oRate = Number(order.rate) || 0;
-  const oGst = Number(order.gstPct) || 0;
-  const oGoods = oQty * oRate;
-  const oTotal = oGoods + (oGoods * oGst) / 100;
+  // Per-row and grand totals across every material line.
+  const lineCalc = orderLines.map((l) => {
+    const qty = Number(l.qty) || 0;
+    const rate = Number(l.rate) || 0;
+    const gst = Number(l.gstPct) || 0;
+    const goods = qty * rate;
+    return { qty, rate, gst, goods, gstAmt: (goods * gst) / 100, total: goods + (goods * gst) / 100 };
+  });
+  const oGoods = lineCalc.reduce((s, c) => s + c.goods, 0);
+  const oGstAmt = lineCalc.reduce((s, c) => s + c.gstAmt, 0);
+  const oTotal = oGoods + oGstAmt;
 
   async function onPlaceOrder() {
     setOrderError('');
     setOrderMsg('');
-    if (!order.partyId || !order.itemId || !order.qty || !order.rate) {
-      setOrderError('Party, item, quantity and rate are required.');
+    const filled = orderLines.filter((l) => l.itemId && l.qty && l.rate);
+    if (!order.partyId) {
+      setOrderError('Please choose a party.');
+      return;
+    }
+    if (filled.length === 0) {
+      setOrderError('Add at least one item, with a quantity and rate.');
       return;
     }
     const party = selectedParty;
-    const item = items.find((i) => i.id === order.itemId);
     const creditDays = Math.max(0, Math.floor(Number(order.creditDays) || 0));
+    const single = filled.length === 1;
+    const itemOf = (id: string) => items.find((i) => i.id === id);
+    const first = itemOf(filled[0].itemId);
 
-    // Build the WhatsApp order-slip message now, from the current form values, exactly like the web
-    // "New Order" card does — so placing an order can hand you a confirmation to send straightaway.
+    // Build the WhatsApp order-slip message now, from the current form values — same shape as the web
+    // "New Order" card. For multiple materials we list each item (name — qty unit @ rate) and show the
+    // TOTAL quantity; the per-item rates live in that list, so the single "Rate" line just points to
+    // it. We never delete any line, so the Delivery Terms / Due Days always stay in the slip.
+    const itemised = filled
+      .map((l) => {
+        const it = itemOf(l.itemId);
+        return `${it?.name ?? ''} — ${l.qty} ${it?.unit ?? ''} @ ₹${fmtAmount(l.rate)}`;
+      })
+      .join('\n');
+    const totalQty = filled.reduce((s, l) => s + (Number(l.qty) || 0), 0);
     const payStatus = creditDays > 0 ? `Credit (${creditDays} days)` : 'Pending';
     const message = fill('orderSlip', {
       partyName: party?.name || '',
-      itemName: item?.name || '',
-      qty: order.qty,
-      unit: item?.unit || '',
-      rate: fmtAmount(order.rate),
+      itemName: single ? first?.name || '' : `\n${itemised}`,
+      qty: single ? filled[0].qty : String(totalQty),
+      unit: first?.unit || '',
+      rate: single ? fmtAmount(filled[0].rate) : 'see item list above',
       amount: fmtAmount(oTotal),
       date: fmtDate(order.date),
       invNo: 'N/A',
@@ -168,20 +209,26 @@ export function DashboardScreen() {
 
     setSaving(true);
     try {
-      await api.orders.place({
-        date: order.date,
-        partyId: order.partyId,
-        itemId: order.itemId,
-        qty: Number(order.qty),
-        rate: Number(order.rate),
-        gstPct: Number(order.gstPct) || 0,
-        deliveryType: order.deliveryType,
-        creditDays,
-        note: order.note.trim() || null,
-        deliveryDate: order.deliveryDate || null,
-      });
+      // One outward per material line, all sharing this order's party / date / delivery / note.
+      for (const l of filled) {
+        await api.orders.place({
+          date: order.date,
+          partyId: order.partyId,
+          itemId: l.itemId,
+          qty: Number(l.qty),
+          rate: Number(l.rate),
+          gstPct: Number(l.gstPct) || 0,
+          deliveryType: order.deliveryType,
+          creditDays,
+          note: order.note.trim() || null,
+          deliveryDate: order.deliveryDate || null,
+        });
+      }
       setOrder((o) => ({ ...EMPTY_ORDER, date: o.date }));
-      setOrderMsg(`✓ Order saved for ${party?.name || 'party'} · ${inr(oTotal)}. It now shows in Order Book.`);
+      setOrderLines([{ ...BLANK_LINE }]);
+      setOrderMsg(
+        `✓ Order saved for ${party?.name || 'party'} · ${single ? '' : `${filled.length} items · `}${inr(oTotal)}. It now shows in Order Book.`
+      );
       loadRecent();
       loadKpisAndMasters();
       // Open WhatsApp with the order slip (the party's chat if a number is saved, otherwise the
@@ -189,7 +236,7 @@ export function DashboardScreen() {
       if (message) {
         Linking.openURL(buildWhatsappLink(party?.phone, message)).catch(() => {});
         if (party?.email) {
-          const subject = `Order Confirmation — ${item?.name || 'Order'}`;
+          const subject = `Order Confirmation — ${single ? first?.name || 'Order' : `${filled.length} items`}`;
           Linking.openURL(
             `mailto:${encodeURIComponent(party.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(message)}`
           ).catch(() => {});
@@ -203,9 +250,6 @@ export function DashboardScreen() {
   }
 
   if (!kpis) return null;
-
-  const avail = order.itemId ? stock[order.itemId] ?? 0 : 0;
-  const short = oQty > 0 && oQty > avail;
 
   // --- drag-to-reorder (saved to the account so it follows the user across devices) ---
   const md = user?.preferences?.mobileDashboard;
@@ -286,55 +330,69 @@ export function DashboardScreen() {
             placeholder="e.g. 30 (0 = 100% against delivery)"
           />
 
-          <Text style={styles.label}>Item</Text>
+          <Text style={styles.label}>Materials</Text>
+          {orderLines.map((line, idx) => {
+            const lineItem = items.find((i) => i.id === line.itemId);
+            const lavail = line.itemId ? stock[line.itemId] ?? 0 : 0;
+            const lqty = Number(line.qty) || 0;
+            const lshort = lqty > 0 && lqty > lavail;
+            return (
+              <View key={idx} style={styles.lineCard}>
+                <View style={styles.lineHead}>
+                  <Text style={styles.lineTitle}>Item {idx + 1}</Text>
+                  {orderLines.length > 1 ? (
+                    <TouchableOpacity onPress={() => removeLine(idx)}>
+                      <Text style={styles.lineRemove}>✕ Remove</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+                <View style={styles.pickerWrap}>
+                  <Picker selectedValue={line.itemId} onValueChange={(v) => onLineItemChange(idx, v)} style={styles.picker}>
+                    <Picker.Item label="Select item…" value="" />
+                    {items.map((i) => (
+                      <Picker.Item key={i.id} label={i.name} value={i.id} />
+                    ))}
+                  </Picker>
+                </View>
+                {line.itemId ? (
+                  <View style={[styles.badge, lshort ? styles.badgeBad : styles.badgeGood]}>
+                    <Text style={[styles.badgeText, lshort ? styles.badgeTextBad : styles.badgeTextGood]}>
+                      Live stock: {lavail} {lineItem?.unit || ''}
+                      {lshort ? ' · not enough!' : ''}
+                    </Text>
+                  </View>
+                ) : null}
+                <View style={styles.row}>
+                  <View style={styles.col}>
+                    <Text style={styles.label}>Quantity</Text>
+                    <TextInput style={styles.input} value={line.qty} onChangeText={(v) => setLine(idx, { qty: v })} keyboardType="numeric" />
+                  </View>
+                  <View style={styles.col}>
+                    <Text style={styles.label}>Selling rate (₹)</Text>
+                    <TextInput style={styles.input} value={line.rate} onChangeText={(v) => setLine(idx, { rate: v })} keyboardType="numeric" />
+                  </View>
+                </View>
+                <Text style={styles.label}>GST %</Text>
+                <View style={styles.pickerWrap}>
+                  <Picker selectedValue={line.gstPct} onValueChange={(v) => setLine(idx, { gstPct: v })} style={styles.picker} enabled={!lineItem}>
+                    {['0', '5', '12', '18', '28'].map((g) => (
+                      <Picker.Item key={g} label={`${g}%`} value={g} />
+                    ))}
+                  </Picker>
+                </View>
+              </View>
+            );
+          })}
+          <TouchableOpacity style={styles.addItemBtn} onPress={addLine}>
+            <Text style={styles.addItemText}>＋ Add another item</Text>
+          </TouchableOpacity>
+
+          <Text style={styles.label}>Delivery</Text>
           <View style={styles.pickerWrap}>
-            <Picker selectedValue={order.itemId} onValueChange={onOrderItemChange} style={styles.picker}>
-              <Picker.Item label="Select item…" value="" />
-              {items.map((i) => (
-                <Picker.Item key={i.id} label={i.name} value={i.id} />
-              ))}
+            <Picker selectedValue={order.deliveryType} onValueChange={(v) => setOrder((o) => ({ ...o, deliveryType: v as DeliveryType }))} style={styles.picker}>
+              <Picker.Item label="Ex Works" value="ExWorks" />
+              <Picker.Item label="FOR (we deliver)" value="FOR" />
             </Picker>
-          </View>
-          {order.itemId ? (
-            <View style={[styles.badge, short ? styles.badgeBad : styles.badgeGood]}>
-              <Text style={[styles.badgeText, short ? styles.badgeTextBad : styles.badgeTextGood]}>
-                Live stock: {avail} {items.find((i) => i.id === order.itemId)?.unit || ''}
-                {short ? ' · not enough!' : ''}
-              </Text>
-            </View>
-          ) : null}
-
-          <View style={styles.row}>
-            <View style={styles.col}>
-              <Text style={styles.label}>Quantity</Text>
-              <TextInput style={styles.input} value={order.qty} onChangeText={(v) => setOrder((o) => ({ ...o, qty: v }))} keyboardType="numeric" />
-            </View>
-            <View style={styles.col}>
-              <Text style={styles.label}>Selling rate (₹)</Text>
-              <TextInput style={styles.input} value={order.rate} onChangeText={(v) => setOrder((o) => ({ ...o, rate: v }))} keyboardType="numeric" />
-            </View>
-          </View>
-
-          <View style={styles.row}>
-            <View style={styles.col}>
-              <Text style={styles.label}>GST %</Text>
-              <View style={styles.pickerWrap}>
-                <Picker selectedValue={order.gstPct} onValueChange={(v) => setOrder((o) => ({ ...o, gstPct: v }))} style={styles.picker} enabled={!items.find((i) => i.id === order.itemId)}>
-                  {['0', '5', '12', '18', '28'].map((g) => (
-                    <Picker.Item key={g} label={`${g}%`} value={g} />
-                  ))}
-                </Picker>
-              </View>
-            </View>
-            <View style={styles.col}>
-              <Text style={styles.label}>Delivery</Text>
-              <View style={styles.pickerWrap}>
-                <Picker selectedValue={order.deliveryType} onValueChange={(v) => setOrder((o) => ({ ...o, deliveryType: v as DeliveryType }))} style={styles.picker}>
-                  <Picker.Item label="Ex Works" value="ExWorks" />
-                  <Picker.Item label="FOR (we deliver)" value="FOR" />
-                </Picker>
-              </View>
-            </View>
           </View>
 
           <Text style={styles.label}>Delivery Date</Text>
@@ -343,16 +401,18 @@ export function DashboardScreen() {
           <Text style={styles.label}>Note</Text>
           <TextInput style={styles.input} value={order.note} onChangeText={(v) => setOrder((o) => ({ ...o, note: v }))} placeholder="Order remarks…" />
 
-          {oQty > 0 && oRate > 0 ? (
+          {oGoods > 0 ? (
             <View style={styles.breakdown}>
               <Text style={styles.breakdownTitle}>AMOUNT BREAKDOWN</Text>
               <View style={styles.bdRow}>
-                <Text style={styles.bdLabel}>Goods value ({oQty} × ₹{fmtAmount(oRate)})</Text>
+                <Text style={styles.bdLabel}>
+                  Goods value{orderLines.filter((l) => l.itemId && l.qty && l.rate).length > 1 ? ` (${orderLines.filter((l) => l.itemId && l.qty && l.rate).length} items)` : ''}
+                </Text>
                 <Text style={styles.bdVal}>{inr(oGoods)}</Text>
               </View>
               <View style={styles.bdRow}>
-                <Text style={styles.bdLabel}>GST ({oGst}%)</Text>
-                <Text style={styles.bdVal}>{inr((oGoods * oGst) / 100)}</Text>
+                <Text style={styles.bdLabel}>GST</Text>
+                <Text style={styles.bdVal}>{inr(oGstAmt)}</Text>
               </View>
               <View style={styles.bdDivider} />
               <View style={styles.bdRow}>
@@ -493,6 +553,12 @@ const styles = StyleSheet.create({
   },
   orderCard: { borderWidth: 1, borderColor: '#0d9488' },
   orderTitle: { fontSize: 17, fontWeight: '700', color: '#0f766e' },
+  lineCard: { borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 10, padding: 10, marginTop: 8, backgroundColor: '#f8fafc' },
+  lineHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  lineTitle: { fontSize: 13, fontWeight: '700', color: '#0f766e' },
+  lineRemove: { fontSize: 12.5, fontWeight: '600', color: '#ef4444' },
+  addItemBtn: { marginTop: 10, alignSelf: 'flex-start', paddingVertical: 8, paddingHorizontal: 14, borderRadius: 8, borderWidth: 1, borderColor: '#0d9488', backgroundColor: '#f0fdfa' },
+  addItemText: { color: '#0f766e', fontWeight: '700', fontSize: 13 },
   cardTitle: { fontSize: 16, fontWeight: '700', color: '#0b1220', marginBottom: 10 },
   sectionSub: { color: '#94a3b8', fontSize: 11.5, marginTop: -6, marginBottom: 10 },
   muted: { color: '#94a3b8', fontSize: 12, marginTop: 4 },
