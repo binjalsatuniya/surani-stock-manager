@@ -243,7 +243,10 @@ export function DashboardPage() {
       itemName: single ? first?.name || '' : `\n${itemised}`,
       qty: single ? filledOrderLines[0].qty : String(totalQty),
       unit: single ? first?.unit || '' : first?.unit || '',
-      rate: single ? fmtAmount(filledOrderLines[0].rate) : 'see above',
+      // Multi-item: each item already shows its own rate in the list above, so the single Rate line
+      // just points there. We no longer DELETE the Rate line (that risked removing the Delivery
+      // Terms / Due Days too when the template keeps them near the rate) — we only relabel it.
+      rate: single ? fmtAmount(filledOrderLines[0].rate) : 'see item list above',
       amount: fmtAmount(oTotal),
       date: fmtDate(order.date),
       invNo: 'N/A',
@@ -253,15 +256,6 @@ export function DashboardPage() {
       dueDays: creditDays > 0 ? `${creditDays} days` : '100% against delivery',
       dueDate: 'N/A',
     });
-
-    // Multi-item: the per-item rates are already in the item list, so drop the now-redundant single
-    // "Rate:" line ("see above"). Single-item orders keep their Rate line.
-    if (!single && message) {
-      message = message
-        .split('\n')
-        .filter((l) => !/^\s*\*?Rate:/i.test(l))
-        .join('\n');
-    }
 
     // Open the WhatsApp tab synchronously (inside the click) so the browser never blocks it;
     // we point it at the real wa.me link once the order is saved.
