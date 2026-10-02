@@ -2,6 +2,8 @@ import { Fragment, useEffect, useState } from 'react';
 import type { Item, Party } from '@surani/shared';
 import { api } from '../lib/apiClient';
 import { usePermission } from '../hooks/usePermission';
+import { useAuth } from '../context/AuthContext';
+import { LedgerImportPanel } from '../components/LedgerImportPanel';
 import { readScannedInvoice, type ScannedInvoice, type ScannedLine } from '../lib/invoiceImport';
 import { matchLineItem } from '../lib/matchItem';
 import { SearchSelect } from '../components/SearchSelect';
@@ -99,6 +101,10 @@ const toNum = (s: string): number | null => {
 
 export function ImportScansPage() {
   const can = usePermission();
+  const { user } = useAuth();
+  // The ledger (pending-bills) import is a sensitive, one-off re-baselining tool — Super Admin only.
+  const canLedger = user?.role === 'superadmin';
+  const [mode, setMode] = useState<'invoices' | 'ledger'>('invoices');
   const [parties, setParties] = useState<Party[]>([]);
   const [items, setItems] = useState<Item[]>([]);
   const [rows, setRows] = useState<Row[]>([]);
@@ -290,6 +296,23 @@ export function ImportScansPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {canLedger && (
+        <div className="toolbar" style={{ gap: 8 }}>
+          <button className={`btn btn-sm ${mode === 'invoices' ? 'btn-primary' : ''}`} onClick={() => setMode('invoices')}>
+            Invoice scans
+          </button>
+          <button className={`btn btn-sm ${mode === 'ledger' ? 'btn-primary' : ''}`} onClick={() => setMode('ledger')}>
+            Ledger / Pending Bills
+          </button>
+        </div>
+      )}
+      {canLedger && mode === 'ledger' ? (
+        <div className="card">
+          <h2 style={{ marginTop: 0 }}>Import Ledger — Pending Bills</h2>
+          <LedgerImportPanel />
+        </div>
+      ) : (
+      <>
       <div className="card">
         <h2 style={{ marginTop: 0 }}>Import from Scans</h2>
         <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
@@ -489,6 +512,8 @@ export function ImportScansPage() {
             </tbody>
           </table>
         </div>
+      )}
+      </>
       )}
     </div>
   );

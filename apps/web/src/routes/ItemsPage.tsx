@@ -1,4 +1,4 @@
-import { fmtAmount } from '@surani/shared';
+import { fmtAmount, isOpeningBalanceItem } from '@surani/shared';
 import { useEffect, useState } from 'react';
 import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import { Link } from 'react-router-dom';
@@ -47,7 +47,8 @@ export function ItemsPage() {
   useEscToClose(!!tdsView, () => closeTds());
 
   async function reload() {
-    setItems(await api.items.list());
+    // Hide the hidden ledger-import placeholder item so it never clutters the item list or stock.
+    setItems((await api.items.list()).filter((i) => !isOpeningBalanceItem(i)));
   }
 
   useEffect(() => {

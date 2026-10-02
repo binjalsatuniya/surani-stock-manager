@@ -1,4 +1,4 @@
-import { fmtAmount } from '@surani/shared';
+import { fmtAmount, isOpeningBalanceItem } from '@surani/shared';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { Item, StockLevel } from '@surani/shared';
@@ -16,7 +16,8 @@ export function LiveStockPage() {
 
   async function reload() {
     const [its, levels] = await Promise.all([api.items.list(), api.items.stock()]);
-    setItems(its);
+    // Hide the hidden ledger-import placeholder item from Live Stock.
+    setItems(its.filter((i) => !isOpeningBalanceItem(i)));
     setStock(Object.fromEntries(levels.map((l: StockLevel) => [l.itemId, l.qty])));
   }
 
