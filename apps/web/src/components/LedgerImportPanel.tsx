@@ -4,6 +4,7 @@ import { api } from '../lib/apiClient';
 import { extractPdfText, ocrPdfText } from '../lib/pdfText';
 import { ocrImageText } from '../lib/ocrText';
 import { parseLedgerText, type LedgerParty } from '../lib/ledgerImport';
+import { parseLedgerExcel } from '../lib/excelLedger';
 
 // Each parsed party block, paired with its match against the existing parties (null = would be new).
 interface PartyRow {
@@ -65,26 +66,43 @@ export function LedgerImportPanel() {
     setBusy(true);
     try {
       const name = (file as File).name?.toLowerCase() ?? '';
+      const isExcel =
+        /\.(xlsx|xls|csv)$/.test(name) ||
+        file.type.includes('spreadsheet') ||
+        file.type.includes('excel') ||
+        file.type === 'text/csv';
       const isPdf = file.type === 'application/pdf' || name.endsWith('.pdf');
-      // PDF → read the real text (exact). Image/screenshot → OCR (check figures in the review).
-      setStatus(isPdf ? 'Reading PDF…' : 'Reading image (OCR)…');
-      let text = isPdf ? await extractPdfText(file as File) : await ocrImageText(file);
-      let parsed = parseLedgerText(text);
-      // Many Tally PDFs have a broken text layer (text comes out as gibberish → nothing parses).
-      // Fall back to OCR'ing the rendered pages, which reads the real figures from the pixels.
-      if (isPdf && parsed.parties.length === 0) {
-        setStatus('PDF text was unreadable — scanning it by OCR…');
-        text = await ocrPdfText(file as File, (p, t) => setStatus(`Scanning page ${p} of ${t} by OCR…`));
+      let text = '';
+      let parsed;
+      if (isExcel) {
+        // Excel/CSV → read the real cell values (most exact; no OCR).
+        setStatus('Reading spreadsheet…');
+        parsed = await parseLedgerExcel(file as File);
+      } else {
+        // PDF → read its text (exact when the font is clean). Image/screenshot → OCR.
+        setStatus(isPdf ? 'Reading PDF…' : 'Reading image (OCR)…');
+        text = isPdf ? await extractPdfText(file as File) : await ocrImageText(file);
         parsed = parseLedgerText(text);
+        // Many Tally PDFs have a broken text layer (gibberish → nothing parses). Fall back to OCR'ing
+        // the rendered pages, which reads the real figures from the pixels.
+        if (isPdf && parsed.parties.length === 0) {
+          setStatus('PDF text was unreadable — scanning it by OCR…');
+          text = await ocrPdfText(file as File, (p, t) => setStatus(`Scanning page ${p} of ${t} by OCR…`));
+          parsed = parseLedgerText(text);
+        }
       }
       setStatus('');
       if (parsed.parties.length === 0) {
-        setError('No pending bills could be read. See the raw text below — share it so the reader can be tuned to your layout.');
-        setRawText(
-          text.trim()
-            ? text
-            : '(No text could be extracted — this PDF is probably a scanned image. Paste a screenshot (Ctrl+V) or upload the image instead so it is read by OCR.)'
-        );
+        if (isExcel) {
+          setError('No pending bills could be read from this spreadsheet. Make sure it is the Tally Pending Bills export (with Date / Party / Balance columns).');
+        } else {
+          setError('No pending bills could be read. See the raw text below — share it so the reader can be tuned to your layout.');
+          setRawText(
+            text.trim()
+              ? text
+              : '(No text could be extracted — this PDF is probably a scanned image. Paste a screenshot (Ctrl+V) or upload the image instead so it is read by OCR.)'
+          );
+        }
         setSkipped(parsed.skipped);
         return;
       }
@@ -217,7 +235,7 @@ export function LedgerImportPanel() {
   return (
     <div>
       <div className="card" style={{ background: '#fffbeb', border: '1px solid #fde68a', marginBottom: 16 }}>
-        Upload a Tally <b>“Sundry Debtors – Pending Bills”</b> PDF. Each party’s outstanding bills (invoice no,
+        Upload a Tally <b>“Sundry Debtors – Pending Bills”</b> export (Excel/CSV preferred, or PDF). Each party’s outstanding bills (invoice no,
         date, amount, due date) are read and shown below for review. <b>New parties are flagged</b> — untick any you
         don’t want created. Nothing is saved until you press <b>Import</b>; bills whose invoice number is already in
         the system are skipped automatically.
@@ -225,13 +243,14 @@ export function LedgerImportPanel() {
 
       <input
         type="file"
-        accept="application/pdf,image/*"
+        accept=".xlsx,.xls,.csv,application/pdf,image/*"
         disabled={busy}
         onChange={(e) => handleFile(e.target.files?.[0] ?? null)}
       />
       <p className="muted" style={{ fontSize: 12.5, marginTop: 6 }}>
-        Upload a <b>PDF</b> (most exact) — or <b>paste a screenshot</b> with <b>Ctrl+V</b> / upload an image
-        (read by OCR; double-check the figures in the review below).
+        Best: upload an <b>Excel/CSV</b> export (exact figures, no guessing). Also works: a <b>PDF</b>, or
+        <b> paste a screenshot</b> with <b>Ctrl+V</b> / upload an image (read by OCR — double-check the
+        figures in the review below).
       </p>
 
       {status && (
