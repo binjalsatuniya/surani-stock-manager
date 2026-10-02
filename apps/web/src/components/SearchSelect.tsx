@@ -75,6 +75,9 @@ export function SearchSelect({
   return (
     <div ref={wrapRef} style={{ position: 'relative' }}>
       <input
+        // data-nocaps: this is a type-to-search filter box, not a data field — don't force-uppercase
+        // it (that interferes with typing and filtering). The saved value is the option's id anyway.
+        data-nocaps
         value={inputValue}
         placeholder={placeholder}
         disabled={disabled}
