@@ -46,7 +46,8 @@ export function WhatsappSettingsPage() {
   if (!drafts) return <div className="card">Loading…</div>;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    // data-nocaps: message templates keep their normal casing (don't shout at customers in ALL CAPS).
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }} data-nocaps>
       <div className="card">
         <h2 style={{ marginTop: 0 }}>WhatsApp Messages</h2>
         <p className="muted">

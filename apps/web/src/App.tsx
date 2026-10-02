@@ -4,6 +4,7 @@ import { useAuth } from './context/AuthContext';
 import { usePermission } from './hooks/usePermission';
 import { useEnterKeyNav } from './hooks/useEnterKeyNav';
 import { useDesktopNotifications } from './hooks/useDesktopNotifications';
+import { useForceUppercase } from './hooks/useForceUppercase';
 import { Layout } from './components/Layout';
 import { LoginPage } from './routes/LoginPage';
 import { DashboardPage } from './routes/DashboardPage';
@@ -65,6 +66,7 @@ export function App() {
   const { user, loading } = useAuth();
   useEnterKeyNav();
   useDesktopNotifications(user?.id);
+  useForceUppercase(); // all text entry → UPPERCASE app-wide (except password/email/url and data-nocaps)
 
   if (loading) return null;
   if (!user) return <LoginPage />;

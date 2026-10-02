@@ -346,7 +346,7 @@ export function PartiesPage() {
       </div>
       <div className="field" style={{ margin: 0, flex: 1, minWidth: 220 }}>
         <FieldLabel required={required('party.locationUrl')}>Location Link (Google Maps)</FieldLabel>
-        <input value={form.locationUrl} onChange={(e) => set('locationUrl', e.target.value)} placeholder="https://maps.google.com/..." />
+        <input data-nocaps value={form.locationUrl} onChange={(e) => set('locationUrl', e.target.value)} placeholder="https://maps.google.com/..." />
       </div>
     </div>
   );

@@ -185,7 +185,8 @@ export function LoginPage() {
 
   return (
     <div className="login-shell">
-      <div className="login-card">
+      {/* data-nocaps: never force-uppercase login/recovery fields (usernames are case-sensitive). */}
+      <div className="login-card" data-nocaps>
         <div style={{ marginBottom: 22 }}>
           <SuraniLockup />
         </div>
@@ -194,7 +195,7 @@ export function LoginPage() {
           <div className="field">
             <label>Username</label>
             {/* name + autoComplete let the browser / OS password manager offer to save & fill the login. */}
-            <input name="username" autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} autoFocus />
+            <input name="username" autoComplete="username" data-nocaps value={username} onChange={(e) => setUsername(e.target.value)} autoFocus />
           </div>
           <div className="field">
             <label>Password</label>
