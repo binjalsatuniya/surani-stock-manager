@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, shell, session } = require('electron');
+const { app, BrowserWindow, Menu, shell, session, dialog } = require('electron');
 const path = require('path');
 
 // Turn a WhatsApp web link (wa.me / *.whatsapp.com) into the desktop-app protocol, so the installed
@@ -38,6 +38,46 @@ function enableGeolocation() {
     callback(true); // trusted local app — allow geolocation (and other) requests
   });
   session.defaultSession.setPermissionCheckHandler(() => true);
+}
+
+// The app loads from file://, where a browser-style blob download (used by Backup/Export and the
+// pre-reset backup) silently does nothing unless Electron is told to save it. Save every download
+// straight to the user's Downloads folder (no save dialog to miss or dismiss), then tell them exactly
+// where it landed — so the backup ALWAYS reaches disk when they reset. A name clash gets " (2)", etc.
+function enableDownloads() {
+  const fs = require('fs');
+  session.defaultSession.on('will-download', (_event, item) => {
+    const downloads = app.getPath('downloads');
+    const base = item.getFilename();
+    let savePath = path.join(downloads, base);
+    if (fs.existsSync(savePath)) {
+      const ext = path.extname(base);
+      const stem = path.basename(base, ext);
+      let n = 2;
+      while (fs.existsSync(path.join(downloads, `${stem} (${n})${ext}`))) n++;
+      savePath = path.join(downloads, `${stem} (${n})${ext}`);
+    }
+    item.setSavePath(savePath);
+    item.once('done', (_e, state) => {
+      if (state === 'completed') {
+        dialog
+          .showMessageBox(mainWindow || undefined, {
+            type: 'info',
+            title: 'Backup saved',
+            message: 'Your file has been saved.',
+            detail: savePath,
+            buttons: ['OK', 'Open folder'],
+            defaultId: 0,
+          })
+          .then((r) => {
+            if (r.response === 1) shell.showItemInFolder(savePath);
+          })
+          .catch(() => {});
+      } else {
+        dialog.showErrorBox('Download failed', `Could not save ${base} (${state}).`);
+      }
+    });
+  });
 }
 
 // Keep reference to prevent GC
@@ -169,6 +209,7 @@ app.whenReady().then(() => {
   // (and to group the app on the taskbar). Must match the electron-builder appId.
   if (process.platform === 'win32') app.setAppUserModelId('com.suraniandsons.stockmanager');
   enableGeolocation();
+  enableDownloads();
   buildMenu();
   createWindow();
 
