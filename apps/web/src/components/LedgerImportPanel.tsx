@@ -30,6 +30,8 @@ export function LedgerImportPanel() {
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [report, setReport] = useState('');
   const [error, setError] = useState('');
+  // When nothing parses, we show the raw extracted text so the exact layout can be diagnosed.
+  const [rawText, setRawText] = useState('');
 
   const isDup = (invNo: string) => existingInv.has(invNo.trim().toLowerCase());
 
@@ -67,10 +69,16 @@ export function LedgerImportPanel() {
       const text = isPdf ? await extractPdfText(file as File) : await ocrImageText(file);
       const parsed = parseLedgerText(text);
       if (parsed.parties.length === 0) {
-        setError('No pending bills could be read from this PDF. Make sure it is the Tally "Pending Bills" export.');
+        setError('No pending bills could be read. See the raw text below — share it so the reader can be tuned to your layout.');
+        setRawText(
+          text.trim()
+            ? text
+            : '(No text could be extracted — this PDF is probably a scanned image. Paste a screenshot (Ctrl+V) or upload the image instead so it is read by OCR.)'
+        );
         setSkipped(parsed.skipped);
         return;
       }
+      setRawText('');
       const allParties = await api.parties.list();
       const byName = new Map(allParties.map((p) => [p.name.trim().toLowerCase(), p]));
       const outward = await api.outward.list();
@@ -221,6 +229,23 @@ export function LedgerImportPanel() {
         </p>
       )}
       {error && <p style={{ color: '#dc2626', marginTop: 10 }}>{error}</p>}
+      {rawText && (
+        <pre
+          style={{
+            marginTop: 8,
+            padding: 10,
+            background: '#0f172a',
+            color: '#e2e8f0',
+            borderRadius: 8,
+            fontSize: 11.5,
+            maxHeight: 320,
+            overflow: 'auto',
+            whiteSpace: 'pre-wrap',
+          }}
+        >
+          {rawText.slice(0, 4000) || '(no text could be extracted from this PDF — it may be a scanned image; try pasting a screenshot instead)'}
+        </pre>
+      )}
       {report && <p style={{ color: '#16a34a', marginTop: 10, fontWeight: 600 }}>{report}</p>}
 
       {rows.length > 0 && (
