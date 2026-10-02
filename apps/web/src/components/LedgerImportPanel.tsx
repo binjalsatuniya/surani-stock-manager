@@ -5,11 +5,13 @@ import { extractPdfText, ocrPdfText } from '../lib/pdfText';
 import { ocrImageText } from '../lib/ocrText';
 import { parseLedgerText, type LedgerParty } from '../lib/ledgerImport';
 import { parseLedgerExcel } from '../lib/excelLedger';
+import { SearchSelect } from './SearchSelect';
 
 // Each parsed party block, paired with its match against the existing parties (null = would be new).
 interface PartyRow {
   parsed: LedgerParty;
-  match: Party | null;
+  match: Party | null; // auto-matched existing party (exact name), or null
+  pickedPartyId: string | null; // an existing party the user manually mapped this block to
   create: boolean; // for a NEW party: whether to create it (user can untick to skip its bills)
 }
 
@@ -25,6 +27,7 @@ function daysBetween(fromIso: string, toIso: string): number {
 
 export function LedgerImportPanel() {
   const [rows, setRows] = useState<PartyRow[]>([]);
+  const [allParties, setAllParties] = useState<Party[]>([]);
   const [skipped, setSkipped] = useState<string[]>([]);
   const [existingInv, setExistingInv] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
@@ -107,14 +110,16 @@ export function LedgerImportPanel() {
         return;
       }
       setRawText('');
-      const allParties = await api.parties.list();
-      const byName = new Map(allParties.map((p) => [p.name.trim().toLowerCase(), p]));
+      const parties = await api.parties.list();
+      setAllParties(parties);
+      const byName = new Map(parties.map((p) => [p.name.trim().toLowerCase(), p]));
       const outward = await api.outward.list();
       setExistingInv(new Set(outward.map((o) => (o.invNo || '').trim().toLowerCase()).filter(Boolean)));
       setRows(
         parsed.parties.map((pp) => ({
           parsed: pp,
           match: byName.get(pp.name.trim().toLowerCase()) ?? null,
+          pickedPartyId: null,
           create: true,
         }))
       );
@@ -127,14 +132,17 @@ export function LedgerImportPanel() {
     }
   }
 
-  const newParties = rows.filter((r) => !r.match);
+  // A block is "mapped" if it auto-matched or the user picked an existing party for it.
+  const isMapped = (r: PartyRow) => !!r.match || !!r.pickedPartyId;
+  const willInclude = (r: PartyRow) => isMapped(r) || r.create;
+  const newParties = rows.filter((r) => !isMapped(r));
   const newToCreate = newParties.filter((r) => r.create).length;
   const importableBills = rows.reduce(
-    (s, r) => s + (r.match || r.create ? r.parsed.bills.filter((b) => !isDup(b.invNo)).length : 0),
+    (s, r) => s + (willInclude(r) ? r.parsed.bills.filter((b) => !isDup(b.invNo)).length : 0),
     0
   );
   const grandTotal = rows.reduce(
-    (s, r) => s + (r.match || r.create ? r.parsed.bills.filter((b) => !isDup(b.invNo)).reduce((a, b) => a + b.amount, 0) : 0),
+    (s, r) => s + (willInclude(r) ? r.parsed.bills.filter((b) => !isDup(b.invNo)).reduce((a, b) => a + b.amount, 0) : 0),
     0
   );
 
@@ -170,7 +178,9 @@ export function LedgerImportPanel() {
       let done = 0;
       setProgress({ done, total });
       for (const row of rows) {
-        let party = row.match;
+        // Use the auto-matched party, or one the user picked from the dropdown, else create a new one.
+        const picked = row.pickedPartyId ? allParties.find((p) => p.id === row.pickedPartyId) ?? null : null;
+        let party = row.match ?? picked;
         if (!party) {
           if (!row.create) continue; // user chose not to create this new party → skip its bills
           party = await api.parties.create({
@@ -308,15 +318,36 @@ export function LedgerImportPanel() {
                   <b style={{ fontSize: 15 }}>{row.parsed.name}</b>
                   {row.match ? (
                     <span style={{ fontSize: 12, color: '#16a34a' }}>✓ existing party</span>
+                  ) : row.pickedPartyId ? (
+                    <span style={{ fontSize: 12, color: '#16a34a', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      → {allParties.find((p) => p.id === row.pickedPartyId)?.name}
+                      <button
+                        className="btn btn-sm"
+                        onClick={() => setRows((rs) => rs.map((r, j) => (j === i ? { ...r, pickedPartyId: null } : r)))}
+                      >
+                        change
+                      </button>
+                    </span>
                   ) : (
-                    <label style={{ fontSize: 12, color: '#b45309', display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <input
-                        type="checkbox"
-                        checked={row.create}
-                        onChange={(e) => setRows((rs) => rs.map((r, j) => (j === i ? { ...r, create: e.target.checked } : r)))}
-                      />
-                      NEW — will be created
-                    </label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <label style={{ fontSize: 12, color: '#b45309', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <input
+                          type="checkbox"
+                          checked={row.create}
+                          onChange={(e) => setRows((rs) => rs.map((r, j) => (j === i ? { ...r, create: e.target.checked } : r)))}
+                        />
+                        NEW — will be created
+                      </label>
+                      <span style={{ fontSize: 12, color: '#64748b' }}>or map to existing:</span>
+                      <div style={{ minWidth: 220 }}>
+                        <SearchSelect
+                          value=""
+                          onChange={(id) => setRows((rs) => rs.map((r, j) => (j === i ? { ...r, pickedPartyId: id || null } : r)))}
+                          options={allParties.map((p) => ({ id: p.id, label: p.name }))}
+                          placeholder="Select existing party…"
+                        />
+                      </div>
+                    </div>
                   )}
                   <span style={{ marginLeft: 'auto', fontWeight: 600 }}>{fmtMoney(partyTotal)}</span>
                 </div>
