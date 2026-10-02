@@ -37,6 +37,8 @@ function styles(accent: string) {
   thead tr{background:#f5f7fb}
   tfoot tr{font-weight:700;background:#f5f7fb}
   .grand-total{margin-top:14px;font-size:15px;font-weight:800;text-align:right;border-top:2px solid #0b1220;padding-top:12px}
+  tr.overdue td{color:#dc2626;font-weight:700}
+  .party-sp{color:#0f766e;font-weight:600}
   .pdf-footer{margin-top:26px;padding-top:10px;border-top:1px solid #e2e8f0;font-size:11px;color:#64748b;text-align:center}
   @media print{ @page{margin:16mm} }
 `;
@@ -58,7 +60,12 @@ function footer(layout: PdfLayout) {
   return layout.footer.trim() ? `<div class="pdf-footer">${esc(layout.footer)}</div>` : '';
 }
 
-export function exportDueLedgerPdf(groups: DueLedgerGroup[], spName: string, layout: PdfLayout = defaultPdfLayout()) {
+export function exportDueLedgerPdf(
+  groups: DueLedgerGroup[],
+  spName: string,
+  layout: PdfLayout = defaultPdfLayout(),
+  partySpNames: Record<string, string> = {}
+) {
   if (!groups.length) {
     alert('No pending dues to export for this selection');
     return;
@@ -67,18 +74,21 @@ export function exportDueLedgerPdf(groups: DueLedgerGroup[], spName: string, lay
   const partyBlocks = groups
     .map(({ party, entries, total }) => {
       const rows = entries
-        .map(
-          (e) => `<tr>
+        .map((e) => {
+          // An invoice past its due date is shown in red + bold (whole row via the .overdue class).
+          const overdue = e.dueDays !== null && e.dueDays < 0;
+          return `<tr${overdue ? ' class="overdue"' : ''}>
         <td>${e.invNo || '—'}</td>
         <td>${fmtDate(e.date)}</td>
         <td>${fmtDate(e.dueDate)}</td>
         <td>${e.dueDays === null ? 'No due date' : e.dueDays < 0 ? `${-e.dueDays}d overdue` : `${e.dueDays}d left`}</td>
         <td style="text-align:right">${inr(e.balance)}</td>
-      </tr>`
-        )
+      </tr>`;
+        })
         .join('');
+      const sp = partySpNames[party.id];
       return `<div class="party-block">
-      <div class="party-name">${party.name}${party.phone ? ` &middot; ${party.phone}` : ''}</div>
+      <div class="party-name">${party.name}${party.phone ? ` &middot; ${party.phone}` : ''}${sp ? ` &middot; <span class="party-sp">${esc(sp)}</span>` : ''}</div>
       <table>
         <thead><tr><th>Invoice</th><th>Sale Date</th><th>Due Date</th><th>Status</th><th style="text-align:right">Amount (₹)</th></tr></thead>
         <tbody>${rows}</tbody>

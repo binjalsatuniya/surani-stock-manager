@@ -108,15 +108,26 @@ export function PaymentsPage() {
     window.location.href = buildTelLink(phone);
   }
 
+  // Each party's assigned sales person, by party id — shown after the phone in the PDF.
+  function partySpNames(): Record<string, string> {
+    const spById = new Map(salesPersons.map((s) => [s.id, s.name]));
+    const out: Record<string, string> = {};
+    for (const p of parties) {
+      const n = p.salesPersonId ? spById.get(p.salesPersonId) : undefined;
+      if (n) out[p.id] = n;
+    }
+    return out;
+  }
+
   async function onExportDuePdf() {
     const spName = spFilter ? salesPersons.find((s) => s.id === spFilter)?.name || 'Unknown' : 'All Sales Persons';
-    exportDueLedgerPdf(dueGroups, spName, await getPdfLayout());
+    exportDueLedgerPdf(dueGroups, spName, await getPdfLayout(), partySpNames());
   }
 
   // One party's dues as a printable PDF, then open their WhatsApp chat so the downloaded file can
   // be attached. Browsers can't attach a file to WhatsApp automatically, so this is a two-part flow.
   async function onPartyDuesPdf(g: DueLedgerGroup) {
-    exportDueLedgerPdf([g], g.party.name, await getPdfLayout());
+    exportDueLedgerPdf([g], g.party.name, await getPdfLayout(), partySpNames());
     if (g.party.phone) openWhatsapp(g.party.phone);
   }
 
