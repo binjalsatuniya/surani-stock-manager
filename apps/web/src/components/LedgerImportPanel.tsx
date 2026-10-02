@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { OPENING_BALANCE_ITEM_NAME, type Item, type Party } from '@surani/shared';
 import { api } from '../lib/apiClient';
-import { extractPdfText } from '../lib/pdfText';
+import { extractPdfText, ocrPdfText } from '../lib/pdfText';
 import { ocrImageText } from '../lib/ocrText';
 import { parseLedgerText, type LedgerParty } from '../lib/ledgerImport';
 
@@ -32,6 +32,7 @@ export function LedgerImportPanel() {
   const [error, setError] = useState('');
   // When nothing parses, we show the raw extracted text so the exact layout can be diagnosed.
   const [rawText, setRawText] = useState('');
+  const [status, setStatus] = useState('');
 
   const isDup = (invNo: string) => existingInv.has(invNo.trim().toLowerCase());
 
@@ -66,8 +67,17 @@ export function LedgerImportPanel() {
       const name = (file as File).name?.toLowerCase() ?? '';
       const isPdf = file.type === 'application/pdf' || name.endsWith('.pdf');
       // PDF → read the real text (exact). Image/screenshot → OCR (check figures in the review).
-      const text = isPdf ? await extractPdfText(file as File) : await ocrImageText(file);
-      const parsed = parseLedgerText(text);
+      setStatus(isPdf ? 'Reading PDF…' : 'Reading image (OCR)…');
+      let text = isPdf ? await extractPdfText(file as File) : await ocrImageText(file);
+      let parsed = parseLedgerText(text);
+      // Many Tally PDFs have a broken text layer (text comes out as gibberish → nothing parses).
+      // Fall back to OCR'ing the rendered pages, which reads the real figures from the pixels.
+      if (isPdf && parsed.parties.length === 0) {
+        setStatus('PDF text was unreadable — scanning it by OCR…');
+        text = await ocrPdfText(file as File, (p, t) => setStatus(`Scanning page ${p} of ${t} by OCR…`));
+        parsed = parseLedgerText(text);
+      }
+      setStatus('');
       if (parsed.parties.length === 0) {
         setError('No pending bills could be read. See the raw text below — share it so the reader can be tuned to your layout.');
         setRawText(
@@ -92,8 +102,9 @@ export function LedgerImportPanel() {
       );
       setSkipped(parsed.skipped);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not read the PDF.');
+      setError(e instanceof Error ? e.message : 'Could not read the file.');
     } finally {
+      setStatus('');
       setBusy(false);
     }
   }
@@ -223,7 +234,12 @@ export function LedgerImportPanel() {
         (read by OCR; double-check the figures in the review below).
       </p>
 
-      {busy && progress.total > 0 && (
+      {status && (
+        <p className="muted" style={{ marginTop: 10 }}>
+          {status}
+        </p>
+      )}
+      {busy && progress.total > 0 && !status && (
         <p className="muted" style={{ marginTop: 10 }}>
           Importing… {progress.done}/{progress.total}
         </p>

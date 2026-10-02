@@ -48,3 +48,34 @@ export async function extractPdfText(file: File): Promise<string> {
   }
   return lines.join('\n');
 }
+
+/**
+ * Fallback for PDFs whose embedded text is unusable (e.g. Tally exports with a broken font/ToUnicode
+ * map, where extractPdfText returns gibberish): render each page to an image and OCR the pixels. Slow
+ * but reads the real figures. `onProgress(page, total)` lets the UI show progress.
+ */
+export async function ocrPdfText(file: File, onProgress?: (page: number, total: number) => void): Promise<string> {
+  ensureWorker();
+  const data = new Uint8Array(await file.arrayBuffer());
+  const pdf = await pdfjsLib.getDocument({ data }).promise;
+  const { createWorker } = await import('tesseract.js');
+  const worker = await createWorker('eng');
+  try {
+    let out = '';
+    for (let p = 1; p <= pdf.numPages; p++) {
+      onProgress?.(p, pdf.numPages);
+      const page = await pdf.getPage(p);
+      const viewport = page.getViewport({ scale: 2 }); // 2x for sharper OCR
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      const ctx = canvas.getContext('2d')!;
+      await page.render({ canvasContext: ctx, viewport, canvas }).promise;
+      out += (await worker.recognize(canvas)).data.text + '\n';
+      page.cleanup();
+    }
+    return out;
+  } finally {
+    await worker.terminate();
+  }
+}
