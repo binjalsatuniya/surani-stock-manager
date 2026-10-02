@@ -71,6 +71,11 @@ export function exportDueLedgerPdf(
     return;
   }
   const grandTotal = groups.reduce((s, g) => s + g.total, 0);
+  // Total of only the overdue invoices (past their due date) — shown as its own line under the total.
+  const grandOverdue = groups.reduce(
+    (s, g) => s + g.entries.reduce((a, e) => a + (e.dueDays !== null && e.dueDays < 0 ? e.balance : 0), 0),
+    0
+  );
   const partyBlocks = groups
     .map(({ party, entries, total }) => {
       const rows = entries
@@ -104,6 +109,7 @@ export function exportDueLedgerPdf(
   ${header(layout, 'Outstanding Dues Statement', `Sales Person: ${esc(spName)}`, `Generated ${fmtDate(new Date().toISOString())}`)}
   ${partyBlocks}
   <div class="grand-total">Grand Total: ${inr(grandTotal)}</div>
+  <div class="grand-total" style="color:#dc2626;border-top:none;padding-top:4px">Total Overdue: ${inr(grandOverdue)}</div>
   ${footer(layout)}
   <script>window.onload = function(){ setTimeout(function(){ window.print(); }, 200); };</script>
 </body></html>`;
