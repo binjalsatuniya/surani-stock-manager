@@ -92,12 +92,17 @@ export function exportDueLedgerPdf(
         })
         .join('');
       const sp = partySpNames[party.id];
+      // This party's overdue total = sum of only its past-due invoices.
+      const partyOverdue = entries.reduce((a, e) => a + (e.dueDays !== null && e.dueDays < 0 ? e.balance : 0), 0);
       return `<div class="party-block">
       <div class="party-name">${party.name}${party.phone ? ` &middot; ${party.phone}` : ''}${sp ? ` &middot; <span class="party-sp">${esc(sp)}</span>` : ''}</div>
       <table>
         <thead><tr><th>Invoice</th><th>Sale Date</th><th>Due Date</th><th>Status</th><th style="text-align:right">Amount (₹)</th></tr></thead>
         <tbody>${rows}</tbody>
-        <tfoot><tr><td colspan="4">Total due — ${party.name}</td><td style="text-align:right">${inr(total)}</td></tr></tfoot>
+        <tfoot>
+          <tr><td colspan="4">Total due — ${party.name}</td><td style="text-align:right">${inr(total)}</td></tr>
+          <tr class="overdue"><td colspan="4">Total overdue — ${party.name}</td><td style="text-align:right">${inr(partyOverdue)}</td></tr>
+        </tfoot>
       </table>
     </div>`;
     })
