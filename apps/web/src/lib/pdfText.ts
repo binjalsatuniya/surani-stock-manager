@@ -70,7 +70,7 @@ export async function ocrPdfText(file: File, onProgress?: (page: number, total: 
       canvas.width = viewport.width;
       canvas.height = viewport.height;
       const ctx = canvas.getContext('2d')!;
-      await page.render({ canvasContext: ctx, viewport, canvas }).promise;
+      await page.render({ canvasContext: ctx, viewport }).promise;
       out += (await worker.recognize(canvas)).data.text + '\n';
       page.cleanup();
     }
