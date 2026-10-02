@@ -102,8 +102,9 @@ const toNum = (s: string): number | null => {
 export function ImportScansPage() {
   const can = usePermission();
   const { user } = useAuth();
-  // The ledger (pending-bills) import is a sensitive, one-off re-baselining tool — Super Admin only.
-  const canLedger = user?.role === 'superadmin';
+  // The ledger (pending-bills) import is a sensitive, one-off re-baselining tool — primary Super Admin
+  // (JAYNIL) only, matching the Reset gate. Use isPrimary, not the role label, so it reliably shows.
+  const canLedger = !!user?.isPrimary;
   const [mode, setMode] = useState<'invoices' | 'ledger'>('invoices');
   const [parties, setParties] = useState<Party[]>([]);
   const [items, setItems] = useState<Item[]>([]);
