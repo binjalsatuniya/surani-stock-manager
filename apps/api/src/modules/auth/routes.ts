@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs'; // pure-JS bcrypt (no native build; same hash format, verifies existing passwords)
 import { z } from 'zod';
 import rateLimit from 'express-rate-limit';
 import { prisma } from '../../db/prisma';
