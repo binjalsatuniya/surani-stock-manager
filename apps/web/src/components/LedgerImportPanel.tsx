@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { OPENING_BALANCE_ITEM_NAME, type Item, type Party } from '@surani/shared';
 import { api } from '../lib/apiClient';
 import { extractPdfText } from '../lib/pdfText';
+import { ocrImageText } from '../lib/ocrText';
 import { parseLedgerText, type LedgerParty } from '../lib/ledgerImport';
 
 // Each parsed party block, paired with its match against the existing parties (null = would be new).
@@ -32,14 +33,38 @@ export function LedgerImportPanel() {
 
   const isDup = (invNo: string) => existingInv.has(invNo.trim().toLowerCase());
 
-  async function onPick(file: File | null) {
+  // Paste a screenshot straight from the clipboard (Ctrl+V) — read by OCR, same as an image file.
+  useEffect(() => {
+    function onPaste(e: ClipboardEvent) {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const it of items) {
+        if (it.type.startsWith('image/')) {
+          const blob = it.getAsFile();
+          if (blob) {
+            e.preventDefault();
+            void handleFile(blob);
+            return;
+          }
+        }
+      }
+    }
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function handleFile(file: File | Blob | null) {
     if (!file) return;
     setError('');
     setReport('');
     setRows([]);
     setBusy(true);
     try {
-      const text = await extractPdfText(file);
+      const name = (file as File).name?.toLowerCase() ?? '';
+      const isPdf = file.type === 'application/pdf' || name.endsWith('.pdf');
+      // PDF → read the real text (exact). Image/screenshot → OCR (check figures in the review).
+      const text = isPdf ? await extractPdfText(file as File) : await ocrImageText(file);
       const parsed = parseLedgerText(text);
       if (parsed.parties.length === 0) {
         setError('No pending bills could be read from this PDF. Make sure it is the Tally "Pending Bills" export.');
@@ -181,10 +206,14 @@ export function LedgerImportPanel() {
 
       <input
         type="file"
-        accept="application/pdf"
+        accept="application/pdf,image/*"
         disabled={busy}
-        onChange={(e) => onPick(e.target.files?.[0] ?? null)}
+        onChange={(e) => handleFile(e.target.files?.[0] ?? null)}
       />
+      <p className="muted" style={{ fontSize: 12.5, marginTop: 6 }}>
+        Upload a <b>PDF</b> (most exact) — or <b>paste a screenshot</b> with <b>Ctrl+V</b> / upload an image
+        (read by OCR; double-check the figures in the review below).
+      </p>
 
       {busy && progress.total > 0 && (
         <p className="muted" style={{ marginTop: 10 }}>
