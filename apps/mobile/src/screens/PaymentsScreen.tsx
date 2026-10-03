@@ -216,23 +216,35 @@ export function PaymentsScreen() {
       return;
     }
     const spName = spFilter ? salesPersons.find((s) => s.id === spFilter)?.name || 'Unknown' : 'All Sales Persons';
+    const spById = new Map(salesPersons.map((s) => [s.id, s.name]));
+    const partySpName = (partyId: string) => {
+      const spId = parties.find((p) => p.id === partyId)?.salesPersonId;
+      return spId ? spById.get(spId) : undefined;
+    };
+    const overdueOf = (entries: DueLedgerGroup['entries']) =>
+      entries.reduce((a, e) => a + (e.dueDays !== null && e.dueDays < 0 ? e.balance : 0), 0);
     const grandTotal = dueGroups.reduce((s, g) => s + g.total, 0);
+    const grandOverdue = dueGroups.reduce((s, g) => s + overdueOf(g.entries), 0);
     const partyBlocks = dueGroups
       .map(({ party, entries, total }) => {
         const body = entries
-          .map(
-            (e) =>
-              `<tr><td>${e.invNo || '—'}</td><td>${fmtDate(e.date)}</td><td>${fmtDate(e.dueDate)}</td><td>${dueLabel(
-                e.dueDays
-              )}</td><td style="text-align:right">${inr(e.balance)}</td></tr>`
-          )
+          .map((e) => {
+            const overdue = e.dueDays !== null && e.dueDays < 0;
+            return `<tr${overdue ? ' class="overdue"' : ''}><td>${e.invNo || '—'}</td><td>${fmtDate(e.date)}</td><td>${fmtDate(
+              e.dueDate
+            )}</td><td>${dueLabel(e.dueDays)}</td><td style="text-align:right">${inr(e.balance)}</td></tr>`;
+          })
           .join('');
+        const sp = partySpName(party.id);
         return `<div class="party-block">
-          <div class="party-name">${party.name}${party.phone ? ` &middot; ${party.phone}` : ''}</div>
+          <div class="party-name">${party.name}${party.phone ? ` &middot; ${party.phone}` : ''}${sp ? ` &middot; <span class="party-sp">${sp}</span>` : ''}</div>
           <table>
             <thead><tr><th>Invoice</th><th>Sale Date</th><th>Due Date</th><th>Status</th><th style="text-align:right">Amount (₹)</th></tr></thead>
             <tbody>${body}</tbody>
-            <tfoot><tr><td colspan="4">Total due — ${party.name}</td><td style="text-align:right">${inr(total)}</td></tr></tfoot>
+            <tfoot>
+              <tr><td colspan="4">Total due — ${party.name}</td><td style="text-align:right">${inr(total)}</td></tr>
+              <tr class="overdue"><td colspan="4">Total overdue — ${party.name}</td><td style="text-align:right">${inr(overdueOf(entries))}</td></tr>
+            </tfoot>
           </table>
         </div>`;
       })
@@ -243,16 +255,20 @@ export function PaymentsScreen() {
       .sub{color:#64748b;font-size:12px;margin-bottom:16px}
       .party-block{margin-bottom:18px}
       .party-name{font-weight:700;font-size:13px;margin-bottom:4px}
+      .party-sp{color:#0f766e;font-weight:600}
       table{width:100%;border-collapse:collapse;font-size:12px}
       th,td{border-bottom:1px solid #e2e8f0;padding:6px;text-align:left}
       th{background:#f5f7fb}
       tfoot td{font-weight:700}
+      tr.overdue td{color:#dc2626;font-weight:700}
       .grand-total{margin-top:16px;font-size:14px;font-weight:800;text-align:right}
+      .grand-overdue{font-size:14px;font-weight:800;text-align:right;color:#dc2626}
     </style></head><body>
       <h1>SURANI AND SONS — Outstanding Dues Statement</h1>
       <div class="sub">Sales Person: <b>${spName}</b> &middot; Generated ${fmtDate(new Date().toISOString())}</div>
       ${partyBlocks}
       <div class="grand-total">Grand Total: ${inr(grandTotal)}</div>
+      <div class="grand-overdue">Total Overdue: ${inr(grandOverdue)}</div>
     </body></html>`;
     try {
       const { uri } = await Print.printToFileAsync({ html });
@@ -267,13 +283,16 @@ export function PaymentsScreen() {
   async function onSendPartyDuesPdf(g: DueLedgerGroup) {
     setError('');
     const body = g.entries
-      .map(
-        (e) =>
-          `<tr><td>${e.invNo || '—'}</td><td>${fmtDate(e.date)}</td><td>${fmtDate(e.dueDate)}</td><td>${dueLabel(
-            e.dueDays
-          )}</td><td style="text-align:right">${inr(e.balance)}</td></tr>`
-      )
+      .map((e) => {
+        const overdue = e.dueDays !== null && e.dueDays < 0;
+        return `<tr${overdue ? ' class="overdue"' : ''}><td>${e.invNo || '—'}</td><td>${fmtDate(e.date)}</td><td>${fmtDate(
+          e.dueDate
+        )}</td><td>${dueLabel(e.dueDays)}</td><td style="text-align:right">${inr(e.balance)}</td></tr>`;
+      })
       .join('');
+    const partyOverdue = g.entries.reduce((a, e) => a + (e.dueDays !== null && e.dueDays < 0 ? e.balance : 0), 0);
+    const spId = parties.find((p) => p.id === g.party.id)?.salesPersonId;
+    const sp = spId ? salesPersons.find((s) => s.id === spId)?.name : undefined;
     const html = `<html><head><meta charset="utf-8"><style>
       body{font-family:-apple-system,Roboto,sans-serif;padding:24px;color:#0b1220}
       h1{font-size:18px;margin:0 0 2px}
@@ -282,16 +301,20 @@ export function PaymentsScreen() {
       th,td{border-bottom:1px solid #e2e8f0;padding:7px 6px;text-align:left}
       th{background:#f5f7fb}
       tfoot td{font-weight:700}
+      tr.overdue td{color:#dc2626;font-weight:700}
       .total{margin-top:14px;font-size:15px;font-weight:800;text-align:right;color:#b91c1c}
     </style></head><body>
       <h1>SURANI AND SONS — Outstanding Dues</h1>
-      <div class="sub">${g.party.name}${g.party.phone ? ` &middot; ${g.party.phone}` : ''} &middot; As on ${fmtDate(
+      <div class="sub">${g.party.name}${g.party.phone ? ` &middot; ${g.party.phone}` : ''}${sp ? ` &middot; ${sp}` : ''} &middot; As on ${fmtDate(
         new Date().toISOString()
       )}</div>
       <table>
         <thead><tr><th>Invoice</th><th>Sale Date</th><th>Due Date</th><th>Status</th><th style="text-align:right">Amount (₹)</th></tr></thead>
         <tbody>${body}</tbody>
-        <tfoot><tr><td colspan="4">Total Outstanding</td><td style="text-align:right">${inr(g.total)}</td></tr></tfoot>
+        <tfoot>
+          <tr><td colspan="4">Total Outstanding</td><td style="text-align:right">${inr(g.total)}</td></tr>
+          <tr class="overdue"><td colspan="4">Total Overdue</td><td style="text-align:right">${inr(partyOverdue)}</td></tr>
+        </tfoot>
       </table>
       <div class="total">Total Due: ${inr(g.total)}</div>
       <div class="sub" style="margin-top:16px">Thank you — Surani and Sons</div>
