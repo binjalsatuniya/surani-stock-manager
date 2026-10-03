@@ -3,7 +3,7 @@
 // same header from the editable PDF layout, same sales-person line, red overdue rows, and per-party +
 // grand Total Overdue. Pass one party in `groups` for a single-party statement.
 import { SURANI_LOGO_DATA_URI } from './suraniLogoData';
-import type { PdfLayout } from './pdf-settings';
+import { pdfSettingDefault, type PdfLayout } from './pdf-settings';
 import type { DueLedgerGroup, UnpaidInvoice } from './api-client/ledger';
 
 const inr = (n: number) => `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
@@ -41,7 +41,9 @@ function styles(accent: string) {
 }
 
 function header(layout: PdfLayout, title: string, subject: string, meta: string) {
-  const tagline = layout.tagline.trim() ? `<div class="tagline">${esc(layout.tagline)}</div>` : '';
+  // Always show the brand tagline under the logo: fall back to the built-in default when blank.
+  const tagText = layout.tagline.trim() || pdfSettingDefault('tagline');
+  const tagline = tagText ? `<div class="tagline">${esc(tagText)}</div>` : '';
   const addr = layout.address.trim() ? `<div class="addr">${esc(layout.address)}</div>` : '';
   return `<div class="pdf-head">
     <div class="pdf-brand"><img class="pdf-logo" src="${SURANI_LOGO_DATA_URI}" alt="">${tagline}</div>

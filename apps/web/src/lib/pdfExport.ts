@@ -1,4 +1,4 @@
-import { buildDuesStatementHtml, defaultPdfLayout, type DueLedgerGroup, type ItemLedgerEntry, type PartyLedgerEntry, type PdfLayout, type SalesPersonExpense } from '@surani/shared';
+import { buildDuesStatementHtml, defaultPdfLayout, pdfSettingDefault, type DueLedgerGroup, type ItemLedgerEntry, type PartyLedgerEntry, type PdfLayout, type SalesPersonExpense } from '@surani/shared';
 import { SURANI_LOGO_DATA_URI } from './suraniLogoData';
 
 const inr = (n: number) => `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
@@ -48,7 +48,9 @@ function styles(accent: string) {
 // Header (logo + company name + optional address), a prominent subject line (party / sales person),
 // then a small meta line. Built from the editable layout.
 function header(layout: PdfLayout, title: string, subject: string, meta: string) {
-  const tagline = layout.tagline.trim() ? `<div class="tagline">${esc(layout.tagline)}</div>` : '';
+  // Always show the brand tagline under the logo: fall back to the built-in default when blank.
+  const tagText = layout.tagline.trim() || pdfSettingDefault('tagline');
+  const tagline = tagText ? `<div class="tagline">${esc(tagText)}</div>` : '';
   const addr = layout.address.trim() ? `<div class="addr">${esc(layout.address)}</div>` : '';
   return `<div class="pdf-head">
     <div class="pdf-brand"><img class="pdf-logo" src="${SURANI_LOGO_DATA_URI}" alt="">${tagline}</div>

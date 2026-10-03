@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { PDF_SETTINGS, defaultPdfLayout, type PdfLayout, type PdfSettingKey } from '@surani/shared';
+import { PDF_SETTINGS, defaultPdfLayout, pdfSettingDefault, type PdfLayout, type PdfSettingKey } from '@surani/shared';
 import { api } from '../lib/apiClient';
 import { clearPdfLayoutCache } from '../lib/pdfLayout';
 import { SURANI_LOGO_DATA_URI } from '../lib/suraniLogoData';
@@ -115,9 +115,9 @@ export function PdfLayoutPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, flex: 'none' }}>
               <img src={SURANI_LOGO_DATA_URI} alt="" style={{ width: 56, height: 56, objectFit: 'contain' }} />
-              {draft.tagline.trim() && (
-                <div style={{ fontSize: 10.5, fontStyle: 'italic', color: '#5b7076', whiteSpace: 'nowrap' }}>{draft.tagline}</div>
-              )}
+              <div style={{ fontSize: 10.5, fontStyle: 'italic', color: '#5b7076', whiteSpace: 'nowrap' }}>
+                {draft.tagline.trim() || pdfSettingDefault('tagline')}
+              </div>
             </div>
             <div>
               <div style={{ fontSize: 20, fontWeight: 700, color: draft.accent_color || '#147b8b' }}>
