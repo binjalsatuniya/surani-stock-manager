@@ -23,7 +23,7 @@ function styles(accent: string) {
   .pdf-logo{width:56px;height:56px;object-fit:contain;flex:none}
   h1{font-size:20px;margin:0;color:${esc(accent)}}
   .pdf-title{color:#334155;font-weight:700}
-  .tagline{font-size:10.5px;font-style:italic;color:#5b7076;text-align:center;max-width:120px}
+  .tagline{font-size:10.5px;font-style:italic;color:#5b7076;text-align:center;white-space:nowrap}
   .addr{font-size:11.5px;color:#475569;margin:3px 0 10px}
   .subject{font-size:22px;font-weight:800;color:#0b1220;text-align:center;margin:10px 0 2px}
   .meta{font-size:12px;color:#64748b;text-align:center;margin-bottom:22px}
