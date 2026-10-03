@@ -19,10 +19,11 @@ function styles(accent: string) {
   return `
   body{font-family:Arial,Helvetica,sans-serif;color:#0b1220;padding:28px;font-size:12.5px}
   .pdf-head{display:flex;align-items:center;gap:14px;margin-bottom:2px}
+  .pdf-brand{display:flex;flex-direction:column;align-items:center;gap:2px;flex:none}
   .pdf-logo{width:56px;height:56px;object-fit:contain;flex:none}
   h1{font-size:20px;margin:0;color:${esc(accent)}}
   .pdf-title{color:#334155;font-weight:700}
-  .tagline{font-size:11px;font-style:italic;color:#5b7076;margin-top:1px}
+  .tagline{font-size:10.5px;font-style:italic;color:#5b7076;text-align:center;max-width:120px}
   .addr{font-size:11.5px;color:#475569;margin:3px 0 10px}
   .subject{font-size:22px;font-weight:800;color:#0b1220;text-align:center;margin:10px 0 2px}
   .meta{font-size:12px;color:#64748b;text-align:center;margin-bottom:22px}
@@ -43,8 +44,8 @@ function header(layout: PdfLayout, title: string, subject: string, meta: string)
   const tagline = layout.tagline.trim() ? `<div class="tagline">${esc(layout.tagline)}</div>` : '';
   const addr = layout.address.trim() ? `<div class="addr">${esc(layout.address)}</div>` : '';
   return `<div class="pdf-head">
-    <img class="pdf-logo" src="${SURANI_LOGO_DATA_URI}" alt="">
-    <div><h1>${esc(layout.company_name)} <span class="pdf-title">— ${esc(title)}</span></h1>${tagline}${addr}</div>
+    <div class="pdf-brand"><img class="pdf-logo" src="${SURANI_LOGO_DATA_URI}" alt="">${tagline}</div>
+    <div><h1>${esc(layout.company_name)} <span class="pdf-title">— ${esc(title)}</span></h1>${addr}</div>
   </div>
   <div class="subject">${subject}</div>
   <div class="meta">${meta}</div>`;
