@@ -1,4 +1,4 @@
-import { defaultPdfLayout, type DueLedgerGroup, type ItemLedgerEntry, type PartyLedgerEntry, type PdfLayout, type SalesPersonExpense } from '@surani/shared';
+import { buildDuesStatementHtml, defaultPdfLayout, type DueLedgerGroup, type ItemLedgerEntry, type PartyLedgerEntry, type PdfLayout, type SalesPersonExpense } from '@surani/shared';
 import { SURANI_LOGO_DATA_URI } from './suraniLogoData';
 
 const inr = (n: number) => `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
@@ -70,55 +70,12 @@ export function exportDueLedgerPdf(
     alert('No pending dues to export for this selection');
     return;
   }
-  const grandTotal = groups.reduce((s, g) => s + g.total, 0);
-  // Total of only the overdue invoices (past their due date) — shown as its own line under the total.
-  const grandOverdue = groups.reduce(
-    (s, g) => s + g.entries.reduce((a, e) => a + (e.dueDays !== null && e.dueDays < 0 ? e.balance : 0), 0),
-    0
+  // The document itself is built by the shared template so the phone produces an identical PDF; the
+  // web just adds the auto-print script and opens it in a pop-up.
+  const html = buildDuesStatementHtml(groups, spName, layout, partySpNames).replace(
+    '</body></html>',
+    '<script>window.onload = function(){ setTimeout(function(){ window.print(); }, 200); };</script></body></html>'
   );
-  const partyBlocks = groups
-    .map(({ party, entries, total }) => {
-      const rows = entries
-        .map((e) => {
-          // An invoice past its due date is shown in red + bold (whole row via the .overdue class).
-          const overdue = e.dueDays !== null && e.dueDays < 0;
-          return `<tr${overdue ? ' class="overdue"' : ''}>
-        <td>${e.invNo || '—'}</td>
-        <td>${fmtDate(e.date)}</td>
-        <td>${fmtDate(e.dueDate)}</td>
-        <td>${e.dueDays === null ? 'No due date' : e.dueDays < 0 ? `${-e.dueDays}d overdue` : `${e.dueDays}d left`}</td>
-        <td style="text-align:right">${inr(e.balance)}</td>
-      </tr>`;
-        })
-        .join('');
-      const sp = partySpNames[party.id];
-      // This party's overdue total = sum of only its past-due invoices.
-      const partyOverdue = entries.reduce((a, e) => a + (e.dueDays !== null && e.dueDays < 0 ? e.balance : 0), 0);
-      return `<div class="party-block">
-      <div class="party-name">${party.name}${party.phone ? ` &middot; ${party.phone}` : ''}${sp ? ` &middot; <span class="party-sp">${esc(sp)}</span>` : ''}</div>
-      <table>
-        <thead><tr><th>Invoice</th><th>Sale Date</th><th>Due Date</th><th>Status</th><th style="text-align:right">Amount (₹)</th></tr></thead>
-        <tbody>${rows}</tbody>
-        <tfoot>
-          <tr><td colspan="4">Total due — ${party.name}</td><td style="text-align:right">${inr(total)}</td></tr>
-          <tr class="overdue"><td colspan="4">Total overdue — ${party.name}</td><td style="text-align:right">${inr(partyOverdue)}</td></tr>
-        </tfoot>
-      </table>
-    </div>`;
-    })
-    .join('');
-
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Outstanding Dues — ${spName}</title>
-<style>${styles(layout.accent_color)}</style></head>
-<body>
-  ${header(layout, 'Outstanding Dues Statement', `Sales Person: ${esc(spName)}`, `Generated ${fmtDate(new Date().toISOString())}`)}
-  ${partyBlocks}
-  <div class="grand-total">Grand Total: ${inr(grandTotal)}</div>
-  <div class="grand-total" style="color:#dc2626;border-top:none;padding-top:4px">Total Overdue: ${inr(grandOverdue)}</div>
-  ${footer(layout)}
-  <script>window.onload = function(){ setTimeout(function(){ window.print(); }, 200); };</script>
-</body></html>`;
-
   openPrintWindow(html);
 }
 

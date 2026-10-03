@@ -1,4 +1,4 @@
-import { fmtMoney, fmtAmount } from '@surani/shared';
+import { fmtMoney, fmtAmount, buildDuesStatementHtml, defaultPdfLayout } from '@surani/shared';
 import { useEffect, useState } from 'react';
 import { Alert, Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
@@ -210,66 +210,27 @@ export function PaymentsScreen() {
     setShowForm(true);
   }
 
+  // Map each party id → its sales person name (shown after the phone in the PDF).
+  function partySpNames(): Record<string, string> {
+    const spById = new Map(salesPersons.map((s) => [s.id, s.name]));
+    const out: Record<string, string> = {};
+    for (const p of parties) {
+      const n = p.salesPersonId ? spById.get(p.salesPersonId) : undefined;
+      if (n) out[p.id] = n;
+    }
+    return out;
+  }
+
   async function onExportDuePdf() {
     if (!dueGroups.length) {
       setError('No pending dues to export for this selection.');
       return;
     }
     const spName = spFilter ? salesPersons.find((s) => s.id === spFilter)?.name || 'Unknown' : 'All Sales Persons';
-    const spById = new Map(salesPersons.map((s) => [s.id, s.name]));
-    const partySpName = (partyId: string) => {
-      const spId = parties.find((p) => p.id === partyId)?.salesPersonId;
-      return spId ? spById.get(spId) : undefined;
-    };
-    const overdueOf = (entries: DueLedgerGroup['entries']) =>
-      entries.reduce((a, e) => a + (e.dueDays !== null && e.dueDays < 0 ? e.balance : 0), 0);
-    const grandTotal = dueGroups.reduce((s, g) => s + g.total, 0);
-    const grandOverdue = dueGroups.reduce((s, g) => s + overdueOf(g.entries), 0);
-    const partyBlocks = dueGroups
-      .map(({ party, entries, total }) => {
-        const body = entries
-          .map((e) => {
-            const overdue = e.dueDays !== null && e.dueDays < 0;
-            return `<tr${overdue ? ' class="overdue"' : ''}><td>${e.invNo || '—'}</td><td>${fmtDate(e.date)}</td><td>${fmtDate(
-              e.dueDate
-            )}</td><td>${dueLabel(e.dueDays)}</td><td style="text-align:right">${inr(e.balance)}</td></tr>`;
-          })
-          .join('');
-        const sp = partySpName(party.id);
-        return `<div class="party-block">
-          <div class="party-name">${party.name}${party.phone ? ` &middot; ${party.phone}` : ''}${sp ? ` &middot; <span class="party-sp">${sp}</span>` : ''}</div>
-          <table>
-            <thead><tr><th>Invoice</th><th>Sale Date</th><th>Due Date</th><th>Status</th><th style="text-align:right">Amount (₹)</th></tr></thead>
-            <tbody>${body}</tbody>
-            <tfoot>
-              <tr><td colspan="4">Total due — ${party.name}</td><td style="text-align:right">${inr(total)}</td></tr>
-              <tr class="overdue"><td colspan="4">Total overdue — ${party.name}</td><td style="text-align:right">${inr(overdueOf(entries))}</td></tr>
-            </tfoot>
-          </table>
-        </div>`;
-      })
-      .join('');
-    const html = `<html><head><meta charset="utf-8"><style>
-      body{font-family:-apple-system,Roboto,sans-serif;padding:24px;color:#0b1220}
-      h1{font-size:18px;margin:0 0 4px}
-      .sub{color:#64748b;font-size:12px;margin-bottom:16px}
-      .party-block{margin-bottom:18px}
-      .party-name{font-weight:700;font-size:13px;margin-bottom:4px}
-      .party-sp{color:#0f766e;font-weight:600}
-      table{width:100%;border-collapse:collapse;font-size:12px}
-      th,td{border-bottom:1px solid #e2e8f0;padding:6px;text-align:left}
-      th{background:#f5f7fb}
-      tfoot td{font-weight:700}
-      tr.overdue td{color:#dc2626;font-weight:700}
-      .grand-total{margin-top:16px;font-size:14px;font-weight:800;text-align:right}
-      .grand-overdue{font-size:14px;font-weight:800;text-align:right;color:#dc2626}
-    </style></head><body>
-      <h1>SURANI AND SONS — Outstanding Dues Statement</h1>
-      <div class="sub">Sales Person: <b>${spName}</b> &middot; Generated ${fmtDate(new Date().toISOString())}</div>
-      ${partyBlocks}
-      <div class="grand-total">Grand Total: ${inr(grandTotal)}</div>
-      <div class="grand-overdue">Total Overdue: ${inr(grandOverdue)}</div>
-    </body></html>`;
+    // Built by the SAME shared template the desktop uses, so the PDF is identical (editable company
+    // header from PDF Layout, logo, sales person, red overdue rows, per-party + grand Total Overdue).
+    const layout = await api.pdfSettings.get().catch(() => defaultPdfLayout());
+    const html = buildDuesStatementHtml(dueGroups, spName, layout, partySpNames());
     try {
       const { uri } = await Print.printToFileAsync({ html });
       if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri, { mimeType: 'application/pdf' });
@@ -282,43 +243,9 @@ export function PaymentsScreen() {
   // to send them their own pending amount as a real PDF attachment.
   async function onSendPartyDuesPdf(g: DueLedgerGroup) {
     setError('');
-    const body = g.entries
-      .map((e) => {
-        const overdue = e.dueDays !== null && e.dueDays < 0;
-        return `<tr${overdue ? ' class="overdue"' : ''}><td>${e.invNo || '—'}</td><td>${fmtDate(e.date)}</td><td>${fmtDate(
-          e.dueDate
-        )}</td><td>${dueLabel(e.dueDays)}</td><td style="text-align:right">${inr(e.balance)}</td></tr>`;
-      })
-      .join('');
-    const partyOverdue = g.entries.reduce((a, e) => a + (e.dueDays !== null && e.dueDays < 0 ? e.balance : 0), 0);
-    const spId = parties.find((p) => p.id === g.party.id)?.salesPersonId;
-    const sp = spId ? salesPersons.find((s) => s.id === spId)?.name : undefined;
-    const html = `<html><head><meta charset="utf-8"><style>
-      body{font-family:-apple-system,Roboto,sans-serif;padding:24px;color:#0b1220}
-      h1{font-size:18px;margin:0 0 2px}
-      .sub{color:#64748b;font-size:12px;margin-bottom:16px}
-      table{width:100%;border-collapse:collapse;font-size:12px}
-      th,td{border-bottom:1px solid #e2e8f0;padding:7px 6px;text-align:left}
-      th{background:#f5f7fb}
-      tfoot td{font-weight:700}
-      tr.overdue td{color:#dc2626;font-weight:700}
-      .total{margin-top:14px;font-size:15px;font-weight:800;text-align:right;color:#b91c1c}
-    </style></head><body>
-      <h1>SURANI AND SONS — Outstanding Dues</h1>
-      <div class="sub">${g.party.name}${g.party.phone ? ` &middot; ${g.party.phone}` : ''}${sp ? ` &middot; ${sp}` : ''} &middot; As on ${fmtDate(
-        new Date().toISOString()
-      )}</div>
-      <table>
-        <thead><tr><th>Invoice</th><th>Sale Date</th><th>Due Date</th><th>Status</th><th style="text-align:right">Amount (₹)</th></tr></thead>
-        <tbody>${body}</tbody>
-        <tfoot>
-          <tr><td colspan="4">Total Outstanding</td><td style="text-align:right">${inr(g.total)}</td></tr>
-          <tr class="overdue"><td colspan="4">Total Overdue</td><td style="text-align:right">${inr(partyOverdue)}</td></tr>
-        </tfoot>
-      </table>
-      <div class="total">Total Due: ${inr(g.total)}</div>
-      <div class="sub" style="margin-top:16px">Thank you — Surani and Sons</div>
-    </body></html>`;
+    // Same shared template as the desktop and the full export — one party only.
+    const layout = await api.pdfSettings.get().catch(() => defaultPdfLayout());
+    const html = buildDuesStatementHtml([g], g.party.name, layout, partySpNames());
     try {
       const { uri } = await Print.printToFileAsync({ html });
       if (await Sharing.isAvailableAsync()) {
