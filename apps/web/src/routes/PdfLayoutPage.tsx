@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { PDF_SETTINGS, defaultPdfLayout, pdfSettingDefault, type PdfLayout, type PdfSettingKey } from '@surani/shared';
 import { api } from '../lib/apiClient';
-import { clearPdfLayoutCache } from '../lib/pdfLayout';
+import { clearPdfLayoutCache, savePdfLayoutLocal, clearPdfLayoutLocal, readPdfLayoutLocal } from '../lib/pdfLayout';
 import { SURANI_LOGO_DATA_URI } from '../lib/suraniLogoData';
 import { fileToLetterheadDataUrl } from '../lib/letterhead';
 
@@ -10,13 +10,17 @@ export function PdfLayoutPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [lhBusy, setLhBusy] = useState(false);
 
   useEffect(() => {
+    // Overlay any device-local layout so a letterhead saved here (even when the server write failed)
+    // still shows in the editor and preview.
+    const local = readPdfLayoutLocal();
     api.pdfSettings
       .get()
-      .then(setDraft)
-      .catch(() => setDraft(defaultPdfLayout()));
+      .then((server) => setDraft(local ? { ...server, ...local } : server))
+      .catch(() => setDraft(local ? { ...defaultPdfLayout(), ...local } : defaultPdfLayout()));
   }, []);
 
   function set(key: PdfSettingKey, value: string) {
@@ -41,19 +45,26 @@ export function PdfLayoutPage() {
   async function onSave() {
     if (!draft) return;
     setError('');
+    setNotice('');
     setSaving(true);
+    // Always keep a copy on this device first, so the layout shows in the PDFs here even if the
+    // server write fails.
+    savePdfLayoutLocal(draft);
     try {
       let latest = draft;
       // Save each field; the API returns the full merged layout each time.
       for (const s of PDF_SETTINGS) {
         latest = await api.pdfSettings.update(s.key, draft[s.key]);
       }
-      setDraft(latest);
+      setDraft({ ...latest, ...draft });
+      savePdfLayoutLocal({ ...latest, ...draft });
       clearPdfLayoutCache();
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to save. Make sure the pdf_settings migration has been run in Neon.');
+    } catch {
+      // Server refused (e.g. the pdf_settings table is missing). The device copy still applies here.
+      clearPdfLayoutCache();
+      setNotice('Saved on this computer — your layout will show in PDFs here. It could not be stored on the server yet, so other devices (phone) won’t see it until that’s fixed.');
     } finally {
       setSaving(false);
     }
@@ -62,17 +73,19 @@ export function PdfLayoutPage() {
   async function onResetAll() {
     if (!confirm('Reset all PDF layout settings back to their defaults?')) return;
     setError('');
+    setNotice('');
     setSaving(true);
+    clearPdfLayoutLocal();
     try {
-      let latest = draft ?? defaultPdfLayout();
+      let latest = defaultPdfLayout();
       for (const s of PDF_SETTINGS) {
         latest = await api.pdfSettings.reset(s.key);
       }
       setDraft(latest);
-      clearPdfLayoutCache();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to reset');
+    } catch {
+      setDraft(defaultPdfLayout());
     } finally {
+      clearPdfLayoutCache();
       setSaving(false);
     }
   }
@@ -91,6 +104,11 @@ export function PdfLayoutPage() {
           and colour.
         </p>
         {error && <div className="login-err show">{error}</div>}
+        {notice && (
+          <div style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', borderRadius: 6, padding: '8px 12px', fontSize: 12.5, marginBottom: 10 }}>
+            {notice}
+          </div>
+        )}
 
         <div className="toolbar" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12, maxWidth: 520 }}>
           {PDF_SETTINGS.map((s) => (
