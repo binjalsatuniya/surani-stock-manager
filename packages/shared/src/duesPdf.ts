@@ -44,9 +44,7 @@ function header(layout: PdfLayout, title: string, subject: string, meta: string)
   // Always show the brand tagline under the logo: fall back to the built-in default when blank.
   const tagText = layout.tagline.trim() || pdfSettingDefault('tagline');
   const tagline = tagText ? `<div class="tagline">${esc(tagText)}</div>` : '';
-  // Always show the address under the company name: fall back to the built-in default when blank.
-  const addrText = layout.address.trim() || pdfSettingDefault('address');
-  const addr = addrText ? `<div class="addr">${esc(addrText)}</div>` : '';
+  const addr = layout.address.trim() ? `<div class="addr">${esc(layout.address)}</div>` : '';
   return `<div class="pdf-head">
     <div class="pdf-brand"><img class="pdf-logo" src="${SURANI_LOGO_DATA_URI}" alt="">${tagline}</div>
     <div><h1>${esc(layout.company_name)} <span class="pdf-title">— ${esc(title)}</span></h1>${addr}</div>

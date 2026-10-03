@@ -123,7 +123,7 @@ export function PdfLayoutPage() {
               <div style={{ fontSize: 20, fontWeight: 700, color: draft.accent_color || '#147b8b' }}>
                 {draft.company_name || 'SURANI AND SONS'} <span style={{ color: '#334155' }}>— Party Ledger</span>
               </div>
-              <div style={{ fontSize: 11.5, color: '#475569', marginTop: 4 }}>{draft.address.trim() || pdfSettingDefault('address')}</div>
+              {draft.address.trim() && <div style={{ fontSize: 11.5, color: '#475569', marginTop: 4 }}>{draft.address}</div>}
             </div>
           </div>
           <div style={{ fontSize: 14, fontWeight: 600, color: '#475569', marginTop: 6 }}>Sample Party · Generated today</div>
