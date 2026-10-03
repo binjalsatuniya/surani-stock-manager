@@ -4,6 +4,7 @@ import { Alert, Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpaci
 import { Picker } from '@react-native-picker/picker';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import { File, Paths } from 'expo-file-system';
 import {
   buildWhatsappLink,
   buildTelLink,
@@ -231,9 +232,29 @@ export function PaymentsScreen() {
     // header from PDF Layout, logo, sales person, red overdue rows, per-party + grand Total Overdue).
     const layout = await api.pdfSettings.get().catch(() => defaultPdfLayout());
     const html = buildDuesStatementHtml(dueGroups, spName, layout, partySpNames());
+    await shareDuesPdf(html, spName);
+  }
+
+  // Print the dues HTML, rename the file to "Outstanding Dues — <name>.pdf" (so it shares with a
+  // meaningful name like the desktop, not a random temp name), then open the share sheet.
+  async function shareDuesPdf(html: string, name: string, dialogTitle?: string) {
     try {
       const { uri } = await Print.printToFileAsync({ html });
-      if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri, { mimeType: 'application/pdf' });
+      if (!(await Sharing.isAvailableAsync())) {
+        setError('Sharing is not available on this phone.');
+        return;
+      }
+      let shareUri = uri;
+      try {
+        const safe = `Outstanding Dues — ${name}`.replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 80) || 'Outstanding Dues';
+        const dest = new File(Paths.cache, `${safe}.pdf`);
+        if (dest.exists) dest.delete();
+        new File(uri).copy(dest);
+        shareUri = dest.uri;
+      } catch {
+        /* keep the original temp file if renaming fails */
+      }
+      await Sharing.shareAsync(shareUri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf', ...(dialogTitle ? { dialogTitle } : {}) });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not create the PDF.');
     }
@@ -246,16 +267,7 @@ export function PaymentsScreen() {
     // Same shared template as the desktop and the full export — one party only.
     const layout = await api.pdfSettings.get().catch(() => defaultPdfLayout());
     const html = buildDuesStatementHtml([g], g.party.name, layout, partySpNames());
-    try {
-      const { uri } = await Print.printToFileAsync({ html });
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: `Send ${g.party.name}'s dues on WhatsApp` });
-      } else {
-        setError('Sharing is not available on this phone.');
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not create the PDF.');
-    }
+    await shareDuesPdf(html, g.party.name, `Send ${g.party.name}'s dues on WhatsApp`);
   }
 
   return (
