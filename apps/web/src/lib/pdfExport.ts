@@ -25,6 +25,8 @@ function styles(accent: string) {
   .pdf-head{display:flex;align-items:center;gap:14px;margin-bottom:2px}
   .pdf-brand{display:flex;flex-direction:column;align-items:center;gap:2px;flex:none}
   .pdf-logo{width:56px;height:56px;object-fit:contain;flex:none}
+  .pdf-letterhead{display:block;width:100%;max-height:220px;object-fit:contain;margin:0 0 6px}
+  .doc-title{font-size:16px;font-weight:700;color:#334155;text-align:center;margin:4px 0 0}
   h1{font-size:20px;margin:0;color:${esc(accent)}}
   .pdf-title{color:#334155;font-weight:700}
   .tagline{font-size:10.5px;font-style:italic;color:#5b7076;text-align:center;white-space:nowrap}
@@ -48,6 +50,14 @@ function styles(accent: string) {
 // Header (logo + company name + optional address), a prominent subject line (party / sales person),
 // then a small meta line. Built from the editable layout.
 function header(layout: PdfLayout, title: string, subject: string, meta: string) {
+  // A letterhead image (if uploaded) replaces the logo / name / tagline / address block — it already
+  // carries all of that. The document title + meta still show below it.
+  if (layout.letterhead && layout.letterhead.trim()) {
+    return `<img class="pdf-letterhead" src="${layout.letterhead}" alt="">
+  <div class="doc-title">${esc(title)}</div>
+  <div class="subject">${subject}</div>
+  <div class="meta">${meta}</div>`;
+  }
   // Always show the brand tagline under the logo: fall back to the built-in default when blank.
   const tagText = layout.tagline.trim() || pdfSettingDefault('tagline');
   const tagline = tagText ? `<div class="tagline">${esc(tagText)}</div>` : '';

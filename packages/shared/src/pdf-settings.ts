@@ -1,17 +1,24 @@
 // Editable layout for the generated PDFs (Party Ledger, Outstanding Dues, Expense Ledger).
 // Managed by the primary Super Admin in the "PDF Layout" tab; stored server-side as key/value.
 
-export type PdfSettingKey = 'company_name' | 'tagline' | 'address' | 'footer' | 'accent_color';
+export type PdfSettingKey = 'company_name' | 'tagline' | 'address' | 'footer' | 'accent_color' | 'letterhead';
 
 export interface PdfSettingDef {
   key: PdfSettingKey;
   label: string;
   hint?: string;
   default: string;
-  type: 'text' | 'color';
+  type: 'text' | 'color' | 'image';
 }
 
 export const PDF_SETTINGS: PdfSettingDef[] = [
+  {
+    key: 'letterhead',
+    label: 'Letterhead (top of every PDF)',
+    hint: 'Upload your letterhead as a PDF or image. When set, it replaces the logo / name / tagline / address header. Leave empty to use the text header below.',
+    default: '',
+    type: 'image',
+  },
   { key: 'company_name', label: 'Company name (header)', default: 'SURANI AND SONS', type: 'text' },
   {
     key: 'tagline',

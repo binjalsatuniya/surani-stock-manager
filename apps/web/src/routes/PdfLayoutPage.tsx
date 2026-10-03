@@ -3,12 +3,14 @@ import { PDF_SETTINGS, defaultPdfLayout, pdfSettingDefault, type PdfLayout, type
 import { api } from '../lib/apiClient';
 import { clearPdfLayoutCache } from '../lib/pdfLayout';
 import { SURANI_LOGO_DATA_URI } from '../lib/suraniLogoData';
+import { fileToLetterheadDataUrl } from '../lib/letterhead';
 
 export function PdfLayoutPage() {
   const [draft, setDraft] = useState<PdfLayout | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
+  const [lhBusy, setLhBusy] = useState(false);
 
   useEffect(() => {
     api.pdfSettings
@@ -20,6 +22,20 @@ export function PdfLayoutPage() {
   function set(key: PdfSettingKey, value: string) {
     setDraft((d) => (d ? { ...d, [key]: value } : d));
     setSaved(false);
+  }
+
+  async function onLetterheadFile(file: File | undefined) {
+    if (!file) return;
+    setError('');
+    setLhBusy(true);
+    try {
+      const dataUrl = await fileToLetterheadDataUrl(file);
+      set('letterhead', dataUrl);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not read that letterhead file');
+    } finally {
+      setLhBusy(false);
+    }
   }
 
   async function onSave() {
@@ -80,7 +96,39 @@ export function PdfLayoutPage() {
           {PDF_SETTINGS.map((s) => (
             <div className="field" style={{ margin: 0 }} key={s.key}>
               <label>{s.label}</label>
-              {s.type === 'color' ? (
+              {s.type === 'image' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {draft[s.key] ? (
+                    <img
+                      src={draft[s.key]}
+                      alt="letterhead"
+                      style={{ maxWidth: '100%', maxHeight: 160, objectFit: 'contain', border: '1px solid #e2e8f0', borderRadius: 6, background: '#fff', padding: 4 }}
+                    />
+                  ) : (
+                    <div style={{ fontSize: 12, color: '#94a3b8' }}>No letterhead uploaded — the PDFs use the text header below.</div>
+                  )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <label className="btn btn-sm" style={{ cursor: lhBusy ? 'wait' : 'pointer' }}>
+                      {lhBusy ? 'Reading…' : draft[s.key] ? 'Replace…' : 'Upload PDF or image…'}
+                      <input
+                        type="file"
+                        accept="application/pdf,image/*"
+                        disabled={lhBusy}
+                        style={{ display: 'none' }}
+                        onChange={(e) => {
+                          onLetterheadFile(e.target.files?.[0]);
+                          e.target.value = '';
+                        }}
+                      />
+                    </label>
+                    {draft[s.key] && (
+                      <button type="button" className="btn btn-sm" onClick={() => set(s.key, '')} disabled={lhBusy}>
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ) : s.type === 'color' ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <input type="color" value={draft[s.key] || '#0f766e'} onChange={(e) => set(s.key, e.target.value)} style={{ width: 48, height: 34, padding: 2 }} />
                   <input value={draft[s.key]} onChange={(e) => set(s.key, e.target.value)} style={{ width: 120 }} />
@@ -112,20 +160,27 @@ export function PdfLayoutPage() {
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Preview</h3>
         <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 20, background: '#fff' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, flex: 'none' }}>
-              <img src={SURANI_LOGO_DATA_URI} alt="" style={{ width: 56, height: 56, objectFit: 'contain' }} />
-              <div style={{ fontSize: 10.5, fontStyle: 'italic', color: '#5b7076', whiteSpace: 'nowrap' }}>
-                {draft.tagline.trim() || pdfSettingDefault('tagline')}
+          {draft.letterhead ? (
+            <>
+              <img src={draft.letterhead} alt="" style={{ display: 'block', width: '100%', maxHeight: 220, objectFit: 'contain', marginBottom: 6 }} />
+              <div style={{ fontSize: 16, fontWeight: 700, color: '#334155', textAlign: 'center' }}>Party Ledger</div>
+            </>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, flex: 'none' }}>
+                <img src={SURANI_LOGO_DATA_URI} alt="" style={{ width: 56, height: 56, objectFit: 'contain' }} />
+                <div style={{ fontSize: 10.5, fontStyle: 'italic', color: '#5b7076', whiteSpace: 'nowrap' }}>
+                  {draft.tagline.trim() || pdfSettingDefault('tagline')}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: draft.accent_color || '#147b8b' }}>
+                  {draft.company_name || 'SURANI AND SONS'} <span style={{ color: '#334155' }}>— Party Ledger</span>
+                </div>
+                {draft.address.trim() && <div style={{ fontSize: 11.5, color: '#475569', marginTop: 4 }}>{draft.address}</div>}
               </div>
             </div>
-            <div>
-              <div style={{ fontSize: 20, fontWeight: 700, color: draft.accent_color || '#147b8b' }}>
-                {draft.company_name || 'SURANI AND SONS'} <span style={{ color: '#334155' }}>— Party Ledger</span>
-              </div>
-              {draft.address.trim() && <div style={{ fontSize: 11.5, color: '#475569', marginTop: 4 }}>{draft.address}</div>}
-            </div>
-          </div>
+          )}
           <div style={{ fontSize: 14, fontWeight: 600, color: '#475569', marginTop: 6 }}>Sample Party · Generated today</div>
           <div style={{ marginTop: 14, border: '1px dashed #cbd5e1', borderRadius: 6, padding: 12, color: '#94a3b8', fontSize: 12 }}>
             (ledger table appears here)
