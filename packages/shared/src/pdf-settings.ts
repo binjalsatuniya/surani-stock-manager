@@ -30,8 +30,8 @@ export const PDF_SETTINGS: PdfSettingDef[] = [
   {
     key: 'address',
     label: 'Address / sub-line',
-    hint: 'Shown small under the company name. Leave blank to hide.',
-    default: '',
+    hint: 'Shown small under the company name. Leave blank to use the default address.',
+    default: 'SHOP NO. 5, SHREE KUBER SHOPPING CENTER, NR. BHARAT PARTY PLOT, OPP. BHARATINAGAR, RABARI COLONY CROSS ROAD, AMRAIWADI, Ahmedabad, Gujarat, 380026.',
     type: 'text',
   },
   {
